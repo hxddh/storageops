@@ -29,7 +29,10 @@ def _tmp() -> Path:
 class TestListSessions(unittest.TestCase):
 
     def test_empty_file(self):
-        p = _tmp(); p.write_text(""); result = list_sessions(path=p); p.unlink()
+        p = _tmp()
+        p.write_text("")
+        result = list_sessions(path=p)
+        p.unlink()
         self.assertEqual(result, [])
 
     def test_missing_file(self):
@@ -51,7 +54,8 @@ class TestListSessions(unittest.TestCase):
             {"ts": _ts(), "session": "s1", "event": "session_end",
              "turns_used": 2, "outcome": "success"},
         ])
-        sessions = list_sessions(path=p); p.unlink()
+        sessions = list_sessions(path=p)
+        p.unlink()
         self.assertEqual(len(sessions), 1)
         s = sessions[0]
         self.assertEqual(s["session_id"], "s1")
@@ -72,7 +76,8 @@ class TestListSessions(unittest.TestCase):
                  "turns_used": 1, "outcome": "success"},
             ]
         _write(p, rows)
-        sessions = list_sessions(limit=3, path=p); p.unlink()
+        sessions = list_sessions(limit=3, path=p)
+        p.unlink()
         self.assertLessEqual(len(sessions), 3)
 
     def test_in_progress_session_has_outcome(self):
@@ -81,7 +86,8 @@ class TestListSessions(unittest.TestCase):
             {"ts": _ts(), "session": "open", "event": "session_start",
              "domain": "test", "provider": "mock"},
         ])
-        sessions = list_sessions(path=p); p.unlink()
+        sessions = list_sessions(path=p)
+        p.unlink()
         self.assertEqual(len(sessions), 1)
         self.assertEqual(sessions[0]["outcome"], "in_progress")
 
@@ -95,21 +101,26 @@ class TestGetSession(unittest.TestCase):
             {"ts": _ts(), "session": "bbb", "event": "session_start", "domain": "y"},
             {"ts": _ts(), "session": "aaa", "event": "session_end", "outcome": "success"},
         ])
-        events = get_session("aaa", path=p); p.unlink()
+        events = get_session("aaa", path=p)
+        p.unlink()
         self.assertEqual(len(events), 2)
         self.assertTrue(all(e["session"] == "aaa" for e in events))
 
     def test_nonexistent_returns_empty(self):
         p = _tmp()
         _write(p, [{"ts": _ts(), "session": "aaa", "event": "session_start"}])
-        self.assertEqual(get_session("zzz", path=p), []); p.unlink()
+        result = get_session("zzz", path=p)
+        p.unlink()
+        self.assertEqual(result, [])
 
 
 class TestComputeStats(unittest.TestCase):
 
     def test_empty(self):
-        p = _tmp(); p.write_text("")
-        stats = compute_stats(path=p); p.unlink()
+        p = _tmp()
+        p.write_text("")
+        stats = compute_stats(path=p)
+        p.unlink()
         self.assertEqual(stats["sessions"], 0)
         self.assertEqual(stats["total_tokens"], 0)
 
@@ -127,7 +138,8 @@ class TestComputeStats(unittest.TestCase):
             {"ts": _ts(), "session": "s1", "event": "session_end",
              "turns_used": 2, "outcome": "success"},
         ])
-        stats = compute_stats(path=p); p.unlink()
+        stats = compute_stats(path=p)
+        p.unlink()
         self.assertEqual(stats["sessions"], 1)
         self.assertEqual(stats["total_input_tokens"], 500)
         self.assertEqual(stats["total_output_tokens"], 100)
@@ -143,7 +155,8 @@ class TestComputeStats(unittest.TestCase):
             {"ts": _ts(), "session": "s1", "event": "session_start",
              "domain": "x", "provider": "mock"},
         ])
-        stats = compute_stats(path=p); p.unlink()
+        stats = compute_stats(path=p)
+        p.unlink()
         self.assertIsNone(stats["critique_confirmation_rate"])
 
 
