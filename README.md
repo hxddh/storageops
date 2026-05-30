@@ -1,8 +1,38 @@
-# StorageOps Skill Pack v0.1
+# StorageOps v1.0
 
-A professional diagnostic skill pack for object storage operations. Designed for
-coding agents (Codex, Claude Code, Amp, etc.) to perform structured, evidence-based
-diagnostics on S3-compatible object storage systems.
+[![CI](https://github.com/YOUR_USERNAME/storageops/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/storageops/actions)
+
+A professional diagnostic system for object storage operations. Stack:
+- **Skills** — 10 agent-readable diagnostic skills with reference docs
+- **Core** — 5 parsers + 5 analyzers + secret scanner (offline, no cloud deps)
+- **CLI** — `storageops triage|analyze|report|eval|agent`
+- **Agent** — autonomous multi-turn evidence collection and diagnosis
+
+## Quick Start
+
+```bash
+git clone https://github.com/YOUR_USERNAME/storageops.git
+cd storageops
+pip install -e storageops-cli/
+
+# Run the agent on a debug log
+storageops agent agents/skills/storageops-eval-golden-cases/cases/rclone-corrupted-transfer/input/rclone-debug.log
+```
+
+## Architecture
+
+```
+agents/skills/          ← v0.1: 10 diagnostic Skills (knowledge layer)
+    ↓ references
+storageops-core/         ← v0.2: Parsers + Analyzers (processing layer)
+    ↓ imports
+storageops-cli/          ← v0.3: CLI (interface layer)
+    └── storageops agent ← v1.0: Autonomous Agent (orchestration layer)
+```
+
+Each layer builds on the one below. Skills define what to diagnose, Core
+parses raw data, CLI wraps it as commands, Agent orchestrates multi-turn
+conversations.
 
 ## Why Skills First?
 
@@ -55,31 +85,31 @@ agents/skills/
 ## Roadmap
 
 ```
-v0.1: Skill Pack (current)
+v0.1: Skill Pack ✅
   ├── 10 diagnostic Skills
   ├── Reference documentation
   ├── Evidence report templates
   └── Golden case evaluation framework
 
-v0.2: storageops-core
-  ├── Log parsers (awscli debug, bcecmd, rclone, s5cmd, obsutil)
-  ├── Output normalizers
-  ├── Structured diagnostic analyzers
-  └── Secret redaction engine
+v0.2: storageops-core ✅
+  ├── 5 parsers (awscli, rclone, s5cmd, sigv4, lifecycle XML)
+  ├── 5 analyzers (throughput, throttling, policy, metadata amp, cost)
+  ├── Secret scanner (11 patterns)
+  └── Eval runner (7-dimension scoring + unsafe output gates)
 
-v0.3: storageops CLI
-  ├── `storageops triage <log-file>`
-  ├── `storageops analyze <domain> <evidence>`
-  ├── `storageops report <diagnosis-id>`
-  └── `storageops eval <golden-case-dir>`
+v0.3: storageops CLI ✅
+  ├── `storageops triage <evidence>`
+  ├── `storageops analyze <domain> <input>`
+  ├── `storageops report <analysis.json>`
+  └── `storageops eval --all`
 
-v1.0: StorageOps Agent
-  ├── Autonomous diagnostic agent
-  ├── Multi-turn evidence collection
-  ├── Interactive report generation
-  └── Integration with coding agent ecosystems
+v1.0: StorageOps Agent ✅
+  ├── Autonomous multi-turn evidence collection
+  ├── Multi-domain detection and routing
+  ├── Evidence quality assessment
+  └── Structured diagnostic report generation
 
-v2.0: Enterprise Platform
+v2.0: Enterprise Platform (future)
   ├── Multi-tenant diagnostics
   ├── Scheduled health checks
   ├── Real-time monitoring integration
@@ -92,13 +122,18 @@ v2.0: Enterprise Platform
 - **Evidence-based only.** No speculation without supporting evidence.
 - **Secrets are redacted.** AK/SK, tokens, cookies, Authorization headers → `[REDACTED]`.
 - **Read-only by default.** Mutating commands are tagged `manual-only`.
-- **No cloud connections.** v0.1 operates entirely offline on provided artifacts.
+- **No cloud connections.** Operates entirely offline on provided artifacts.
 
-## Getting Started
+## Testing
 
-1. Load the Skill Pack into your coding agent.
-2. When an object storage issue arises, start with `storageops-triage`.
-3. The triage Skill will classify the issue and route to specialist Skills.
-4. Collect evidence as directed by the specialist Skill.
-5. Use `storageops-evidence-reporting` to produce structured reports.
-6. Validate diagnostic quality with `storageops-eval-golden-cases`.
+```bash
+# Smoke tests (7 parsers + analyzers)
+python storageops-core/tests/smoke_test.py
+
+# Real-world validation (5 cases)
+python tests/validation/run_validation.py
+
+# Golden case evaluation
+storageops eval --cases-dir agents/skills/storageops-eval-golden-cases/cases \
+  --outputs-dir docs/examples --case rclone-corrupted-transfer
+```
