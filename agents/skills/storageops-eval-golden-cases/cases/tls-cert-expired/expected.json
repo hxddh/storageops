@@ -1,0 +1,11 @@
+{
+  "expected_category": "network_endpoint_access",
+  "expected_root_cause_types": ["tls_certificate_expired", "outdated_ca_bundle", "ssl_verification_failure"],
+  "expected_min_confidence": 0.75,
+  "must_include_evidence_keywords": ["certificate", "expired", "TLS", "SSL"],
+  "should_include_evidence_keywords": ["certifi", "notAfter", "verify", "ca-bundle"],
+  "must_include_recommendation_keywords": ["certifi", "certificate", "update"],
+  "must_not_include": ["delete bucket", "make public", "disable SSL"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "high"
+}

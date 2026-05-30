@@ -7,10 +7,20 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-  header { background: #1a1d2e; border-bottom: 1px solid #2d3748; padding: 16px 24px; }
+  header { background: #1a1d2e; border-bottom: 1px solid #2d3748; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
   header h1 { font-size: 1.2rem; font-weight: 600; color: #90cdf4; }
-  header span { font-size: 0.8rem; color: #718096; margin-left: 8px; }
-  main { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+  header span { font-size: 0.8rem; color: #718096; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #2d3748; padding-bottom: 0; }
+  .tab-btn {
+    padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent;
+    color: #718096; cursor: pointer; font-size: 0.9rem; font-weight: 500; margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-btn:hover { color: #e2e8f0; }
+  .tab-btn.active { color: #90cdf4; border-bottom-color: #4299e1; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
   .card { background: #1a1d2e; border: 1px solid #2d3748; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
   h2 { font-size: 1rem; color: #90cdf4; margin-bottom: 12px; }
   textarea {
@@ -26,7 +36,7 @@
   }
   .drop-zone.over { border-color: #4299e1; color: #90cdf4; }
   .drop-zone small { display: block; margin-top: 4px; font-size: 0.75rem; }
-  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
   button {
     padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer;
     font-size: 0.9rem; font-weight: 500;
@@ -35,6 +45,8 @@
   .btn-primary:hover { background: #3182ce; }
   .btn-secondary { background: #2d3748; color: #e2e8f0; }
   .btn-secondary:hover { background: #4a5568; }
+  .btn-warn { background: #744210; color: #fefcbf; }
+  .btn-warn:hover { background: #975a16; }
   .result { display: none; }
   .badge {
     display: inline-block; padding: 2px 8px; border-radius: 12px;
@@ -52,79 +64,210 @@
   .domain-pill.primary { background: #2b6cb0; color: white; }
   .score-bar { background: #2d3748; border-radius: 4px; height: 6px; margin: 2px 0 8px; }
   .score-fill { background: #4299e1; height: 6px; border-radius: 4px; transition: width 0.4s; }
-  pre { background: #0f1117; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; }
+  pre { background: #0f1117; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
   .error-box { background: #2d1515; border: 1px solid #fc8181; border-radius: 6px; padding: 12px; color: #fc8181; }
+  .info-box { background: #1a2a1a; border: 1px solid #68d391; border-radius: 6px; padding: 12px; color: #9ae6b4; font-size: 0.85rem; }
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #4299e1; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .missing-list { list-style: none; padding: 0; }
   .missing-list li::before { content: "⚠ "; color: #f6ad55; }
   .missing-list li { font-size: 0.85rem; margin: 4px 0; color: #cbd5e0; }
   .section-label { font-size: 0.75rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .form-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .form-row label { font-size: 0.8rem; color: #718096; margin-bottom: 3px; display: block; }
+  .form-row select, .form-row input[type="text"], .form-row input[type="password"] {
+    background: #0f1117; border: 1px solid #2d3748; border-radius: 6px;
+    color: #e2e8f0; padding: 7px 10px; font-size: 0.85rem; width: 100%;
+  }
+  .form-row select:focus, .form-row input:focus { outline: none; border-color: #4299e1; }
+  .form-group { flex: 1; min-width: 160px; }
+  .report-content { padding: 16px; background: #0f1117; border-radius: 6px; font-size: 0.875rem; line-height: 1.7; }
+  .report-content h1, .report-content h2, .report-content h3 { color: #90cdf4; margin: 12px 0 6px; }
+  .report-content p { margin-bottom: 8px; color: #cbd5e0; }
+  .report-content code { background: #1a1d2e; padding: 1px 5px; border-radius: 3px; font-size: 0.8rem; }
+  .report-content ul { padding-left: 18px; color: #cbd5e0; }
+  .report-content li { margin: 3px 0; }
+  .separator { border: none; border-top: 1px solid #2d3748; margin: 16px 0; }
+  .key-value { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.85rem; }
+  .key-value dt { color: #718096; }
+  .key-value dd { color: #e2e8f0; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>StorageOps Diagnostic <span>v0.3</span></h1>
+  <h1>StorageOps Diagnostic</h1>
+  <span>v0.3 — object storage triage &amp; analysis</span>
 </header>
 
 <main>
-  <div class="card">
-    <h2>Evidence Input</h2>
-    <div class="drop-zone" id="dropZone">
-      Drop a log file here, or click to select
-      <small>Supports: .log .txt .xml .json .md — secrets are redacted server-side</small>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('triage', this)">Triage</button>
+    <button class="tab-btn" onclick="switchTab('analyze', this)">Analyze</button>
+    <button class="tab-btn" onclick="switchTab('agent', this)">Agent (LLM)</button>
+  </div>
+
+  <!-- ══ Triage Tab ══ -->
+  <div id="tab-triage" class="tab-pane active">
+    <div class="card">
+      <h2>Evidence Input</h2>
+      <div class="drop-zone" id="dropZone">
+        Drop a log file here, or click to select
+        <small>Supports: .log .txt .xml .json .md — secrets are redacted server-side</small>
+      </div>
+      <input type="file" id="fileInput" style="display:none">
+      <textarea id="evidenceText" placeholder="Or paste evidence text here — debug logs, error messages, lifecycle XML, policy JSON, or a plain description of the issue..."></textarea>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="runTriage()">Triage</button>
+        <button class="btn-secondary" onclick="clearAll()">Clear</button>
+      </div>
     </div>
-    <input type="file" id="fileInput" style="display:none">
-    <textarea id="evidenceText" placeholder="Or paste evidence text here — debug logs, error messages, lifecycle XML, policy JSON, or a plain description of the issue..."></textarea>
-    <div class="btn-row">
-      <button class="btn-primary" onclick="runTriage()">Triage</button>
-      <button class="btn-secondary" onclick="clearAll()">Clear</button>
+
+    <div class="card result" id="triageResultCard">
+      <h2 id="triageResultTitle">Triage Result</h2>
+      <div id="triageResultBody"></div>
     </div>
   </div>
 
-  <div class="card result" id="resultCard">
-    <h2 id="resultTitle">Triage Result</h2>
-    <div id="resultBody"></div>
+  <!-- ══ Analyze Tab ══ -->
+  <div id="tab-analyze" class="tab-pane">
+    <div class="card">
+      <h2>Rule-Based Analysis</h2>
+      <p style="font-size:0.85rem;color:#718096;margin-bottom:14px">
+        Runs deterministic parsers and analyzers for a specific domain. No LLM required.
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Domain</label>
+          <select id="analyzeDomain">
+            <option value="s3_protocol_compatibility">s3_protocol_compatibility</option>
+            <option value="cli_sdk_behavior">cli_sdk_behavior</option>
+            <option value="performance_throughput">performance_throughput</option>
+            <option value="security_iam_policy">security_iam_policy</option>
+            <option value="lifecycle_cost">lifecycle_cost</option>
+            <option value="mount_filesystem_workspace">mount_filesystem_workspace</option>
+            <option value="network_endpoint_access">network_endpoint_access</option>
+          </select>
+        </div>
+      </div>
+      <textarea id="analyzeText" placeholder="Paste evidence text (error log, XML, JSON, or plain description)..."></textarea>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="runAnalyze()">Analyze</button>
+        <button class="btn-secondary" onclick="document.getElementById('analyzeText').value='';document.getElementById('analyzeResultCard').style.display='none'">Clear</button>
+      </div>
+    </div>
+
+    <div class="card result" id="analyzeResultCard">
+      <h2 id="analyzeResultTitle">Analysis Result</h2>
+      <div id="analyzeResultBody"></div>
+    </div>
+  </div>
+
+  <!-- ══ Agent Tab ══ -->
+  <div id="tab-agent" class="tab-pane">
+    <div class="card">
+      <h2>LLM-Powered Agent</h2>
+      <p style="font-size:0.85rem;color:#718096;margin-bottom:14px">
+        Runs the full ReAct-loop diagnostic agent. Requires an LLM API key (BYOK — stored only in your browser session, never persisted server-side).
+      </p>
+      <div class="info-box" style="margin-bottom:14px">
+        Your API key is sent directly in the request to the local server and used only for the LLM call. It is not logged or stored.
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Provider</label>
+          <select id="agentProvider" onchange="updateProviderUI()">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI</option>
+            <option value="openai-compatible">OpenAI-Compatible</option>
+            <option value="ollama">Ollama (local)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Model (optional)</label>
+          <input type="text" id="agentModel" placeholder="e.g. claude-opus-4-8">
+        </div>
+        <div class="form-group">
+          <label>Max Turns</label>
+          <input type="text" id="agentMaxTurns" value="8" style="width:80px">
+        </div>
+      </div>
+      <div class="form-row" id="apiKeyRow">
+        <div class="form-group" style="flex:2">
+          <label>API Key</label>
+          <input type="password" id="agentApiKey" placeholder="sk-ant-... or sk-... (not stored server-side)">
+        </div>
+      </div>
+      <div class="form-row" id="baseUrlRow" style="display:none">
+        <div class="form-group" style="flex:2">
+          <label>Base URL</label>
+          <input type="text" id="agentBaseUrl" placeholder="e.g. http://localhost:11434">
+        </div>
+      </div>
+      <textarea id="agentText" placeholder="Paste evidence text (error logs, configs, descriptions)..."></textarea>
+      <div class="btn-row">
+        <button class="btn-warn" onclick="runAgent()">Run Agent</button>
+        <button class="btn-secondary" onclick="document.getElementById('agentText').value='';document.getElementById('agentResultCard').style.display='none'">Clear</button>
+        <span style="font-size:0.75rem;color:#718096">Agent calls may take 30-120 seconds</span>
+      </div>
+    </div>
+
+    <div class="card result" id="agentResultCard">
+      <h2 id="agentResultTitle">Agent Result</h2>
+      <div id="agentResultBody"></div>
+    </div>
   </div>
 </main>
 
 <script>
+// ── Tab switching ───────────────────────────────────────────────────────
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── File drop for triage tab ────────────────────────────────────────────
+
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const evidenceText = document.getElementById('evidenceText');
-const resultCard = document.getElementById('resultCard');
-const resultTitle = document.getElementById('resultTitle');
-const resultBody = document.getElementById('resultBody');
 
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault(); dropZone.classList.remove('over');
-  const f = e.dataTransfer.files[0]; if (f) readFile(f);
+  const f = e.dataTransfer.files[0]; if (f) readFileInto(f, evidenceText);
 });
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) readFile(fileInput.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) readFileInto(fileInput.files[0], evidenceText); });
 
-function readFile(file) {
+function readFileInto(file, target) {
   const reader = new FileReader();
-  reader.onload = e => { evidenceText.value = e.target.result; };
+  reader.onload = e => { target.value = e.target.result; };
   reader.readAsText(file);
 }
 
 function clearAll() {
   evidenceText.value = '';
-  resultCard.style.display = 'none';
+  document.getElementById('triageResultCard').style.display = 'none';
   fileInput.value = '';
 }
+
+// ── Triage ──────────────────────────────────────────────────────────────
 
 async function runTriage() {
   const text = evidenceText.value.trim();
   if (!text) { alert('Please provide evidence text or upload a file.'); return; }
 
-  resultCard.style.display = 'block';
-  resultTitle.textContent = 'Triage Result';
-  resultBody.innerHTML = '<span class="spinner"></span> Analyzing...';
+  const card = document.getElementById('triageResultCard');
+  const title = document.getElementById('triageResultTitle');
+  const body = document.getElementById('triageResultBody');
+  card.style.display = 'block';
+  title.textContent = 'Triage Result';
+  body.innerHTML = '<span class="spinner"></span> Analyzing...';
 
   try {
     const resp = await fetch('/triage', {
@@ -135,67 +278,193 @@ async function runTriage() {
     const data = await resp.json();
 
     if (!data.ok) {
-      resultBody.innerHTML = `<div class="error-box">${escHtml(data.error || 'Unknown error')}</div>`;
+      body.innerHTML = `<div class="error-box">${esc(data.error || 'Unknown error')}</div>`;
       return;
     }
-
-    const severityClass = 'badge-medium';
-    const confPct = Math.round((data.scores?.[data.primary_domain] || 0) * 100 / Math.max(...Object.values(data.scores || {1: 1})));
 
     let html = `
       <div class="section-label">Primary Domain</div>
       <div style="margin-bottom:16px">
-        <span class="domain-pill primary">${escHtml(data.primary_domain)}</span>
+        <span class="domain-pill primary">${esc(data.primary_domain)}</span>
         ${data.secrets_redacted > 0 ? `<span class="badge badge-medium">⚠ ${data.secrets_redacted} secret(s) redacted</span>` : ''}
       </div>
     `;
 
     if (data.all_domains && data.all_domains.length > 1) {
       html += `<div class="section-label">All Detected Domains</div><div style="margin-bottom:16px">`;
+      const maxScore = Math.max(...Object.values(data.scores || { _: 1 }));
       for (const d of data.all_domains) {
         const score = data.scores?.[d] || 0;
-        const maxScore = Math.max(...Object.values(data.scores || {1: 1}));
         html += `
           <div style="margin-bottom:8px">
-            <span class="domain-pill${d === data.primary_domain ? ' primary' : ''}">${escHtml(d)}</span>
+            <span class="domain-pill${d === data.primary_domain ? ' primary' : ''}">${esc(d)}</span>
             <div class="score-bar"><div class="score-fill" style="width:${Math.round(score/maxScore*100)}%"></div></div>
           </div>`;
       }
       html += `</div>`;
     }
 
-    html += `
-      <div class="section-label">Evidence Quality</div>
-      <div style="margin-bottom:16px; font-size:0.9rem; color:#cbd5e0;">${escHtml(data.evidence_quality || 'unknown')}</div>
-    `;
+    html += `<div class="section-label">Evidence Quality</div>
+      <div style="margin-bottom:16px; font-size:0.9rem; color:#cbd5e0;">${esc(data.evidence_quality || 'unknown')}</div>`;
 
-    if (data.missing_required && data.missing_required.length > 0) {
+    if (data.missing_required?.length) {
       html += `<div class="section-label">Missing Required Evidence</div>
-        <ul class="missing-list" style="margin-bottom:16px">`;
-      for (const m of data.missing_required) {
-        html += `<li>${escHtml(m)}</li>`;
-      }
-      html += `</ul>`;
+        <ul class="missing-list" style="margin-bottom:16px">` +
+        data.missing_required.map(m => `<li>${esc(m)}</li>`).join('') + `</ul>`;
     }
-
-    if (data.missing_helpful && data.missing_helpful.length > 0) {
+    if (data.missing_helpful?.length) {
       html += `<div class="section-label">Helpful Additional Evidence</div>
-        <ul class="missing-list" style="margin-bottom:16px">`;
-      for (const m of data.missing_helpful.slice(0, 3)) {
-        html += `<li style="color:#a0aec0">${escHtml(m)}</li>`;
-      }
-      html += `</ul>`;
+        <ul class="missing-list" style="margin-bottom:16px">` +
+        data.missing_helpful.slice(0, 3).map(m => `<li style="color:#a0aec0">${esc(m)}</li>`).join('') + `</ul>`;
     }
 
-    resultTitle.textContent = `Triage: ${data.primary_domain}`;
-    resultBody.innerHTML = html;
+    title.textContent = `Triage: ${data.primary_domain}`;
+    body.innerHTML = html;
   } catch (err) {
-    resultBody.innerHTML = `<div class="error-box">Request failed: ${escHtml(String(err))}</div>`;
+    body.innerHTML = `<div class="error-box">Request failed: ${esc(String(err))}</div>`;
   }
 }
 
-function escHtml(s) {
+// ── Analyze ─────────────────────────────────────────────────────────────
+
+async function runAnalyze() {
+  const text = document.getElementById('analyzeText').value.trim();
+  const domain = document.getElementById('analyzeDomain').value;
+  if (!text) { alert('Please provide evidence text.'); return; }
+
+  const card = document.getElementById('analyzeResultCard');
+  const title = document.getElementById('analyzeResultTitle');
+  const body = document.getElementById('analyzeResultBody');
+  card.style.display = 'block';
+  title.textContent = 'Analysis Result';
+  body.innerHTML = '<span class="spinner"></span> Running analyzers...';
+
+  try {
+    const resp = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, domain }),
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      body.innerHTML = `<div class="error-box">${esc(data.error || 'Unknown error')}</div>`;
+      return;
+    }
+
+    title.textContent = `Analysis: ${domain}`;
+
+    const analysis = data.analysis || {};
+    let html = `<div class="section-label">Domain</div>
+      <div style="margin-bottom:12px"><span class="domain-pill primary">${esc(domain)}</span></div>`;
+
+    if (data.report) {
+      html += `<hr class="separator"><div class="section-label">Report</div>
+        <div class="report-content">${renderMarkdown(data.report)}</div>`;
+    } else {
+      html += `<hr class="separator"><div class="section-label">Raw Analysis</div>
+        <pre>${esc(JSON.stringify(analysis, null, 2))}</pre>`;
+    }
+
+    body.innerHTML = html;
+  } catch (err) {
+    body.innerHTML = `<div class="error-box">Request failed: ${esc(String(err))}</div>`;
+  }
+}
+
+// ── Agent ───────────────────────────────────────────────────────────────
+
+function updateProviderUI() {
+  const provider = document.getElementById('agentProvider').value;
+  const baseUrlRow = document.getElementById('baseUrlRow');
+  const apiKeyRow = document.getElementById('apiKeyRow');
+  baseUrlRow.style.display = (provider === 'ollama' || provider === 'openai-compatible') ? 'flex' : 'none';
+  apiKeyRow.style.display = provider === 'ollama' ? 'none' : 'flex';
+}
+
+async function runAgent() {
+  const text = document.getElementById('agentText').value.trim();
+  const provider = document.getElementById('agentProvider').value;
+  const api_key = document.getElementById('agentApiKey').value.trim() || null;
+  const model = document.getElementById('agentModel').value.trim() || null;
+  const base_url = document.getElementById('agentBaseUrl').value.trim() || null;
+  const max_turns = parseInt(document.getElementById('agentMaxTurns').value) || 8;
+
+  if (!text) { alert('Please provide evidence text.'); return; }
+  if (provider !== 'ollama' && !api_key) {
+    if (!confirm('No API key provided. The server will try to use the ANTHROPIC_API_KEY / STORAGEOPS_LLM_KEY environment variable. Continue?')) return;
+  }
+
+  const card = document.getElementById('agentResultCard');
+  const title = document.getElementById('agentResultTitle');
+  const body = document.getElementById('agentResultBody');
+  card.style.display = 'block';
+  title.textContent = 'Agent Running…';
+  body.innerHTML = '<span class="spinner"></span> Agent is reasoning (this may take 30–120 seconds)...';
+
+  try {
+    const resp = await fetch('/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, provider, api_key, model, base_url, max_turns }),
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      body.innerHTML = `<div class="error-box">${esc(data.error || 'Agent failed')}</div>`;
+      return;
+    }
+
+    title.textContent = `Agent: ${data.domain || 'unknown'}`;
+
+    let html = `<dl class="key-value" style="margin-bottom:16px">
+      <dt>Domain</dt><dd><span class="domain-pill primary">${esc(data.domain || '?')}</span></dd>
+      <dt>Root Cause</dt><dd>${esc(data.root_cause || '?')}</dd>
+      <dt>Turns Used</dt><dd>${esc(String(data.turns_used ?? '?'))}</dd>
+      <dt>Report Valid</dt><dd>${data.report_valid ? '✓ yes' : '✗ no'}</dd>
+    </dl>`;
+
+    if (data.report_warnings?.length) {
+      html += `<div class="error-box" style="margin-bottom:12px">Report warnings: ${esc(data.report_warnings.join('; '))}</div>`;
+    }
+
+    if (data.report) {
+      html += `<hr class="separator"><div class="section-label">Diagnostic Report</div>
+        <div class="report-content">${renderMarkdown(data.report)}</div>`;
+    }
+
+    if (data.routing) {
+      html += `<hr class="separator"><div class="section-label">Routing</div>
+        <dl class="key-value">
+          <dt>Primary</dt><dd>${esc(data.routing.primary || '?')}</dd>
+          ${data.routing.secondary?.length ? `<dt>Secondary</dt><dd>${esc(data.routing.secondary.join(', '))}</dd>` : ''}
+        </dl>`;
+    }
+
+    body.innerHTML = html;
+  } catch (err) {
+    body.innerHTML = `<div class="error-box">Request failed: ${esc(String(err))}</div>`;
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+
+function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderMarkdown(md) {
+  // Minimal markdown: headings, bold, code blocks, lists
+  let html = esc(md);
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+  html = html.replace(/\n\n/g, '</p><p>');
+  return '<p>' + html + '</p>';
 }
 </script>
 </body>

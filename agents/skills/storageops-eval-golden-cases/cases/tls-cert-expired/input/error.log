@@ -1,0 +1,32 @@
+== Error Description ==
+Object storage uploads failing with TLS/SSL certificate errors since 2024-03-15.
+
+== Error Messages ==
+$ aws s3 cp large-file.bin s3://company-backup-bucket/
+SSL validation failed for https://company-backup-bucket.s3.amazonaws.com/large-file.bin
+[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1129)
+
+$ curl -v https://s3.ap-southeast-1.amazonaws.com/
+* Connected to s3.ap-southeast-1.amazonaws.com
+* SSL certificate verify fail: certificate has expired
+* Closing connection
+curl: (60) SSL certificate problem: certificate has expired
+
+== Certificate Details ==
+openssl s_client -connect s3.ap-southeast-1.amazonaws.com:443 </dev/null 2>&1 | grep -E "notBefore|notAfter|verify"
+verify error:num=10:certificate has expired
+notBefore=Jan  1 00:00:00 2023 GMT
+notAfter=Mar 14 00:00:00 2024 GMT
+verify return:1
+
+== System Info ==
+OS: Ubuntu 22.04 LTS
+Python: 3.10.12
+certifi: 2022.12.7  (outdated!)
+boto3: 1.26.0
+AWS CLI: 2.13.0
+
+== Impact ==
+- All HTTPS connections to S3 endpoints failing
+- Affects 3 applications connecting to multiple buckets
+- Started failing after March 15 2024 when cert notAfter date passed

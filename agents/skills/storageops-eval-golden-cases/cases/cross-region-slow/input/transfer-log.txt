@@ -1,0 +1,32 @@
+== Transfer Performance Issue ==
+Cross-region data replication from us-east-1 to ap-southeast-1 extremely slow.
+
+== Observed Throughput ==
+aws s3 cp 1gb-file.bin s3://dest-bucket-ap-southeast-1/
+Completed 1.0 GiB/1.0 GiB (3.2 MiB/s) with 1 file(s) remaining
+
+Expected throughput: ~50-100 MiB/s based on link capacity
+Actual throughput: 3.2 MiB/s (30x slower than expected)
+
+== Network Diagnostics ==
+Ping from us-east-1 EC2 to ap-southeast-1 S3 endpoint:
+  PING s3.ap-southeast-1.amazonaws.com: min=185ms avg=192ms max=210ms
+
+iperf3 bandwidth test (us-east-1 to ap-southeast-1):
+  Transfer: 10.0 GiB  Bitrate: 1.05 Gbits/sec
+
+== RTT Analysis ==
+Round-trip time (RTT): ~192ms
+TCP window size: default (not tuned for high-latency WAN)
+Bandwidth-delay product: 1000 Mbps × 0.192s = 24 MB unacknowledged data in flight
+Actual TCP window: ~64 KB (default, not scaled)
+
+== Transfer Details ==
+Single-threaded transfer: 3.2 MiB/s
+AWS CLI multipart threshold: 8 MB (default)
+File size: 1 GB
+Multipart part size: 8 MB
+
+== s5cmd Parallel Test ==
+s5cmd --numworkers 256 cp 1gb-file.bin s3://dest-bucket-ap-southeast-1/
+Throughput: 87 MiB/s  (27x improvement)

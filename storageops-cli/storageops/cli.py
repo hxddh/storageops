@@ -369,7 +369,11 @@ def cmd_report(args):
 
 
 def cmd_eval(args):
-    """Run golden case evaluation."""
+    """Run golden case evaluation or regression check."""
+    if getattr(args, 'regression', False):
+        _cmd_eval_regression(args)
+        return
+
     from eval_runner import evaluate_case, evaluate_all
     cases_dir = Path(args.cases_dir)
     outputs_dir = Path(args.outputs_dir) if args.outputs_dir else Path('.')
@@ -385,7 +389,7 @@ def cmd_eval(args):
     elif args.all:
         result = evaluate_all(cases_dir, outputs_dir)
     else:
-        print(json.dumps({"ok": False, "error": "Specify --case or --all"}))
+        print(json.dumps({"ok": False, "error": "Specify --case, --all, or --regression"}))
         sys.exit(1)
 
     result["ok"] = True
@@ -400,6 +404,81 @@ def cmd_eval(args):
             failed = sum(1 for c in result['cases'] if not c.get('passed', True))
             if failed > 0:
                 sys.exit(1)
+
+
+def _cmd_eval_regression(args):
+    """Compare latest two metric snapshots and report confidence regressions."""
+    metrics_file = Path(getattr(args, 'metrics_file', None) or
+                        Path(__file__).parent.parent.parent /
+                        "storageops-eval-metrics.json")
+    threshold = getattr(args, 'threshold', 0.10)
+
+    if not metrics_file.exists():
+        print(json.dumps({"ok": False, "error": f"Metrics file not found: {metrics_file}"}))
+        sys.exit(1)
+
+    try:
+        history = json.loads(metrics_file.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        print(json.dumps({"ok": False, "error": f"Cannot read metrics: {exc}"}))
+        sys.exit(1)
+
+    if len(history) < 2:
+        print(json.dumps({
+            "ok": True,
+            "regressions": [],
+            "message": "Need at least 2 metric snapshots to compare; only 1 found.",
+        }))
+        return
+
+    prev_snap = history[-2]
+    curr_snap = history[-1]
+    prev_conf: dict[str, float] = prev_snap.get("confidence", {})
+    curr_conf: dict[str, float] = curr_snap.get("confidence", {})
+
+    regressions = []
+    improvements = []
+    for case, curr in curr_conf.items():
+        prev = prev_conf.get(case)
+        if prev is None or prev < 0 or curr < 0:
+            continue
+        delta = curr - prev
+        if delta < -threshold:
+            regressions.append({
+                "case": case,
+                "prev": round(prev, 4),
+                "curr": round(curr, 4),
+                "delta": round(delta, 4),
+            })
+        elif delta > threshold:
+            improvements.append({
+                "case": case,
+                "prev": round(prev, 4),
+                "curr": round(curr, 4),
+                "delta": round(delta, 4),
+            })
+
+    result = {
+        "ok": True,
+        "module": "eval_regression",
+        "prev_ts": prev_snap.get("ts", "?"),
+        "curr_ts": curr_snap.get("ts", "?"),
+        "threshold": threshold,
+        "regressions": regressions,
+        "improvements": improvements,
+        "regression_count": len(regressions),
+    }
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+
+    if regressions:
+        print(
+            f"\nREGRESSION: {len(regressions)} case(s) dropped confidence by >{threshold:.0%}:",
+            file=sys.stderr,
+        )
+        for r in regressions:
+            print(f"  {r['case']}: {r['prev']:.2f} → {r['curr']:.2f} ({r['delta']:+.2f})",
+                  file=sys.stderr)
+        sys.exit(1)
 
 
 # ── Main ──────────────────────────────────────────────────────────────
@@ -562,6 +641,12 @@ def main():
     p_eval.add_argument('--outputs-dir', default='.', help='Diagnosis outputs directory')
     p_eval.add_argument('--case', help='Single case name')
     p_eval.add_argument('--all', action='store_true', help='Evaluate all cases')
+    p_eval.add_argument('--regression', action='store_true',
+                        help='Compare latest two metric snapshots; exit 1 if confidence dropped')
+    p_eval.add_argument('--metrics-file', default=None,
+                        help='Path to storageops-eval-metrics.json (default: project root)')
+    p_eval.add_argument('--threshold', type=float, default=0.10,
+                        help='Regression threshold (default: 0.10)')
     p_eval.set_defaults(func=cmd_eval)
 
     # agent
