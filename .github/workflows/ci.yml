@@ -30,11 +30,19 @@ jobs:
       - name: Validation
         run: python tests/validation/run_validation.py
 
-      - name: Golden case eval (rclone)
+      - name: Agent diagnosis + eval (rclone)
         run: |
+          # Generate diagnosis from the golden case input
+          storageops agent agents/skills/storageops-eval-golden-cases/cases/rclone-corrupted-transfer/input/rclone-debug.log > /tmp/diagnosis.md
+          
+          # Copy to eval outputs dir with expected name
+          mkdir -p /tmp/eval-outputs
+          cp /tmp/diagnosis.md /tmp/eval-outputs/rclone-corrupted-transfer.md
+          
+          # Run eval
           storageops eval \
             --cases-dir agents/skills/storageops-eval-golden-cases/cases \
-            --outputs-dir docs/examples \
+            --outputs-dir /tmp/eval-outputs \
             --case rclone-corrupted-transfer
 
       - name: Agent non-interactive test
