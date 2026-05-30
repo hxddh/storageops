@@ -109,6 +109,58 @@ See `references/cross-cloud-dedicated-line.md`:
 - What is the RTT and available bandwidth?
 - Are there middleware/inspection devices on the path?
 
+## Root Cause Pattern Library
+
+Each pattern below maps a symptom signature to a root cause and fix.
+
+### VPC endpoint DNS not resolving
+
+**Symptom:** Inside a VPC, `dig s3.amazonaws.com` returns a public IP instead of a VPC endpoint IP (expected range: 10.x.x.x).
+
+**Root cause:** VPC endpoint Private DNS names are not enabled on the endpoint.
+
+**Fix:** Enable "Private DNS names" on the VPC endpoint in the AWS console or via CLI.
+
+### PrivateLink endpoint not accepted
+
+**Symptom:** `curl` to the endpoint times out with no connection, but the endpoint exists in the console.
+
+**Root cause:** The endpoint service has not accepted the connection request.
+
+**Fix:** The endpoint service owner must accept the connection request via "Actions > Accept endpoint connection" in the console.
+
+### Virtual-hosted style DNS failure
+
+**Symptom:** `<bucket>.s3.amazonaws.com` does not resolve, but `s3.amazonaws.com/<bucket>` (path-style) works.
+
+**Root cause:** The bucket name contains dots or uppercase characters, which breaks virtual-hosted DNS (DNS labels cannot contain dots or uppercase).
+
+**Fix:** Use path-style access, or rename the bucket to a lowercase, dot-free name.
+
+### MTU black hole on dedicated line
+
+**Symptom:** Large object transfers (>100MB) fail or hang indefinitely, but small objects work fine.
+
+**Root cause:** Path MTU (PMTU) issue on the dedicated line. The effective MTU is typically 1400-1450 bytes instead of the standard 1500, causing PMTU black hole behavior for large TCP segments.
+
+**Fix:** Set `--s3-upload-chunk-size` to 8MB in the client tool, or configure MSS clamping on the gateway to match the actual path MTU.
+
+### Proxy stripping Authorization header
+
+**Symptom:** All requests return 403 despite correct credentials. `HTTPS_PROXY` or `HTTP_PROXY` environment variable is set.
+
+**Root cause:** An HTTP proxy is configured and is stripping the `Authorization` header from outbound requests.
+
+**Fix:** Use HTTPS (not HTTP) for the proxy URL so the tunnel is encrypted end-to-end, or bypass the proxy for S3 endpoints by adding them to `NO_PROXY`.
+
+### TLS SNI mismatch
+
+**Symptom:** TLS handshake succeeds but the returned certificate is for the wrong hostname.
+
+**Root cause:** The endpoint IP is shared across multiple virtual hosts and requires Server Name Indication (SNI); the client is not sending SNI in the ClientHello.
+
+**Fix:** Upgrade the client tool to a version that sends SNI by default, or use the `-servername` flag with `openssl s_client`.
+
 ## Output requirements
 
 ```yaml
@@ -163,3 +215,14 @@ ping -M do -s 1472 <endpoint-hostname>  # Test 1500 byte MTU
 5. **Recommending `--no-verify-ssl` as a permanent fix** — This disables TLS verification and should only be used for debugging.
 6. **Not checking MTU** — Path MTU issues cause mysterious timeouts for large requests but not small ones.
 7. **Assuming cross-cloud = direct connect** — Traffic may route over the public internet if routes are misconfigured.
+
+## Evidence Collection Checklist
+
+| Evidence | Command | Required? |
+|---|---|---|
+| DNS resolution | `dig <endpoint>` | Yes |
+| TCP reachability | `nc -zv <host> 443` | Yes |
+| TLS certificate | `openssl s_client -connect <host>:443` | If TLS fails |
+| Network path | `traceroute <host>` | If routing suspected |
+| MTU | `ping -M do -s 1472 <host>` | If large objects fail |
+| Proxy env | `env \| grep -i proxy` | If in corporate network |

@@ -171,6 +171,44 @@ Plus:
 - **Risk Notes** — Data loss risks from mount instability
 - **Next-Step Checklist**
 
+## Mount Configuration Tuning Guide
+
+### rclone mount recommended options for workspace use
+
+```
+rclone mount <remote>:<bucket> <mountpoint> \
+  --vfs-cache-mode full \         # Enable write caching
+  --vfs-cache-max-size 10G \      # Cache size
+  --vfs-read-chunk-size 128M \    # Larger read chunks
+  --dir-cache-time 5m \           # Metadata TTL (tune up if workspace mostly static)
+  --poll-interval 30s \           # Reduce polling frequency
+  --vfs-fast-fingerprint \        # Skip hash verification for performance
+  --no-modtime                    # Skip mtime updates (reduces API calls)
+```
+
+### s3fs recommended options for workspace
+
+```
+s3fs <bucket> <mountpoint> \
+  -o stat_cache_expire=300 \      # 5 minute stat cache (default is 1s!)
+  -o entry_cache_expire=300 \     # 5 minute entry cache
+  -o parallel_count=20 \          # Parallel connections
+  -o multipart_size=10 \          # 10MB multipart threshold
+  -o kernel_cache \               # Enable kernel page cache
+  -o use_cache=/tmp/s3fs-cache    # Local disk cache
+```
+
+### Stat cache tuning impact table
+
+| Stat cache TTL | `git status` calls | Approximate latency |
+|---|---|---|
+| 0 (no cache) | 10,000 API calls | 500s at 50ms RTT |
+| 60s | ~100 API calls | ~5s |
+| 300s | ~10 API calls | ~0.5s |
+| infinite (static data) | ~1 API call | ~0.05s |
+
+Note: Higher TTL means staleness — only safe if workspace is accessed by one process at a time.
+
 ## Safe validation commands
 
 ```bash
@@ -199,3 +237,14 @@ time ls -la <mount-point>/small-file
 4. **Underestimating concurrent access effects** — Single-user test may pass; 30 concurrent users will expose mount fragility.
 5. **Not checking cache settings** — Many mount issues are solved by tuning stat cache TTL and write cache.
 6. **Recommending `umount -l` (lazy unmount)** — This can leave processes with stale file handles and cause data loss.
+
+## Evidence Collection Checklist
+
+| Evidence | Command | Required? |
+|---|---|---|
+| Mount type and version | `rclone version` or `s3fs --version` | Yes |
+| Current mount options | `mount \| grep <mountpoint>` | Yes |
+| FUSE error messages | `dmesg \| grep -i fuse \| tail -20` | If mount hangs |
+| Stat call count | `strace -c -e stat,open,readdir <command>` | If metadata storm suspected |
+| Process states | `ps aux \| grep ' D'` | If mount unresponsive |
+| Timing baseline | `time ls -la <mountpoint>/<testfile>` | Yes |
