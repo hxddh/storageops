@@ -1,0 +1,48 @@
+== User Report ==
+我们在 VPC 内使用 s3.amazonaws.com 访问 S3，但 DNS 解析返回的是公网 IP（52.216.x.x），
+导致流量走了公网而不是 VPC 内部的 PrivateLink 私有链路。
+
+我们已经在 VPC 中创建了 S3 VPC endpoint，但感觉没有生效。
+endpoint 显示 state=available 但 RouteTableIds 为空。
+
+== DNS Resolution Output ==
+$ dig s3.amazonaws.com
+
+; <<>> DiG 9.16.1 <<>> s3.amazonaws.com
+;; GLOBAL OPTIONS: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 12345
+
+;; QUESTION SECTION:
+;s3.amazonaws.com.              IN      A
+
+;; ANSWER SECTION:
+s3.amazonaws.com.       60      IN      A       52.216.108.11
+s3.amazonaws.com.       60      IN      A       52.92.177.65
+
+;; Query time: 2 msec
+;; SERVER: 172.31.0.2#53(172.31.0.2)
+;; WHEN: Wed Jan 15 10:30:00 UTC 2024
+
+DNS resolves to public IP instead of VPC endpoint private IP.
+Expected: DNS NXDOMAIN or private IP via VPC endpoint routing.
+
+== VPC Endpoint Info ==
+$ aws ec2 describe-vpc-endpoints
+{
+  "VpcEndpointId": "vpce-0a1b2c3d4e5f67890",
+  "VpcEndpointType": "Gateway",
+  "ServiceName": "com.amazonaws.us-east-1.s3",
+  "State": "available",
+  "RouteTableIds": [],
+  "PrivateDnsEnabled": false
+}
+
+VPC endpoint route table association is missing — traffic bypasses endpoint.
+S3 requests are not routing through the VPC endpoint as expected.
+
+== Error Log ==
+2024-01-15 10:31:00 ERROR: S3 endpoint unreachable via private network path
+2024-01-15 10:31:00 INFO: DNS resolved s3.amazonaws.com to public IP 52.216.108.11
+2024-01-15 10:31:00 INFO: Expected traffic through VPC endpoint vpce-0a1b2c3d4e5f67890
+2024-01-15 10:31:05 ERROR: endpoint unreachable on private network — check route table

@@ -289,6 +289,31 @@ class TestReActLoop(unittest.TestCase):
         self.assertIsInstance(result["session_id"], str)
         self.assertGreater(len(result["session_id"]), 0)
 
+    def test_report_validation_in_result(self):
+        """Valid YAML frontmatter → report_valid=True returned in result."""
+        provider = MockProvider([
+            LLMResponse(
+                content=_report("test_root_cause"),
+                stop_reason="end_turn",
+                input_tokens=50, output_tokens=100,
+            ),
+            LLMResponse(
+                content="CONFIRMED: test",
+                stop_reason="end_turn",
+                input_tokens=20, output_tokens=10,
+            ),
+        ])
+
+        result = self._run(
+            provider,
+            evidence_text="rclone log",
+            domain="cli_sdk_behavior",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertIn("report_valid", result)
+        self.assertTrue(result["report_valid"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,36 @@
+== User Report ==
+我们用 rclone mount 把 S3 挂载到 /mnt/workspace，在 30 并发的 git 操作下，mount 会概率挂死。
+git status 跑几秒就没有响应了，dmesg 里能看到 FUSE 相关的超时日志。
+
+重新挂载后问题会复现，特别是多人同时做 git commit 的时候。
+
+== dmesg Output ==
+[12345.678901] fuse: connection to /mnt/workspace aborted
+[12346.123456] fuse: request timed out after 60000 msec
+[12347.234567] fuse: connection to /mnt/workspace aborted
+[12347.567890] INFO: task git:12345 blocked for more than 120 seconds.
+[12347.567891]       Not tainted 5.15.0-91-generic #101-Ubuntu
+[12347.567892] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[12348.901234] fuse: connection to /mnt/workspace aborted
+
+== Mount Command ==
+rclone mount s3-remote:my-workspace-bucket /mnt/workspace \
+  --daemon \
+  --allow-other \
+  --vfs-cache-mode off
+
+== Timing Data ==
+git status on local SSD:  0.3s
+git status on /mnt/workspace (single user):  45s
+git status on /mnt/workspace (30 concurrent): timeout/hang after 120s
+
+strace -c -e stat,open,readdir git status 2>&1 | tail -5:
+% time     seconds  usecs/call     calls    errors syscall
+  89.23    1.234567        123     10045      2134 stat
+   8.45    0.116789         58      2012       345 readdir
+   2.32    0.032100         32      1001         0 open
+
+== rclone version ==
+rclone v1.64.2
+- os/version: linux (amd64)
+- os/kernel: 5.15.0-91-generic

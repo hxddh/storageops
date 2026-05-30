@@ -79,6 +79,15 @@ class TestTriageDomainDetection(unittest.TestCase):
     def test_workspace_mount_slow_git(self):
         self._assert_top_domain("workspace-mount-slow-git", "mount_filesystem_workspace")
 
+    def test_network_vpc_endpoint_dns(self):
+        self._assert_top_domain("network-vpc-endpoint-dns", "network_endpoint_access")
+
+    def test_rclone_mount_hang(self):
+        self._assert_top_domain("rclone-mount-hang", "mount_filesystem_workspace")
+
+    def test_kms_denied_encrypt(self):
+        self._assert_top_domain("kms-denied-encrypt", "security_iam_policy")
+
 
 class TestParserStructuredOutput(unittest.TestCase):
     """Domain-specific parsers must produce structured output with key evidence."""
@@ -190,6 +199,15 @@ class TestTriageConfidenceThresholds(unittest.TestCase):
 
     def test_confidence_workspace(self):
         self._check("workspace-mount-slow-git")
+
+    def test_confidence_vpc_endpoint_dns(self):
+        self._check("network-vpc-endpoint-dns")
+
+    def test_confidence_rclone_mount_hang(self):
+        self._check("rclone-mount-hang")
+
+    def test_confidence_kms_denied(self):
+        self._check("kms-denied-encrypt")
 
 
 if __name__ == "__main__":

@@ -506,6 +506,7 @@ def agent_run(
             verbose=verbose,
             stream=stream,
             supervisor=supervisor,
+            interactive=interactive,
         )
     return _agent_run_rules(initial_file=initial_file, interactive=interactive)
 
@@ -520,6 +521,7 @@ def _agent_run_llm(
     verbose: bool,
     stream: bool = False,
     supervisor: bool = False,
+    interactive: bool = False,
 ) -> int:
     """LLM-powered diagnostic agent."""
     try:
@@ -583,10 +585,81 @@ def _agent_run_llm(
     if result.get("secondary_report"):
         print(f"\n[Secondary: {result.get('secondary_domain')}]")
         print(result["secondary_report"])
+    if not result.get("report_valid", True) and result.get("report_warnings"):
+        print(f"  ⚠  Report warnings: {result['report_warnings']}", file=sys.stderr)
     if result.get("error"):
         print(f"Status: {result['error']}")
 
+    # Interactive follow-up loop (LLM mode only)
+    if interactive and result["ok"]:
+        _interactive_followup(
+            initial_evidence=evidence,
+            first_result=result,
+            provider_name=provider_name,
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            max_turns=max_turns,
+            verbose=verbose,
+        )
+
     return 0 if result["ok"] else 1
+
+
+def _interactive_followup(
+    initial_evidence: str,
+    first_result: dict,
+    provider_name: str,
+    api_key: str | None,
+    model: str | None,
+    base_url: str | None,
+    max_turns: int,
+    verbose: bool,
+) -> None:
+    """Multi-turn interactive follow-up after initial LLM diagnosis."""
+    from storageops.llm_agent import run_llm_agent
+
+    accumulated = initial_evidence
+    domain = first_result["domain"]
+    print(
+        "\n[Interactive] Ask a follow-up question, add more evidence, or press Enter to exit."
+    )
+
+    while True:
+        try:
+            user_input = input("\n> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not user_input:
+            break
+
+        accumulated = f"{accumulated}\n\n[Follow-up] {user_input}"
+        followup_result = run_llm_agent(
+            evidence_text=accumulated,
+            domain=domain,
+            provider_name=provider_name,
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            max_turns=max_turns,
+            verbose=verbose,
+            stream=False,
+        )
+        print(f"\n{'='*60}")
+        print(followup_result["report"])
+        print(f"{'='*60}")
+        print(
+            f"\n[Session {followup_result['session_id']}] "
+            f"turns={followup_result['turns_used']} "
+            f"tools={followup_result['tool_calls_made']}"
+        )
+        if not followup_result["ok"]:
+            print(f"Status: {followup_result['error']}")
+            break
+        print(
+            "\n[Interactive] Ask another follow-up, add more evidence, or press Enter to exit."
+        )
 
 
 def _agent_run_rules(initial_file: str = None, interactive: bool = False) -> int:

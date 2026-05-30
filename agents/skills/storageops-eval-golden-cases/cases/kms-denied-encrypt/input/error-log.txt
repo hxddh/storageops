@@ -1,0 +1,39 @@
+== AWS CLI Error ==
+$ aws s3 cp myfile.txt s3://encrypted-bucket/myfile.txt
+
+An error occurred (AccessDenied) when calling the PutObject operation:
+User: arn:aws:iam::123456789012:role/app-service-role is not authorized to perform:
+kms:GenerateDataKey on resource: arn:aws:kms:us-east-1:987654321098:key/mrk-abc12345def67890
+with an explicit deny in an identity-based policy
+
+== AWS CLI Debug Output ==
+2024-01-15 14:22:01,234 - botocore.parsers - DEBUG - Response headers: {'x-amz-request-id': 'EXAMPLE123456', 'Content-Type': 'application/xml', 'Content-Length': '456'}
+2024-01-15 14:22:01,235 - botocore.parsers - DEBUG - Response body: b'<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>AccessDenied</Code><Message>User: arn:aws:iam::123456789012:role/app-service-role is not authorized to perform: kms:GenerateDataKey on resource: arn:aws:kms:us-east-1:987654321098:key/mrk-abc12345def67890 with an explicit deny in an identity-based policy</Message><RequestId>EXAMPLE123456</RequestId><HostId>example</HostId></Error>'
+
+== Bucket Configuration ==
+Bucket: encrypted-bucket
+Region: us-east-1
+Default Encryption: SSE-KMS
+KMS Key ARN: arn:aws:kms:us-east-1:987654321098:key/mrk-abc12345def67890 (owned by account 987654321098)
+
+== IAM Role Policy (app-service-role in account 123456789012) ==
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::encrypted-bucket", "arn:aws:s3:::encrypted-bucket/*"]
+    },
+    {
+      "Effect": "Deny",
+      "Action": "kms:*",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "kms:CallerAccount": "123456789012"
+        }
+      }
+    }
+  ]
+}

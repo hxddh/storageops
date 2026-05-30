@@ -17,10 +17,36 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+
+# ── Retry helper ─────────────────────────────────────────────────────
+
+_RATE_LIMIT_INDICATORS = (
+    "429", "rate limit", "too many requests", "overloaded",
+    "529", "capacity", "quota",
+)
+
+
+def _is_rate_limit(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(ind in msg for ind in _RATE_LIMIT_INDICATORS)
+
+
+def _retry(fn: Any, max_retries: int = 3) -> Any:
+    """Call fn(), retrying up to max_retries times on rate-limit errors."""
+    for attempt in range(max_retries + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            if attempt == max_retries or not _is_rate_limit(exc):
+                raise
+            delay = 2 ** (attempt + 1)   # 2s, 4s, 8s
+            time.sleep(delay)
 
 
 @dataclass
@@ -63,44 +89,47 @@ class AnthropicProvider:
             max_tokens=max_tokens,
             messages=messages,
         )
+        # Prompt caching: mark system prompt for caching (saves ~90% on repeated calls)
         if system:
-            kwargs["system"] = system
+            kwargs["system"] = [
+                {"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}
+            ]
+        # Cache the tool definitions (they're large and static per session)
         if tools:
-            kwargs["tools"] = tools
+            cached_tools = list(tools)
+            if cached_tools:
+                cached_tools = [dict(t) for t in cached_tools]
+                cached_tools[-1] = dict(cached_tools[-1])
+                cached_tools[-1]["cache_control"] = {"type": "ephemeral"}
+            kwargs["tools"] = cached_tools
 
-        if on_text_chunk is not None:
-            # Streaming mode: call on_text_chunk for each text delta
+        def _do_stream():
             with self._client.messages.stream(**kwargs) as stream:
                 for text in stream.text_stream:
                     on_text_chunk(text)
-                resp = stream.get_final_message()
-            text_parts = [b.text for b in resp.content if hasattr(b, "text")]
-            tool_calls = [
-                {"id": b.id, "name": b.name, "input": b.input}
-                for b in resp.content
-                if b.type == "tool_use"
-            ]
-            return LLMResponse(
-                content="\n".join(text_parts),
-                stop_reason=resp.stop_reason,
-                tool_calls=tool_calls,
-                input_tokens=resp.usage.input_tokens,
-                output_tokens=resp.usage.output_tokens,
-            )
+                return stream.get_final_message()
 
-        resp = self._client.messages.create(**kwargs)
+        def _do_create():
+            return self._client.messages.create(**kwargs)
+
+        if on_text_chunk is not None:
+            resp = _retry(_do_stream)
+        else:
+            resp = _retry(_do_create)
+
         text_parts = [b.text for b in resp.content if hasattr(b, "text")]
         tool_calls = [
             {"id": b.id, "name": b.name, "input": b.input}
             for b in resp.content
             if b.type == "tool_use"
         ]
+        usage = resp.usage
         return LLMResponse(
             content="\n".join(text_parts),
             stop_reason=resp.stop_reason,
             tool_calls=tool_calls,
-            input_tokens=resp.usage.input_tokens,
-            output_tokens=resp.usage.output_tokens,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
         )
 
 
@@ -158,25 +187,27 @@ class OpenAICompatProvider:
             ]
 
         if on_text_chunk is not None and not oai_tools:
-            # Streaming mode for OpenAI-compat (text-only turns)
-            stream = self._client.chat.completions.create(
-                model=self.model, messages=converted,
-                max_tokens=max_tokens, stream=True,
-            )
-            full_content = ""
-            for chunk in stream:
-                delta = chunk.choices[0].delta.content or ""
-                if delta:
-                    on_text_chunk(delta)
-                    full_content += delta
-            return LLMResponse(content=full_content, stop_reason="end_turn")
+            def _do_stream():
+                stream = self._client.chat.completions.create(
+                    model=self.model, messages=converted,
+                    max_tokens=max_tokens, stream=True,
+                )
+                full_content = ""
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content or ""
+                    if delta:
+                        on_text_chunk(delta)
+                        full_content += delta
+                return full_content
+            content = _retry(_do_stream)
+            return LLMResponse(content=content, stop_reason="end_turn")
 
-        resp = self._client.chat.completions.create(
+        resp = _retry(lambda: self._client.chat.completions.create(
             model=self.model,
             messages=converted,
             tools=oai_tools,
             max_tokens=max_tokens,
-        )
+        ))
 
         choice = resp.choices[0]
         content = choice.message.content or ""
@@ -279,14 +310,18 @@ class OllamaProvider:
             payload["tools"] = tools
 
         data = json.dumps(payload).encode()
-        req = urllib.request.Request(
-            f"{self.base_url}/api/chat",
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=120) as r:
-            result = json.loads(r.read())
+
+        def _do_request():
+            req = urllib.request.Request(
+                f"{self.base_url}/api/chat",
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.loads(r.read())
+
+        result = _retry(_do_request)
 
         content = result.get("message", {}).get("content", "")
         tool_calls = []
