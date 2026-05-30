@@ -495,10 +495,13 @@ def agent_run(
     With supervisor=True, uses multi-agent triage-then-specialist routing.
     Otherwise runs the offline rule-based engine.
     """
-    if llm_provider:
+    # Use LLM agent if provider is explicit or can be auto-detected from env
+    from storageops.llm_provider import auto_detect_provider
+    effective_provider = llm_provider or auto_detect_provider()
+    if effective_provider:
         return _agent_run_llm(
             initial_file=initial_file,
-            provider_name=llm_provider,
+            provider_name=effective_provider,
             model=llm_model,
             api_key=llm_key,
             base_url=llm_base_url,

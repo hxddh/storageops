@@ -2,274 +2,159 @@
 
 [![CI](https://github.com/hxddh/storageops/actions/workflows/ci.yml/badge.svg)](https://github.com/hxddh/storageops/actions)
 
-Autonomous diagnostic toolkit for S3-compatible object storage. Identifies root causes in access errors, throttling, lifecycle cost, FUSE mount hangs, TLS failures, and more — offline, no cloud connections required.
+Autonomous diagnostic agent for S3-compatible object storage. Identifies root causes in access errors, throttling, lifecycle cost, FUSE mount hangs, TLS failures, and more — offline, no cloud connections.
 
 ---
 
-## Install
+## Quickstart
 
 ```bash
-git clone https://github.com/hxddh/storageops.git
-cd storageops
-
-# Rule-based diagnostics only (no dependencies)
-pip install -e storageops-cli/
-
-# LLM-powered agent with Anthropic Claude
+# 1. Install
 pip install -e "storageops-cli/[llm]"
 
-# LLM-powered agent with OpenAI
-pip install -e "storageops-cli/[llm-openai]"
+# 2. Set your API key (pick any one provider)
+export ANTHROPIC_API_KEY=sk-ant-...   # Claude
+export OPENAI_API_KEY=sk-...          # GPT-4o
+export DEEPSEEK_API_KEY=sk-...        # DeepSeek
+export MOONSHOT_API_KEY=sk-...        # Moonshot / Kimi
+export DASHSCOPE_API_KEY=sk-...       # Qwen / Alibaba Cloud
+export ZHIPU_API_KEY=...              # Zhipu / GLM
+export GROQ_API_KEY=gsk_...           # Groq
 
-# Development (tests + linter)
-pip install -e "storageops-cli/[dev]"
+# 3. Diagnose
+storageops agent error.log
 ```
 
-Requires Python ≥ 3.9.
+Provider is auto-detected from the env var you set — no extra flags needed.
 
 ---
 
-## Configure
+## Supported Providers
 
-### API Key (for LLM agent)
-
-Set one of the following (checked in priority order):
-
-```bash
-# Option 1: environment variable
-export ANTHROPIC_API_KEY=sk-ant-...
-export OPENAI_API_KEY=sk-...
-
-# Option 2: config file
-mkdir -p ~/.storageops
-cat > ~/.storageops/config.yaml << 'EOF'
-llm_key: sk-ant-...         # Anthropic or OpenAI key
-EOF
-
-# Option 3: CLI flag (not recommended for scripts)
-storageops agent mylog.log --llm-provider anthropic --llm-key sk-ant-...
-```
-
-The rule-based commands (`triage`, `analyze`, `report`) require no key.
-
----
-
-## Quick Start
-
-### 1 — Triage an error log (no key needed)
-
-```bash
-storageops triage error.log
-```
-
-Outputs: primary domain, confidence scores, missing evidence checklist.
-
-### 2 — Run the LLM agent
-
-```bash
-storageops agent error.log --llm-provider anthropic
-```
-
-The agent runs a multi-turn ReAct loop: reads evidence → calls tools → reasons → produces a structured diagnostic report with root cause and remediation steps.
-
-### 3 — Web UI
-
-```bash
-pip install -e "storageops-cli/[llm]" fastapi uvicorn
-storageops serve
-# Open http://localhost:8080
-```
-
-Three tabs: **Triage** (rule-based, no key), **Analyze** (domain-specific parsers), **Agent** (LLM, enter your key in the UI).
-
-### 4 — MCP server (Claude Desktop)
-
-```bash
-pip install "mcp>=1.0"
-storageops mcp
-```
-
-Add to `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "storageops": {
-      "command": "storageops",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
----
-
-## All Commands
-
-| Command | What it does | Key needed? |
+| Provider | Env var | Default model |
 |---|---|---|
-| `storageops triage <file>` | Classify domain, score confidence, list missing evidence | No |
-| `storageops analyze <domain> <file>` | Run parser + analyzer for one domain | No |
-| `storageops agent <file>` | Multi-turn LLM diagnostic agent | Yes (`--llm-provider`) |
-| `storageops agent <file> --supervisor` | Multi-agent: triage → route → parallel specialists | Yes |
-| `storageops agent <file> --interactive` | Follow-up questions after initial diagnosis | Yes |
-| `storageops serve` | Start FastAPI server + web UI on :8080 | Optional |
-| `storageops mcp` | Start MCP stdio server for Claude Desktop | No |
-| `storageops memory list` | List past LLM diagnoses | No |
-| `storageops memory search "ETag mismatch"` | BM25 search across past cases | No |
-| `storageops audit list` | Show recent agent sessions with token counts | No |
-| `storageops audit stats` | Aggregate token usage and tool frequency | No |
-| `storageops eval --regression` | Check if triage confidence regressed vs last run | No |
+| Anthropic Claude | `ANTHROPIC_API_KEY` | claude-opus-4-8 |
+| OpenAI | `OPENAI_API_KEY` | gpt-4o |
+| DeepSeek | `DEEPSEEK_API_KEY` | deepseek-chat |
+| Moonshot / Kimi | `MOONSHOT_API_KEY` | moonshot-v1-8k |
+| Qwen / Alibaba | `DASHSCOPE_API_KEY` | qwen-max |
+| Zhipu / GLM | `ZHIPU_API_KEY` | glm-4-plus |
+| Groq | `GROQ_API_KEY` | llama-3.3-70b-versatile |
+| Ollama (local) | *(none)* | llama3.2 |
+| Custom OpenAI-compatible | `STORAGEOPS_LLM_KEY` | set `--llm-model` |
 
-### `storageops agent` options
+---
 
-```
---llm-provider  anthropic | openai | openai-compatible | ollama
---llm-model     Model name override (default: claude-opus-4-8 / gpt-4o)
---llm-key       API key (prefer env var)
---llm-base-url  Base URL for openai-compatible / ollama
---max-turns     Max agent turns (default: 8)
---verbose       Show tool calls and turn progress
---stream        Stream LLM output to stdout
---supervisor    Multi-agent supervisor mode
---interactive   Follow-up REPL after diagnosis
-```
+## What it does
 
-### `storageops analyze` domains
+The agent runs a multi-turn ReAct loop on your evidence file:
 
 ```
-s3_protocol_compatibility   SigV4 errors, ETag mismatch, multipart issues
-cli_sdk_behavior            rclone, s5cmd, AWS CLI, botocore errors
-performance_throughput      Throttling (SlowDown/429), throughput, hot prefix
-security_iam_policy         AccessDenied, IAM policy, cross-account, KMS
-lifecycle_cost              Lifecycle rules, STANDARD_IA small-file penalty
-mount_filesystem_workspace  FUSE mount hangs, git-on-S3 slowness
-network_endpoint_access     VPC endpoints, DNS, TLS/SSL errors
+scan_secrets → search_memory → parse logs → analyze → critique → report
+```
+
+Final output is a structured Markdown report:
+
+```markdown
+---
+category: cli_sdk_behavior
+root_cause_type: multipart_etag_format_mismatch
+confidence: 0.92
+severity: high
+---
+
+## Summary
+rclone's multipart ETag format doesn't match the server's expected format...
+
+## Key Evidence
+- parse_rclone_log: ETag mismatch on all parts > 5 MB
+- rclone v1.64.2, AWS S3, --s3-upload-cutoff not set
+
+## Remediation
+# manual-only: add to rclone.conf:
+[s3-remote]
+s3_upload_cutoff = 200Mi
 ```
 
 ---
 
-## Supported LLM Providers
+## All 7 diagnostic domains
 
-| Provider | `--llm-provider` | Package | Default model |
-|---|---|---|---|
-| Anthropic Claude | `anthropic` | `storageops-cli[llm]` | `claude-opus-4-8` |
-| OpenAI | `openai` | `storageops-cli[llm-openai]` | `gpt-4o` |
-| OpenAI-compatible (Deepseek, etc.) | `openai-compatible` | `storageops-cli[llm-openai]` | set `--llm-model` |
-| Ollama (local) | `ollama` | none | set `--llm-model` |
+| Domain | What it diagnoses |
+|---|---|
+| `s3_protocol_compatibility` | SigV4 errors, clock skew, ETag mismatch, multipart |
+| `cli_sdk_behavior` | rclone, s5cmd, AWS CLI, botocore errors |
+| `performance_throughput` | Throttling (SlowDown/429), hot prefix, slow transfers |
+| `security_iam_policy` | 403 AccessDenied, IAM/bucket policy, KMS, cross-account |
+| `lifecycle_cost` | Lifecycle rules, STANDARD_IA small-file penalty |
+| `mount_filesystem_workspace` | FUSE mount hangs, git-on-S3 slowness |
+| `network_endpoint_access` | VPC endpoints, DNS, TLS/SSL certificate errors |
 
-**Ollama example:**
+---
+
+## Options
+
+```
+storageops agent <file> [options]
+
+  --llm-provider    Override auto-detected provider
+  --llm-model       Override default model
+  --llm-key         API key (prefer env var)
+  --llm-base-url    Base URL for ollama / custom endpoint
+  --max-turns       Max agent turns (default: 8)
+  --verbose         Show tool calls and turn progress
+  --stream          Stream output to stdout
+  --supervisor      Multi-agent mode (triage → route → specialists)
+  --interactive     Follow-up REPL after diagnosis
+```
+
+**Ollama (local model):**
 ```bash
 ollama pull llama3.1
+storageops agent error.log --llm-provider ollama --llm-model llama3.1
+```
+
+**Custom OpenAI-compatible endpoint:**
+```bash
+export STORAGEOPS_LLM_KEY=your-key
 storageops agent error.log \
-  --llm-provider ollama \
-  --llm-base-url http://localhost:11434 \
-  --llm-model llama3.1
+  --llm-provider openai-compatible \
+  --llm-base-url https://your-endpoint/v1 \
+  --llm-model your-model
 ```
 
 ---
 
-## Diagnostic Domains
-
-| Domain | Typical evidence | Example root causes |
-|---|---|---|
-| `s3_protocol_compatibility` | XML error response, AWS debug log | Clock skew >5 min, multipart ETag mismatch |
-| `cli_sdk_behavior` | rclone/s5cmd/aws CLI output | Wrong key path, ETag format mismatch, botocore bug |
-| `performance_throughput` | Transfer timing, status code counts | Hot prefix throttling, small TCP window, single-threaded |
-| `security_iam_policy` | 403 error text, policy JSON | Missing IAM allow, explicit Deny, cross-account gap |
-| `lifecycle_cost` | Lifecycle XML, inventory CSV | Small-file IA penalty (<128 KB), minimum duration charges |
-| `mount_filesystem_workspace` | dmesg, strace, mount command | FUSE timeout, vfs-cache-mode off, metadata storm |
-| `network_endpoint_access` | curl -v, dig, openssl s_client | TLS cert expired, VPC route missing, DNS split-horizon |
-
----
-
-## Examples
-
-### Diagnose an rclone ETag mismatch
+## Other commands
 
 ```bash
-storageops agent rclone-debug.log --llm-provider anthropic --verbose
+# Rule-based triage (no key needed, instant)
+storageops triage error.log
+
+# Web UI
+storageops serve          # → http://localhost:8080
+
+# MCP server for Claude Desktop
+storageops mcp
+
+# Search past diagnoses
+storageops memory search "ETag mismatch"
+
+# View session history + token usage
+storageops audit list
+storageops audit stats
 ```
-
-### Diagnose a 403 AccessDenied with policy review
-
-```bash
-storageops agent access-denied.log --llm-provider anthropic --max-turns 12
-```
-
-### Interactive follow-up session
-
-```bash
-storageops agent throttling.log \
-  --llm-provider anthropic \
-  --interactive
-# After diagnosis, type follow-up questions at the prompt
-```
-
-### Rule-based triage (no key, instant)
-
-```bash
-storageops triage /var/log/aws-cli-debug.txt
-# Output: primary domain + confidence scores + missing evidence
-```
-
-### Run golden case eval
-
-```bash
-python -m pytest storageops-cli/tests/ -v
-```
-
----
-
-## Architecture
-
-```
-agents/skills/          ← 10 SKILL.md files (diagnostic knowledge)
-storageops-core/        ← 5 parsers + 5 analyzers + secret scanner
-storageops-cli/         ← CLI, LLM agent, API server, MCP server
-  └── storageops/
-      ├── llm_agent.py       ReAct loop: reason → tool → observe → repeat
-      ├── supervisor_agent.py Multi-agent: triage → route → specialists
-      ├── tool_registry.py   12 tools (parse, analyze, generate, search)
-      ├── llm_provider.py    Anthropic / OpenAI / Ollama abstraction
-      ├── prompt_builder.py  System prompt = SKILL.md + safety rules
-      ├── memory_store.py    BM25 case memory
-      ├── audit_logger.py    JSONL session audit trail
-      └── report_validator.py YAML frontmatter validator
-```
-
-**ReAct loop:**
-```
-Evidence → scan_secrets → search_memory → parse_* → analyze_* → report
-                          │                                          │
-                          └──────── critique turn ──────────────────┘
-```
-
-Each agent turn: LLM calls one tool → sees result → reasons → calls next tool.
-After final answer, a critique prompt asks the LLM to self-review before committing.
-
----
-
-## Safety
-
-- **Secrets redacted** before evidence reaches the LLM (`scan_secrets` runs on input, tool results, and output)
-- **Offline only** — no connections to cloud APIs, buckets, or IAM
-- **Read-only** — remediation steps labeled `# manual-only:`, never executed
-- **Unsafe output gate** — responses containing destructive patterns (delete bucket, make public, disable TLS) are blocked
-- **Prompt injection defense** — user evidence wrapped in `<user_evidence>` XML tags; system prompt explicitly warns the LLM to ignore instruction-like content inside logs
-- **Evidence-required** — all conclusions must cite tool output, not raw text
 
 ---
 
 ## Testing
 
 ```bash
-# Full test suite (78 tests, offline)
-python -m pytest storageops-cli/tests/ -v
-
-# Core parsers and analyzers
-python -m pytest storageops-core/tests/ -v
-
-# Eval regression check (requires prior metrics run)
-STORAGEOPS_EMIT_METRICS=1 python -m pytest storageops-cli/tests/
-storageops eval --regression
+python -m pytest storageops-cli/tests/ -q   # 78 tests, offline
 ```
+
+---
+
+## Safety
+
+Secrets are redacted before evidence reaches the LLM. All recommendations are labeled `# manual-only:` — the agent never modifies cloud resources. See [CLAUDE.md](CLAUDE.md) for architecture details.

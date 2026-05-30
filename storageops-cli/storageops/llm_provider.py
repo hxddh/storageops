@@ -1,17 +1,28 @@
 """
 LLM provider abstraction for StorageOps agent.
 
-Supports:
-  - Anthropic Claude (primary, default)
-  - OpenAI-compatible APIs (OpenAI, Azure, local)
-  - Ollama (local, no API key needed)
+Supported providers (use --llm-provider or set the corresponding env var):
 
-API keys are read from (priority order):
-  1. Explicit argument to build_provider()
-  2. Environment variable STORAGEOPS_LLM_KEY (or ANTHROPIC_API_KEY / OPENAI_API_KEY)
-  3. ~/.storageops/config.yaml
+  Provider name      Env var               Default model
+  ─────────────────  ────────────────────  ──────────────────────
+  anthropic          ANTHROPIC_API_KEY      claude-opus-4-8
+  openai             OPENAI_API_KEY         gpt-4o
+  deepseek           DEEPSEEK_API_KEY       deepseek-chat
+  moonshot           MOONSHOT_API_KEY       moonshot-v1-8k
+  qwen               DASHSCOPE_API_KEY      qwen-max
+  zhipu              ZHIPU_API_KEY          glm-4-plus
+  groq               GROQ_API_KEY           llama-3.3-70b-versatile
+  ollama             (none required)        llama3.2
+  openai-compatible  STORAGEOPS_LLM_KEY     (set --llm-model)
 
-NEVER hardcode API keys. NEVER commit config.yaml.
+Provider is auto-detected from the first env var found above — no need
+to pass --llm-provider if only one key is set.
+
+Key resolution order (per provider):
+  1. --llm-key CLI flag
+  2. Provider-specific env var (e.g. DEEPSEEK_API_KEY)
+  3. STORAGEOPS_LLM_KEY (generic fallback)
+  4. ~/.storageops/config.yaml → llm_key
 """
 from __future__ import annotations
 
@@ -22,6 +33,35 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+
+# ── Provider presets ──────────────────────────────────────────────────
+# Each entry: (env_var, base_url, default_model)
+
+_PRESETS: dict[str, tuple[str, str, str]] = {
+    "anthropic":   ("ANTHROPIC_API_KEY",  "",                                                "claude-opus-4-8"),
+    "openai":      ("OPENAI_API_KEY",     "https://api.openai.com/v1",                       "gpt-4o"),
+    "deepseek":    ("DEEPSEEK_API_KEY",   "https://api.deepseek.com/v1",                     "deepseek-chat"),
+    "moonshot":    ("MOONSHOT_API_KEY",   "https://api.moonshot.cn/v1",                      "moonshot-v1-8k"),
+    "qwen":        ("DASHSCOPE_API_KEY",  "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-max"),
+    "zhipu":       ("ZHIPU_API_KEY",      "https://open.bigmodel.cn/api/paas/v4",            "glm-4-plus"),
+    "groq":        ("GROQ_API_KEY",       "https://api.groq.com/openai/v1",                  "llama-3.3-70b-versatile"),
+}
+
+# Providers that use the OpenAI-compatible client (all except anthropic and ollama)
+_OPENAI_COMPAT = {"openai", "deepseek", "moonshot", "qwen", "zhipu", "groq", "openai-compatible"}
+
+PROVIDER_NAMES = list(_PRESETS.keys()) + ["ollama", "openai-compatible"]
+
+
+def auto_detect_provider() -> str | None:
+    """Return the first provider whose env var is set, or None."""
+    for name, (env_var, _, _) in _PRESETS.items():
+        if os.environ.get(env_var):
+            return name
+    if os.environ.get("STORAGEOPS_LLM_KEY"):
+        return "openai-compatible"
+    return None
 
 
 # ── Retry helper ─────────────────────────────────────────────────────
@@ -71,7 +111,7 @@ class AnthropicProvider:
         except ImportError:
             raise ImportError(
                 "anthropic package not installed. "
-                "Run: pip install 'storageops[llm]' or pip install anthropic"
+                "Run: pip install 'storageops[llm]'"
             )
         self._client = self._anthropic.Anthropic(api_key=api_key)
         self.model = model
@@ -96,11 +136,9 @@ class AnthropicProvider:
             ]
         # Cache the tool definitions (they're large and static per session)
         if tools:
-            cached_tools = list(tools)
-            if cached_tools:
-                cached_tools = [dict(t) for t in cached_tools]
-                cached_tools[-1] = dict(cached_tools[-1])
-                cached_tools[-1]["cache_control"] = {"type": "ephemeral"}
+            cached_tools = [dict(t) for t in tools]
+            cached_tools[-1] = dict(cached_tools[-1])
+            cached_tools[-1]["cache_control"] = {"type": "ephemeral"}
             kwargs["tools"] = cached_tools
 
         def _do_stream():
@@ -137,7 +175,7 @@ class AnthropicProvider:
 
 
 class OpenAICompatProvider:
-    """OpenAI-compatible provider (OpenAI, Azure OpenAI, local LLMs via LiteLLM etc.)."""
+    """OpenAI-compatible provider — works for OpenAI, DeepSeek, Moonshot, Qwen, Zhipu, Groq, etc."""
 
     def __init__(self, api_key: str, base_url: str, model: str):
         try:
@@ -146,7 +184,7 @@ class OpenAICompatProvider:
         except ImportError:
             raise ImportError(
                 "openai package not installed. "
-                "Run: pip install 'storageops[llm-openai]' or pip install openai"
+                "Run: pip install 'storageops[llm]'"
             )
         self.model = model
 
@@ -166,9 +204,7 @@ class OpenAICompatProvider:
         converted = []
         for msg in msgs:
             if isinstance(msg.get("content"), list):
-                # Anthropic tool_use / tool_result blocks
-                oai_msg = _convert_anthropic_msg_to_openai(msg)
-                converted.extend(oai_msg)
+                converted.extend(_convert_anthropic_msg_to_openai(msg))
             else:
                 converted.append(msg)
 
@@ -257,7 +293,6 @@ def _convert_anthropic_msg_to_openai(msg: dict) -> list[dict]:
         return [oai_msg]
 
     elif role == "user":
-        # Could be tool_result blocks
         tool_results = [b for b in content if b.get("type") == "tool_result"]
         text_blocks = [b for b in content if b.get("type") != "tool_result"]
 
@@ -357,7 +392,6 @@ def _load_config() -> dict:
         import yaml  # type: ignore[import]
         return yaml.safe_load(config_path.read_text()) or {}
     except ImportError:
-        # Minimal key:value parsing without yaml dep
         conf: dict = {}
         for line in config_path.read_text().splitlines():
             stripped = line.strip()
@@ -368,52 +402,65 @@ def _load_config() -> dict:
 
 
 def build_provider(
-    provider_name: str,
+    provider_name: str | None,
     api_key: str | None = None,
     model: str | None = None,
     base_url: str | None = None,
 ) -> AnthropicProvider | OpenAICompatProvider | OllamaProvider:
     """
-    Build a provider instance.
+    Build an LLM provider instance.
 
-    Config priority: explicit arg > env var > ~/.storageops/config.yaml
+    If provider_name is None, auto-detects from environment variables.
+    Raises ValueError with a helpful message if no provider can be determined.
     """
     cfg = _load_config()
 
-    key = (
-        api_key
-        or os.environ.get("STORAGEOPS_LLM_KEY")
-        or cfg.get("llm_api_key", "")
-    )
+    # Auto-detect provider if not specified
+    if provider_name is None:
+        provider_name = auto_detect_provider() or cfg.get("llm_provider")
+    if provider_name is None:
+        env_list = "\n".join(
+            f"  {env_var:<24} → {name}"
+            for name, (env_var, _, _) in _PRESETS.items()
+        )
+        raise ValueError(
+            "No LLM provider configured. Set one of these env vars:\n"
+            + env_list
+            + "\n\nOr pass --llm-provider explicitly."
+        )
+
+    # Resolve API key: explicit arg > provider env var > generic env var > config
+    if not api_key:
+        preset = _PRESETS.get(provider_name)
+        if preset:
+            api_key = os.environ.get(preset[0], "")
+        api_key = api_key or os.environ.get("STORAGEOPS_LLM_KEY", "") or cfg.get("llm_key", "")
+
+    # Resolve model
+    resolved_model = model or os.environ.get("STORAGEOPS_LLM_MODEL") or cfg.get("llm_model")
 
     if provider_name == "anthropic":
-        m = model or os.environ.get("STORAGEOPS_LLM_MODEL") or cfg.get(
-            "llm_model", "claude-opus-4-8"
-        )
-        if not key:
-            key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not key:
+        if not api_key:
             raise ValueError(
-                "Anthropic API key required.\n"
-                "Set ANTHROPIC_API_KEY env var, or STORAGEOPS_LLM_KEY, "
-                "or add llm_api_key to ~/.storageops/config.yaml"
+                "Anthropic API key not found.\n"
+                "Set ANTHROPIC_API_KEY env var or add llm_key to ~/.storageops/config.yaml"
             )
-        return AnthropicProvider(api_key=key, model=m)
-
-    elif provider_name in ("openai", "azure", "openai-compatible"):
-        m = model or cfg.get("llm_model", "gpt-4o")
-        url = base_url or cfg.get("llm_base_url", "https://api.openai.com/v1")
-        if not key:
-            key = os.environ.get("OPENAI_API_KEY", "")
-        return OpenAICompatProvider(api_key=key, base_url=url, model=m)
+        return AnthropicProvider(api_key=api_key, model=resolved_model or "claude-opus-4-8")
 
     elif provider_name == "ollama":
-        m = model or cfg.get("llm_model", "llama3.2")
         url = base_url or cfg.get("llm_base_url", "http://localhost:11434")
-        return OllamaProvider(base_url=url, model=m)
+        return OllamaProvider(base_url=url, model=resolved_model or "llama3.2")
+
+    elif provider_name in _OPENAI_COMPAT:
+        preset = _PRESETS.get(provider_name)
+        default_base = preset[1] if preset else "https://api.openai.com/v1"
+        default_model = preset[2] if preset else "gpt-4o"
+        url = base_url or cfg.get("llm_base_url", default_base)
+        m = resolved_model or default_model
+        return OpenAICompatProvider(api_key=api_key or "", base_url=url, model=m)
 
     else:
         raise ValueError(
-            f"Unknown provider: {provider_name!r}. "
-            "Supported: anthropic, openai, openai-compatible, ollama"
+            f"Unknown provider: {provider_name!r}.\n"
+            f"Supported: {', '.join(PROVIDER_NAMES)}"
         )

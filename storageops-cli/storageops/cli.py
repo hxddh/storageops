@@ -652,31 +652,36 @@ def main():
     # agent
     p_agent = sub.add_parser(
         'agent',
-        help='Run diagnostic agent (offline rule-based, or LLM-powered with --llm-provider)',
+        help='Run LLM diagnostic agent (provider auto-detected from env var)',
     )
-    p_agent.add_argument('file', nargs='?', help='Initial evidence file')
+    p_agent.add_argument('file', nargs='?', help='Evidence file (log, error, config)')
     p_agent.add_argument('--interactive', '-i', action='store_true',
-                         help='Interactive mode (rule-based only): ask follow-up questions')
-    # LLM provider options
+                         help='Follow-up REPL after initial diagnosis')
     p_agent.add_argument(
         '--llm-provider',
-        choices=['anthropic', 'openai', 'openai-compatible', 'ollama'],
-        help='Enable LLM-powered agent. Supported: anthropic, openai, openai-compatible, ollama',
+        choices=[
+            'anthropic', 'openai', 'deepseek', 'moonshot', 'qwen',
+            'zhipu', 'groq', 'ollama', 'openai-compatible',
+        ],
+        default=None,
+        help=(
+            'LLM provider (default: auto-detected from env var). '
+            'anthropic=ANTHROPIC_API_KEY, openai=OPENAI_API_KEY, '
+            'deepseek=DEEPSEEK_API_KEY, moonshot=MOONSHOT_API_KEY, '
+            'qwen=DASHSCOPE_API_KEY, zhipu=ZHIPU_API_KEY, groq=GROQ_API_KEY'
+        ),
     )
-    p_agent.add_argument('--llm-model', help='LLM model name override')
-    p_agent.add_argument(
-        '--llm-key',
-        help='LLM API key (prefer ANTHROPIC_API_KEY / STORAGEOPS_LLM_KEY env var instead)',
-    )
-    p_agent.add_argument('--llm-base-url', help='LLM API base URL (for openai-compatible/ollama)')
+    p_agent.add_argument('--llm-model', help='Model name override')
+    p_agent.add_argument('--llm-key', help='API key (prefer env var)')
+    p_agent.add_argument('--llm-base-url', help='Base URL (for ollama / openai-compatible)')
     p_agent.add_argument('--max-turns', type=int, default=8,
-                         help='Maximum agent turns (default: 8)')
+                         help='Max agent turns (default: 8)')
     p_agent.add_argument('--verbose', '-v', action='store_true',
-                         help='Print tool calls and turn progress to stderr')
+                         help='Show tool calls and turn progress')
     p_agent.add_argument('--stream', action='store_true',
-                         help='Stream LLM output to stdout as it is generated')
+                         help='Stream LLM output to stdout')
     p_agent.add_argument('--supervisor', action='store_true',
-                         help='Use multi-agent supervisor: triage first, then route to specialist(s)')
+                         help='Multi-agent mode: triage → route → specialists')
     p_agent.set_defaults(func=cmd_agent)
 
     # audit
