@@ -27,10 +27,12 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "scan_secrets",
         "description": (
-            "Scan text for exposed credentials: AWS access keys, session tokens, "
-            "Authorization headers, Alibaba/Tencent/Baidu Cloud keys, rclone config secrets. "
-            "Returns findings list and redacted text. "
-            "ALWAYS call this first before including any user-provided text in analysis or output."
+            "Scan text for exposed credentials and redact them before they reach your output. "
+            "Detects: AWS access keys (AKIA...), session tokens, Authorization headers, "
+            "Alibaba/Tencent/Baidu Cloud AK/SK, rclone config secrets, private keys. "
+            "Returns: findings list + redacted_text with secrets replaced by [REDACTED]. "
+            "Call this BEFORE passing any user-provided text to other tools or including "
+            "it in your response. Also call on tool result text if it may echo back user input."
         ),
         "input_schema": {
             "type": "object",
@@ -43,10 +45,13 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "parse_rclone_log",
         "description": (
-            "Parse an rclone debug or info log. Extracts: rclone version, transfer failures, "
-            "ETag/checksum mismatches (multipart_etag_format_mismatch is the most common cause "
-            "of corrupted-on-transfer), retry counts, timeouts, and overall transfer summary. "
-            "Use when the user provides rclone log output."
+            "Parse an rclone debug or info log. "
+            "Use when evidence contains rclone output, e.g. lines like: "
+            "'ERROR ... corrupted on transfer' or 'rclone v1.64.2'. "
+            "Extracts: rclone version, transfer failures, ETag/checksum mismatches "
+            "(multipart_etag_format_mismatch is the most common cause of corrupted-on-transfer), "
+            "retry counts, timeouts, bandwidth stats, and overall transfer summary. "
+            "Call AFTER scan_secrets on the log text."
         ),
         "input_schema": {
             "type": "object",
@@ -62,10 +67,13 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "parse_sigv4_error",
         "description": (
-            "Parse an AWS SigV4 error XML response (SignatureDoesNotMatch, "
-            "InvalidSignature, AuthorizationHeaderMalformed, RequestExpired). "
-            "Extracts canonical request, string-to-sign, server/client time for clock skew check. "
-            "Use when the user provides an XML error response from S3 or a compatible provider."
+            "Parse an AWS SigV4 error XML response. "
+            "Use when evidence contains XML error bodies like: "
+            "'<Code>SignatureDoesNotMatch</Code>' or '<Code>RequestExpired</Code>'. "
+            "Also use for: InvalidSignature, AuthorizationHeaderMalformed. "
+            "Extracts: error code, canonical request diff, string-to-sign, server time "
+            "and client time (for clock skew detection — skew >5 min causes RequestExpired). "
+            "Call AFTER scan_secrets; provide system_time if the user ran `date -u`."
         ),
         "input_schema": {
             "type": "object",
@@ -85,11 +93,14 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "parse_awscli_debug",
         "description": (
-            "Parse AWS CLI debug log output (from `aws --debug`). "
-            "Extracts HTTP operations, status codes, error codes (SignatureDoesNotMatch, "
-            "AccessDenied, etc.), credential source (instance profile, env, config), "
-            "and request/response details. "
-            "Use when the user provides `aws --debug` or `aws s3 ... --debug` output."
+            "Parse AWS CLI debug log output. "
+            "Use when evidence contains AWS CLI debug output, e.g. lines like: "
+            "'DEBUG botocore.endpoint' or 'urllib3.connectionpool'. "
+            "Also useful for s5cmd logs and generic HTTP request/response traces. "
+            "Extracts: HTTP status codes, error codes (SignatureDoesNotMatch, AccessDenied, "
+            "NoSuchKey, etc.), credential source (instance profile vs env vs config file), "
+            "endpoint URL, and request/response headers. "
+            "Call AFTER scan_secrets on the log text."
         ),
         "input_schema": {
             "type": "object",
@@ -105,11 +116,15 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "parse_lifecycle_xml",
         "description": (
-            "Parse an S3 lifecycle configuration XML. Extracts transition and expiration rules, "
-            "detects overlapping prefixes (including hierarchical: logs/ overlaps logs/2024/), "
-            "and warns about STANDARD_IA transitions without object size filters "
-            "(objects <128KB are billed at 128KB minimum). "
-            "Use when the user provides lifecycle XML."
+            "Parse an S3 lifecycle configuration XML. "
+            "Use when evidence contains XML starting with '<LifecycleConfiguration>' "
+            "or when the user asks about lifecycle rules, transition policies, or expiration. "
+            "Extracts: all transition and expiration rules, detects overlapping prefixes "
+            "(logs/ overlaps logs/2024/), warns about STANDARD_IA or GLACIER transitions "
+            "without ObjectSizeGreaterThan filter (objects <128KB billed at 128KB minimum — "
+            "the most common lifecycle cost trap). "
+            "Call BEFORE analyze_cost for lifecycle-related cost questions; "
+            "call BEFORE generate_lifecycle_fix to get the problem list."
         ),
         "input_schema": {
             "type": "object",
@@ -125,12 +140,16 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "analyze_policy",
         "description": (
-            "Analyze IAM and/or bucket policy JSON to trace a 403 AccessDenied. "
-            "Handles: explicit denies, cross-account missing IAM allow, "
-            "no-allow-statement, condition mismatches. "
-            "Supports prefix wildcards like s3:Get*. "
-            "Provide principal, action, resource, and at least one policy. "
-            "If policy JSON is unavailable, provide error_text for inline 403 analysis."
+            "Trace a 403 AccessDenied through IAM and/or bucket policies. "
+            "Use when the user reports 403 / AccessDenied errors on S3 operations. "
+            "Handles: explicit Deny overriding Allow, cross-account access where BOTH "
+            "IAM and bucket policy must allow, missing Allow statement, condition mismatches "
+            "(e.g. aws:SourceVpc, aws:PrincipalOrgID), KMS key policy gaps. "
+            "Supports action wildcards like s3:Get*. "
+            "Provide principal ARN, action, resource ARN, and policy JSON(s). "
+            "If policy JSON is unavailable, pass error_text and the tool will do "
+            "inline text analysis to identify likely denial source. "
+            "Call generate_policy_fix afterward if a fix statement is needed."
         ),
         "input_schema": {
             "type": "object",
@@ -166,10 +185,13 @@ TOOL_DEFINITIONS: list[dict] = [
         "name": "analyze_cost",
         "description": (
             "Analyze per-prefix inventory data for storage cost issues. "
-            "Detects: minimum billable size penalties (IA/Glacier with small objects), "
-            "minimum duration risks (objects deleted before 30/90/180 day minimum), "
-            "and cost amplification. "
-            "Use when the user provides object count, size, and storage class per prefix."
+            "Use when the user reports unexpectedly high storage bills or provides "
+            "inventory data with object counts, sizes, and storage classes. "
+            "Detects: minimum billable size penalty (STANDARD_IA/Glacier objects <128KB "
+            "are billed at 128KB — most expensive per-byte tier), minimum storage duration "
+            "charges (STANDARD_IA: 30 days, Glacier: 90–180 days), and cost amplification "
+            "from many small objects in tiered storage. "
+            "Requires prefix-level inventory with object_count, total_size_bytes, storage_class."
         ),
         "input_schema": {
             "type": "object",
@@ -203,9 +225,13 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "detect_throttling",
         "description": (
-            "Detect throttling patterns from error distribution data. "
-            "Returns throttle rate (%), severity, affected prefixes, and recommendations. "
-            "Use when the user reports 429 errors, SlowDown responses, or RequestRateLimitExceeded."
+            "Detect S3 throttling patterns from HTTP status code and error distributions. "
+            "Use when evidence mentions 429, SlowDown, RequestRateLimitExceeded, "
+            "or when transfer speed is intermittently poor with retries. "
+            "Returns: throttle_rate_percent, severity (low/medium/high/critical), "
+            "affected prefixes (hot prefix detection), retry recommendations. "
+            "Extract status_codes and errors from parse_awscli_debug or parse_rclone_log first, "
+            "then pass those structured results here."
         ),
         "input_schema": {
             "type": "object",
@@ -233,10 +259,13 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "generate_lifecycle_fix",
         "description": (
-            "Generate a corrected S3 lifecycle configuration XML that fixes detected issues. "
-            "Automatically adds ObjectSizeGreaterThan 128 KB filters to STANDARD_IA transitions "
-            "(preventing minimum-size billing for small objects) and enforces minimum 30-day "
-            "transition delays. Output is XML the user must review and apply manually."
+            "Generate a corrected S3 lifecycle XML that fixes issues identified by parse_lifecycle_xml. "
+            "Call AFTER parse_lifecycle_xml has confirmed problems (missing size filter, "
+            "overlapping prefixes, or too-short transition delay). "
+            "Automatically adds ObjectSizeGreaterThan 128 KB filter to STANDARD_IA/Glacier "
+            "transitions, enforces minimum 30-day transition delay, and deduplicates overlapping rules. "
+            "Output is complete XML the user MUST review and apply manually — "
+            "this tool never modifies live configurations. Label your recommendation '# manual-only:'."
         ),
         "input_schema": {
             "type": "object",
@@ -252,9 +281,12 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "generate_policy_fix",
         "description": (
-            "Generate a fix for an IAM or bucket policy causing AccessDenied (403). "
-            "Analyzes the denial source and outputs specific policy statement(s) to add. "
-            "Output must be reviewed and applied manually — this tool never modifies live policies."
+            "Generate specific IAM or bucket policy statement(s) to fix a 403 AccessDenied. "
+            "Call AFTER analyze_policy has identified the denial source "
+            "(e.g. missing Allow in IAM, explicit Deny in bucket policy, cross-account gap). "
+            "Outputs a ready-to-paste policy JSON statement targeted at the exact gap. "
+            "Output MUST be reviewed by the user before applying — "
+            "this tool never modifies live policies. Label as '# manual-only:'."
         ),
         "input_schema": {
             "type": "object",
@@ -270,11 +302,14 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "search_memory",
         "description": (
-            "Search your memory of past diagnosed cases for similar patterns. "
-            "Call this early in the investigation — before parsing tools — to check whether "
-            "a similar issue has been seen before. Returns matching past diagnoses with their "
-            "root causes, summaries, and timestamps. Use results to guide your investigation "
-            "but always verify against the current evidence."
+            "Search past diagnosed cases by BM25 keyword similarity. "
+            "Call this as your FIRST tool (before any parsing) to check for prior art. "
+            "If a match is found, it may tell you the root cause immediately and save turns. "
+            "Query with symptoms and domain keywords, e.g. "
+            "'ETag mismatch multipart rclone corrupted transfer' or '403 AccessDenied cross-account KMS'. "
+            "Returns: matching cases with root_cause, summary, domain, and timestamp. "
+            "Always verify memory results against the current evidence — don't assume same root cause "
+            "without checking tool output from this case."
         ),
         "input_schema": {
             "type": "object",
@@ -304,9 +339,14 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "analyze_throughput",
         "description": (
-            "Analyze upload/download throughput against theoretical limits. "
-            "Identifies bandwidth bottlenecks, RTT impact, and multipart tuning opportunities. "
-            "Use when the user reports slow transfer speeds and can provide timing data."
+            "Analyze upload/download throughput against theoretical limits given RTT and bandwidth. "
+            "Use when the user reports slow transfer speeds and provides timing or bandwidth data. "
+            "Key insight: throughput = TCP_window / RTT; a 192ms RTT with default 64KB TCP window "
+            "limits single-stream throughput to ~2.7 Mbps regardless of bandwidth. "
+            "Returns: theoretical max throughput, actual vs expected ratio, bottleneck type "
+            "(bandwidth-bound vs latency-bound vs concurrency-bound), multipart part size recommendation, "
+            "and suggested concurrency level. "
+            "Provide observed_throughput_mbps if available for gap analysis."
         ),
         "input_schema": {
             "type": "object",
