@@ -141,6 +141,8 @@ def run_llm_agent(
     base_url: str | None = None,
     max_turns: int = 8,
     verbose: bool = False,
+    stream: bool = False,
+    _tool_override: list[dict] | None = None,
 ) -> dict:
     """
     Run the LLM diagnostic agent.
@@ -178,6 +180,7 @@ def run_llm_agent(
     initial_msg = build_initial_message(evidence_text, domain)
     messages: list[dict] = [{"role": "user", "content": initial_msg}]
 
+    active_tools = _tool_override if _tool_override is not None else TOOL_DEFINITIONS
     tool_calls_made: list[str] = []
     turns_used = 0
 
@@ -188,11 +191,19 @@ def run_llm_agent(
                 print(f"\n  [LLM turn {turns_used}/{max_turns}]", file=sys.stderr)
 
             # ── Call LLM ─────────────────────────────────────────────
+            # Stream final answer to stdout when stream=True and no tools expected
+            _on_chunk = None
+            if stream and not any(
+                isinstance(m.get("content"), list) for m in messages[-1:]
+            ):
+                _on_chunk = lambda t: print(t, end="", flush=True)  # noqa: E731
+
             response: LLMResponse = provider.complete(
                 messages=messages,
-                tools=TOOL_DEFINITIONS,
+                tools=active_tools,
                 system=system_prompt,
                 max_tokens=4096,
+                on_text_chunk=_on_chunk,
             )
 
             audit_logger.log_llm_call(

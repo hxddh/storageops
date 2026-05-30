@@ -1,0 +1,11 @@
+{
+  "expected_category": "lifecycle_cost",
+  "expected_root_cause_types": ["small_object_ia_size_penalty", "minimum_duration_risk"],
+  "expected_min_confidence": 0.75,
+  "must_include_evidence_keywords": ["STANDARD_IA", "128KB", "minimum"],
+  "should_include_evidence_keywords": ["thumbnails", "small", "30 days", "penalty"],
+  "must_include_recommendation_keywords": ["object size", "filter", "128KB"],
+  "must_not_include": ["delete bucket", "make public"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "medium"
+}

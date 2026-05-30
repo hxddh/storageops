@@ -1,0 +1,102 @@
+name: StorageOps Bot
+
+# Triggers:
+#   1. Issue comment containing "/storageops" (inline triage)
+#   2. Issues labeled "storageops-diagnose" (auto-triage on label)
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [labeled]
+
+jobs:
+  triage:
+    # Only run on /storageops command in comments, or storageops-diagnose label
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/storageops')) ||
+      (github.event_name == 'issues' && github.event.label.name == 'storageops-diagnose')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install StorageOps CLI
+        run: pip install -e storageops-cli/
+
+      - name: Extract evidence text
+        id: evidence
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Use comment body (strip the /storageops command prefix) or issue body
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            echo "$COMMENT_BODY" | sed 's|/storageops[[:space:]]*||' > /tmp/evidence.txt
+          else
+            echo "$ISSUE_BODY" > /tmp/evidence.txt
+          fi
+          wc -c /tmp/evidence.txt
+
+      - name: Run triage
+        id: triage
+        run: |
+          storageops triage /tmp/evidence.txt > /tmp/triage-result.json 2>&1 || true
+          cat /tmp/triage-result.json
+
+      - name: Post triage comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let result = {};
+            try {
+              result = JSON.parse(fs.readFileSync('/tmp/triage-result.json', 'utf8'));
+            } catch (e) {
+              result = { ok: false, error: 'Failed to parse triage output' };
+            }
+
+            const domain = result.primary_domain || 'unknown';
+            const conf = result.primary_confidence || 0;
+            const skill = result.routing?.primary_skill || 'storageops-triage';
+            const secrets = result.secret_scan?.findings_count || 0;
+            const nextCmd = result.recommended_next_command || '';
+
+            let body = `## StorageOps Triage Result\n\n`;
+
+            if (result.ok) {
+              body += `| Field | Value |\n|---|---|\n`;
+              body += `| Domain | \`${domain}\` |\n`;
+              body += `| Confidence | ${(conf * 100).toFixed(0)}% |\n`;
+              body += `| Skill | \`${skill}\` |\n`;
+              if (secrets > 0) {
+                body += `| ⚠️ Secrets detected | ${secrets} credential pattern(s) found — redacted |\n`;
+              }
+              body += `\n`;
+              if (nextCmd) {
+                body += `**Next step:** \`${nextCmd}\`\n\n`;
+              }
+              body += `<details><summary>Full triage JSON</summary>\n\n\`\`\`json\n`;
+              body += JSON.stringify(result, null, 2).slice(0, 3000);
+              body += `\n\`\`\`\n</details>\n\n`;
+            } else {
+              body += `Triage failed: ${result.error || 'unknown error'}\n\n`;
+              body += `Please provide a log file, error message, or configuration snippet.\n`;
+            }
+
+            body += `---\n*Auto-triage by [StorageOps Bot](https://github.com/hxddh/storageops). `;
+            body += `Trigger with \`/storageops\` in comments.*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

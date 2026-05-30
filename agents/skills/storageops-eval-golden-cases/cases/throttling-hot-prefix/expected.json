@@ -1,0 +1,11 @@
+{
+  "expected_category": "performance_throughput",
+  "expected_root_cause_types": ["hot_prefix_throttling", "s3_request_rate_exceeded"],
+  "expected_min_confidence": 0.75,
+  "must_include_evidence_keywords": ["SlowDown", "throttl", "request rate"],
+  "should_include_evidence_keywords": ["prefix", "data/2024/01/15", "partition", "retry"],
+  "must_include_recommendation_keywords": ["prefix", "partition", "rate"],
+  "must_not_include": ["delete bucket", "make public"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "high"
+}

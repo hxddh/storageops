@@ -56,6 +56,7 @@ class AnthropicProvider:
         tools: list[dict] | None = None,
         system: str = "",
         max_tokens: int = 4096,
+        on_text_chunk: Any = None,
     ) -> LLMResponse:
         kwargs: dict[str, Any] = dict(
             model=self.model,
@@ -67,8 +68,27 @@ class AnthropicProvider:
         if tools:
             kwargs["tools"] = tools
 
-        resp = self._client.messages.create(**kwargs)
+        if on_text_chunk is not None:
+            # Streaming mode: call on_text_chunk for each text delta
+            with self._client.messages.stream(**kwargs) as stream:
+                for text in stream.text_stream:
+                    on_text_chunk(text)
+                resp = stream.get_final_message()
+            text_parts = [b.text for b in resp.content if hasattr(b, "text")]
+            tool_calls = [
+                {"id": b.id, "name": b.name, "input": b.input}
+                for b in resp.content
+                if b.type == "tool_use"
+            ]
+            return LLMResponse(
+                content="\n".join(text_parts),
+                stop_reason=resp.stop_reason,
+                tool_calls=tool_calls,
+                input_tokens=resp.usage.input_tokens,
+                output_tokens=resp.usage.output_tokens,
+            )
 
+        resp = self._client.messages.create(**kwargs)
         text_parts = [b.text for b in resp.content if hasattr(b, "text")]
         tool_calls = [
             {"id": b.id, "name": b.name, "input": b.input}
@@ -107,6 +127,7 @@ class OpenAICompatProvider:
         tools: list[dict] | None = None,
         system: str = "",
         max_tokens: int = 4096,
+        on_text_chunk: Any = None,
     ) -> LLMResponse:
         msgs = list(messages)
         if system:
@@ -135,6 +156,20 @@ class OpenAICompatProvider:
                 }
                 for t in tools
             ]
+
+        if on_text_chunk is not None and not oai_tools:
+            # Streaming mode for OpenAI-compat (text-only turns)
+            stream = self._client.chat.completions.create(
+                model=self.model, messages=converted,
+                max_tokens=max_tokens, stream=True,
+            )
+            full_content = ""
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    on_text_chunk(delta)
+                    full_content += delta
+            return LLMResponse(content=full_content, stop_reason="end_turn")
 
         resp = self._client.chat.completions.create(
             model=self.model,
@@ -228,6 +263,7 @@ class OllamaProvider:
         tools: list[dict] | None = None,
         system: str = "",
         max_tokens: int = 4096,
+        on_text_chunk: Any = None,
     ) -> LLMResponse:
         msgs = list(messages)
         if system:

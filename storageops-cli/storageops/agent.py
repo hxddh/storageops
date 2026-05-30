@@ -486,10 +486,13 @@ def agent_run(
     llm_base_url: str | None = None,
     max_turns: int = 8,
     verbose: bool = False,
+    stream: bool = False,
+    supervisor: bool = False,
 ) -> int:
     """Run the agent diagnostic loop. Returns exit code.
 
     If llm_provider is set, delegates to the LLM-powered agent.
+    With supervisor=True, uses multi-agent triage-then-specialist routing.
     Otherwise runs the offline rule-based engine.
     """
     if llm_provider:
@@ -501,6 +504,8 @@ def agent_run(
             base_url=llm_base_url,
             max_turns=max_turns,
             verbose=verbose,
+            stream=stream,
+            supervisor=supervisor,
         )
     return _agent_run_rules(initial_file=initial_file, interactive=interactive)
 
@@ -513,10 +518,13 @@ def _agent_run_llm(
     base_url: str | None,
     max_turns: int,
     verbose: bool,
+    stream: bool = False,
+    supervisor: bool = False,
 ) -> int:
     """LLM-powered diagnostic agent."""
     try:
         from storageops.llm_agent import run_llm_agent
+        from storageops.supervisor_agent import run_supervisor_agent
     except ImportError as exc:
         print(f"Error: LLM agent unavailable — {exc}")
         print("Install LLM dependencies: pip install 'storageops[llm]'")
@@ -533,36 +541,48 @@ def _agent_run_llm(
 
     evidence = path.read_text(encoding="utf-8", errors="replace")
 
-    # Quick domain triage using the rule engine
-    classification = classify_evidence(evidence)
-    domain = classification["primary_domain"]
-    if domain == "unknown":
-        domain = "unknown"  # triage skill will handle it
+    if supervisor:
+        print(f"\n[StorageOps Supervisor] provider={provider_name}")
+        result = run_supervisor_agent(
+            evidence_text=evidence,
+            provider_name=provider_name,
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            max_turns=max_turns,
+            verbose=verbose,
+            stream=stream,
+        )
+    else:
+        classification = classify_evidence(evidence)
+        domain = classification["primary_domain"]
+        print(f"\n[StorageOps LLM Agent] provider={provider_name} domain={domain}")
+        result = run_llm_agent(
+            evidence_text=evidence,
+            domain=domain,
+            provider_name=provider_name,
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            max_turns=max_turns,
+            verbose=verbose,
+            stream=stream,
+        )
 
-    print(f"\n[StorageOps LLM Agent] provider={provider_name} domain={domain}")
-    if verbose:
-        print(f"  session evidence: {len(evidence)} chars, domain={domain}")
+    if not stream:
+        print(f"\n{'='*60}")
+        print(result["report"])
+        print(f"{'='*60}")
 
-    result = run_llm_agent(
-        evidence_text=evidence,
-        domain=domain,
-        provider_name=provider_name,
-        api_key=api_key,
-        model=model,
-        base_url=base_url,
-        max_turns=max_turns,
-        verbose=verbose,
-    )
-
-    print(f"\n{'='*60}")
-    print(result["report"])
-    print(f"{'='*60}")
     print(
         f"\n[Session {result['session_id']}] "
         f"turns={result['turns_used']} "
         f"tools={result['tool_calls_made']} "
         f"redacted={result.get('secrets_redacted', 0)}"
     )
+    if result.get("secondary_report"):
+        print(f"\n[Secondary: {result.get('secondary_domain')}]")
+        print(result["secondary_report"])
     if result.get("error"):
         print(f"Status: {result['error']}")
 
