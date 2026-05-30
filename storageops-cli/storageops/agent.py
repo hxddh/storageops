@@ -15,6 +15,8 @@ API keys are NEVER hardcoded. Provide via:
   - ~/.storageops/config.yaml
   - --llm-key flag (not recommended for scripts)
 """
+from __future__ import annotations
+
 import json
 import re
 import sys
