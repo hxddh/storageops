@@ -50,6 +50,29 @@ usage: storageops [-h] {triage,analyze,report,eval,agent,audit,mcp,serve,memory}
 
 ---
 
+## Upgrade
+
+```bash
+# Step 1 — pull the latest code (inside the storageops directory)
+cd storageops
+git pull origin main
+
+# Step 2 — reinstall to pick up any new dependencies
+pip install -e "storageops-cli/[llm]"
+
+# Step 3 — verify
+storageops --version 2>/dev/null || storageops --help | head -1
+```
+
+If you used a virtual environment, activate it before running `pip install`.
+
+> **What changes with each upgrade:**
+> - New providers, model defaults, and diagnostic rules take effect immediately after `git pull`
+> - New Python dependencies (if any) require the `pip install` step
+> - Your past diagnoses in `~/.storageops/memory.jsonl` and audit log are never touched by an upgrade
+
+---
+
 ## Configure
 
 Export the API key for whichever LLM provider you use. StorageOps auto-detects the provider from the environment variable — no other flags needed.
