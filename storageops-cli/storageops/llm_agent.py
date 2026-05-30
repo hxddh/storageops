@@ -34,6 +34,7 @@ from storageops.llm_provider import LLMResponse, build_provider  # noqa: E402
 from storageops.tool_registry import TOOL_DEFINITIONS, dispatch_tool  # noqa: E402
 from storageops.prompt_builder import build_system_prompt, build_initial_message  # noqa: E402
 from storageops.memory_store import save_case as _save_case  # noqa: E402
+from storageops.report_validator import validate_report  # noqa: E402
 from storageops import audit_logger  # noqa: E402
 
 
@@ -301,6 +302,15 @@ def run_llm_agent(
                         f"LLM output blocked — unsafe patterns detected: {unsafe}"
                     )
 
+                # Validate report structure
+                validation = validate_report(final_text)
+                if verbose and not validation["valid"]:
+                    print(
+                        f"  ⚠️  Report validation: missing={validation['missing_fields']} "
+                        f"invalid={validation['invalid_fields']}",
+                        file=sys.stderr,
+                    )
+
                 # Auto-save to memory
                 root_cause = _yaml_field(final_text, "root_cause_type") or "unknown"
                 summary = _short_summary(final_text)
@@ -317,6 +327,8 @@ def run_llm_agent(
                     "session_id": session_id,
                     "tool_calls_made": tool_calls_made,
                     "secrets_redacted": input_scan["count"],
+                    "report_valid": validation["valid"],
+                    "report_warnings": validation.get("warnings", []),
                     "ok": True,
                 }
 

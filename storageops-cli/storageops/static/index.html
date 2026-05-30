@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StorageOps Diagnostic</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+  header { background: #1a1d2e; border-bottom: 1px solid #2d3748; padding: 16px 24px; }
+  header h1 { font-size: 1.2rem; font-weight: 600; color: #90cdf4; }
+  header span { font-size: 0.8rem; color: #718096; margin-left: 8px; }
+  main { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+  .card { background: #1a1d2e; border: 1px solid #2d3748; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+  h2 { font-size: 1rem; color: #90cdf4; margin-bottom: 12px; }
+  textarea {
+    width: 100%; height: 200px; background: #0f1117; border: 1px solid #2d3748;
+    border-radius: 6px; color: #e2e8f0; padding: 12px; font-family: monospace;
+    font-size: 0.85rem; resize: vertical;
+  }
+  textarea:focus { outline: none; border-color: #4299e1; }
+  .drop-zone {
+    border: 2px dashed #2d3748; border-radius: 6px; padding: 24px;
+    text-align: center; color: #718096; cursor: pointer; margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+  .drop-zone.over { border-color: #4299e1; color: #90cdf4; }
+  .drop-zone small { display: block; margin-top: 4px; font-size: 0.75rem; }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  button {
+    padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer;
+    font-size: 0.9rem; font-weight: 500;
+  }
+  .btn-primary { background: #4299e1; color: white; }
+  .btn-primary:hover { background: #3182ce; }
+  .btn-secondary { background: #2d3748; color: #e2e8f0; }
+  .btn-secondary:hover { background: #4a5568; }
+  .result { display: none; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 0.75rem; font-weight: 600; margin-left: 8px;
+  }
+  .badge-high { background: #fc8181; color: #1a1d2e; }
+  .badge-medium { background: #f6ad55; color: #1a1d2e; }
+  .badge-low { background: #68d391; color: #1a1d2e; }
+  .badge-critical { background: #fc8181; color: white; }
+  .domain-pill {
+    display: inline-block; background: #2d3748; color: #90cdf4;
+    padding: 4px 12px; border-radius: 16px; font-size: 0.8rem;
+    margin: 4px 4px 4px 0;
+  }
+  .domain-pill.primary { background: #2b6cb0; color: white; }
+  .score-bar { background: #2d3748; border-radius: 4px; height: 6px; margin: 2px 0 8px; }
+  .score-fill { background: #4299e1; height: 6px; border-radius: 4px; transition: width 0.4s; }
+  pre { background: #0f1117; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; }
+  .error-box { background: #2d1515; border: 1px solid #fc8181; border-radius: 6px; padding: 12px; color: #fc8181; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #4299e1; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .missing-list { list-style: none; padding: 0; }
+  .missing-list li::before { content: "⚠ "; color: #f6ad55; }
+  .missing-list li { font-size: 0.85rem; margin: 4px 0; color: #cbd5e0; }
+  .section-label { font-size: 0.75rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>StorageOps Diagnostic <span>v0.3</span></h1>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Evidence Input</h2>
+    <div class="drop-zone" id="dropZone">
+      Drop a log file here, or click to select
+      <small>Supports: .log .txt .xml .json .md — secrets are redacted server-side</small>
+    </div>
+    <input type="file" id="fileInput" style="display:none">
+    <textarea id="evidenceText" placeholder="Or paste evidence text here — debug logs, error messages, lifecycle XML, policy JSON, or a plain description of the issue..."></textarea>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="runTriage()">Triage</button>
+      <button class="btn-secondary" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <div class="card result" id="resultCard">
+    <h2 id="resultTitle">Triage Result</h2>
+    <div id="resultBody"></div>
+  </div>
+</main>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const evidenceText = document.getElementById('evidenceText');
+const resultCard = document.getElementById('resultCard');
+const resultTitle = document.getElementById('resultTitle');
+const resultBody = document.getElementById('resultBody');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('over');
+  const f = e.dataTransfer.files[0]; if (f) readFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) readFile(fileInput.files[0]); });
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => { evidenceText.value = e.target.result; };
+  reader.readAsText(file);
+}
+
+function clearAll() {
+  evidenceText.value = '';
+  resultCard.style.display = 'none';
+  fileInput.value = '';
+}
+
+async function runTriage() {
+  const text = evidenceText.value.trim();
+  if (!text) { alert('Please provide evidence text or upload a file.'); return; }
+
+  resultCard.style.display = 'block';
+  resultTitle.textContent = 'Triage Result';
+  resultBody.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+  try {
+    const resp = await fetch('/triage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await resp.json();
+
+    if (!data.ok) {
+      resultBody.innerHTML = `<div class="error-box">${escHtml(data.error || 'Unknown error')}</div>`;
+      return;
+    }
+
+    const severityClass = 'badge-medium';
+    const confPct = Math.round((data.scores?.[data.primary_domain] || 0) * 100 / Math.max(...Object.values(data.scores || {1: 1})));
+
+    let html = `
+      <div class="section-label">Primary Domain</div>
+      <div style="margin-bottom:16px">
+        <span class="domain-pill primary">${escHtml(data.primary_domain)}</span>
+        ${data.secrets_redacted > 0 ? `<span class="badge badge-medium">⚠ ${data.secrets_redacted} secret(s) redacted</span>` : ''}
+      </div>
+    `;
+
+    if (data.all_domains && data.all_domains.length > 1) {
+      html += `<div class="section-label">All Detected Domains</div><div style="margin-bottom:16px">`;
+      for (const d of data.all_domains) {
+        const score = data.scores?.[d] || 0;
+        const maxScore = Math.max(...Object.values(data.scores || {1: 1}));
+        html += `
+          <div style="margin-bottom:8px">
+            <span class="domain-pill${d === data.primary_domain ? ' primary' : ''}">${escHtml(d)}</span>
+            <div class="score-bar"><div class="score-fill" style="width:${Math.round(score/maxScore*100)}%"></div></div>
+          </div>`;
+      }
+      html += `</div>`;
+    }
+
+    html += `
+      <div class="section-label">Evidence Quality</div>
+      <div style="margin-bottom:16px; font-size:0.9rem; color:#cbd5e0;">${escHtml(data.evidence_quality || 'unknown')}</div>
+    `;
+
+    if (data.missing_required && data.missing_required.length > 0) {
+      html += `<div class="section-label">Missing Required Evidence</div>
+        <ul class="missing-list" style="margin-bottom:16px">`;
+      for (const m of data.missing_required) {
+        html += `<li>${escHtml(m)}</li>`;
+      }
+      html += `</ul>`;
+    }
+
+    if (data.missing_helpful && data.missing_helpful.length > 0) {
+      html += `<div class="section-label">Helpful Additional Evidence</div>
+        <ul class="missing-list" style="margin-bottom:16px">`;
+      for (const m of data.missing_helpful.slice(0, 3)) {
+        html += `<li style="color:#a0aec0">${escHtml(m)}</li>`;
+      }
+      html += `</ul>`;
+    }
+
+    resultTitle.textContent = `Triage: ${data.primary_domain}`;
+    resultBody.innerHTML = html;
+  } catch (err) {
+    resultBody.innerHTML = `<div class="error-box">Request failed: ${escHtml(String(err))}</div>`;
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

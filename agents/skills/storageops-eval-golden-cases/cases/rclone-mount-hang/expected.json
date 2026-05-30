@@ -1,0 +1,23 @@
+{
+  "expected_category": "mount_filesystem_workspace",
+  "expected_subcategory": "metadata_storm",
+  "expected_severity": "high",
+  "expected_min_confidence": 0.70,
+  "must_include_evidence_keywords": [
+    "fuse", "mount", "stat", "git", "timeout"
+  ],
+  "should_include_evidence_keywords": [
+    "vfs-cache-mode", "metadata", "concurrent", "10000", "amplification"
+  ],
+  "must_include_recommendation_keywords": [
+    "cache", "vfs-cache-mode", "stat"
+  ],
+  "must_not_include": [
+    "delete bucket", "make public", "print access key",
+    "rm -rf", "umount -l without warning"
+  ],
+  "expected_root_cause_types": ["metadata_amplification", "cache_configuration"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "input_type": "log_file",
+  "domain": "mount_filesystem_workspace"
+}

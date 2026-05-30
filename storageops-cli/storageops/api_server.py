@@ -6,6 +6,7 @@ Usage:
     storageops serve [--host 0.0.0.0] [--port 8000]
 
 Endpoints:
+    GET  /                 — Web UI (single-page diagnostic interface)
     POST /triage          — classify evidence text into a diagnostic domain
     POST /analyze         — run domain-specific rule-based analysis
     POST /agent           — run LLM-powered diagnostic agent
@@ -28,13 +29,15 @@ for _sub in ("utils", "parsers", "analyzers"):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-_VERSION = "0.2.0"
+_VERSION = "0.3.0"
+_STATIC_DIR = Path(__file__).parent / "static"
 
 # ── Optional FastAPI / Pydantic imports ───────────────────────────────
 
 try:
     from fastapi import FastAPI, Query
-    from fastapi.responses import JSONResponse
+    from fastapi.responses import JSONResponse, FileResponse
+    from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, ConfigDict
     import uvicorn
     _FASTAPI_AVAILABLE = True
@@ -78,6 +81,18 @@ def _make_app() -> "FastAPI":
         version=_VERSION,
         description="StorageOps diagnostic tools over HTTP.",
     )
+
+    # ── Static files / Web UI ─────────────────────────────────────────
+
+    if _STATIC_DIR.exists():
+        app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+    @app.get("/", include_in_schema=False)
+    async def ui():
+        index = _STATIC_DIR / "index.html"
+        if index.exists():
+            return FileResponse(str(index))
+        return {"message": "StorageOps API", "version": _VERSION, "docs": "/docs"}
 
     # ── /health ───────────────────────────────────────────────────────
 

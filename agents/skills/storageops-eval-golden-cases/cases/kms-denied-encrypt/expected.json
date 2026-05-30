@@ -1,0 +1,23 @@
+{
+  "expected_category": "security_iam_policy",
+  "expected_subcategory": "kms_denied",
+  "expected_severity": "high",
+  "expected_min_confidence": 0.80,
+  "must_include_evidence_keywords": [
+    "KMS", "AccessDenied", "kms:GenerateDataKey", "Deny", "403"
+  ],
+  "should_include_evidence_keywords": [
+    "cross-account", "explicit deny", "SSE-KMS", "987654321098", "CallerAccount"
+  ],
+  "must_include_recommendation_keywords": [
+    "KMS", "policy", "allow", "kms:GenerateDataKey"
+  ],
+  "must_not_include": [
+    "delete bucket", "make bucket public", "Principal: *",
+    "disable encryption", "use SSE-S3 instead without explanation"
+  ],
+  "expected_root_cause_types": ["kms_explicit_deny", "cross_account_kms_access"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "input_type": "log_file",
+  "domain": "security_iam_policy"
+}
