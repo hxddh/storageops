@@ -231,6 +231,40 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "search_memory",
+        "description": (
+            "Search your memory of past diagnosed cases for similar patterns. "
+            "Call this early in the investigation — before parsing tools — to check whether "
+            "a similar issue has been seen before. Returns matching past diagnoses with their "
+            "root causes, summaries, and timestamps. Use results to guide your investigation "
+            "but always verify against the current evidence."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Keywords describing the current problem, "
+                        "e.g. 'ETag mismatch multipart rclone S3 corrupted transfer'"
+                    ),
+                },
+                "domain": {
+                    "type": "string",
+                    "description": (
+                        "Optional domain filter, e.g. 'cli_sdk_behavior'. "
+                        "Omit to search all domains."
+                    ),
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Number of results to return (1–5, default 3)",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "analyze_throughput",
         "description": (
             "Analyze upload/download throughput against theoretical limits. "
@@ -318,6 +352,14 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
         elif name == "detect_throttling":
             from detect_throttling import detect  # noqa: E402
             return detect(inputs)
+
+        elif name == "search_memory":
+            from storageops.memory_store import search_cases
+            query = inputs.get("query", "")
+            domain_filter = inputs.get("domain")
+            top_k = min(int(inputs.get("top_k", 3)), 5)
+            results = search_cases(query, domain=domain_filter, top_k=top_k)
+            return {"results": results, "count": len(results), "query": query}
 
         elif name == "analyze_throughput":
             from analyze_throughput import analyze  # noqa: E402

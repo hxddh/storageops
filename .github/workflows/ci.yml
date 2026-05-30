@@ -30,7 +30,7 @@ jobs:
         run: ruff check .
 
       - name: Unit tests (pytest)
-        run: pytest storageops-core/tests/ -v
+        run: pytest storageops-core/tests/ storageops-cli/tests/ -v
 
       - name: Smoke tests (standalone script, backwards compat)
         run: python storageops-core/tests/smoke_test.py

@@ -84,6 +84,22 @@ def log_unsafe_output(session_id: str, turn: int, findings: list[str]) -> None:
     })
 
 
+def log_critique_turn(session_id: str, turn: int, confirmed: bool) -> None:
+    """Log the outcome of the self-critique pass."""
+    _write({
+        "ts": _now(), "session": session_id,
+        "event": "critique_turn", "turn": turn, "confirmed": confirmed,
+    })
+
+
+def log_memory_save(session_id: str, domain: str, root_cause: str) -> None:
+    """Log when a diagnosis is saved to memory (metadata only)."""
+    _write({
+        "ts": _now(), "session": session_id,
+        "event": "memory_save", "domain": domain, "root_cause": root_cause,
+    })
+
+
 def log_session_end(session_id: str, turns_used: int, outcome: str) -> None:
     _write({
         "ts": _now(), "session": session_id,

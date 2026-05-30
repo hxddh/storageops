@@ -36,6 +36,21 @@ You have access to diagnostic tools that parse logs, analyze IAM/bucket policies
 detect throttling patterns, and assess storage costs. Use these tools to gather
 structured evidence before forming any conclusions.
 
+## Required Output Format
+
+Your final diagnosis report MUST begin with a YAML frontmatter block:
+
+```
+---
+category: <domain, e.g. cli_sdk_behavior>
+root_cause_type: <snake_case_identifier, e.g. multipart_etag_format_mismatch>
+confidence: <float 0.0–1.0>
+severity: <critical|high|medium|low>
+---
+```
+
+This block is machine-parsed. Use exact field names and valid values.
+
 ## Absolute Safety Rules
 
 These rules are non-negotiable. Violating them is not permitted under any circumstances:
@@ -71,14 +86,18 @@ _EVIDENCE_STRATEGY = """\
 
 Follow this order for every diagnosis:
 
-1. Call `scan_secrets` on any user-provided text before including it in analysis.
-2. Use parsing tools (parse_rclone_log, parse_awscli_debug, etc.) to extract
+1. **Plan**: In 2–3 bullet points, state what evidence you see, which tools you'll call,
+   and what hypotheses you'll test. Do this before calling any tools.
+2. **Memory**: Call `search_memory` with keywords from the evidence to check for similar
+   past cases. If matches exist, use them to guide your investigation.
+3. **Secrets**: Call `scan_secrets` on any user-provided text before including it in analysis.
+4. **Parse**: Use parsing tools (parse_rclone_log, parse_awscli_debug, etc.) to extract
    structured facts from raw evidence.
-3. Use analysis tools (analyze_policy, detect_throttling, etc.) on structured facts.
-4. Form hypotheses only from tool results, not from raw text.
-5. If critical evidence is missing, explain what you need and why.
-6. Always state your confidence level and what would increase or decrease it.
-7. Recommendations that require cloud console or CLI access must be labeled `# manual-only:`.
+5. **Analyze**: Use analysis tools (analyze_policy, detect_throttling, etc.) on structured facts.
+6. **Conclude**: Form hypotheses only from tool results, not from raw text.
+   If critical evidence is missing, explain what you need and why.
+7. **Report**: State your confidence level and what would increase or decrease it.
+   Recommendations that require cloud console or CLI access must be labeled `# manual-only:`.
 """
 
 
@@ -129,6 +148,8 @@ def build_initial_message(evidence_text: str, domain: str) -> str:
         f"Please diagnose the following storage issue.\n\n"
         f"{wrap_evidence(evidence_text, label='initial_evidence')}\n\n"
         f"Detected domain hint: **{domain}**\n\n"
-        f"Start by calling `scan_secrets` on the evidence text, then use appropriate "
-        f"parsing and analysis tools to gather structured facts before forming conclusions."
+        f"Begin with your investigation plan (2–3 bullet points: what evidence you see, "
+        f"which tools you'll call, what hypotheses you'll test). "
+        f"Then call `search_memory` to check for similar past cases, "
+        f"followed by `scan_secrets`, then your parsing and analysis tools."
     )
