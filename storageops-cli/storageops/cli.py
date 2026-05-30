@@ -399,27 +399,7 @@ def cmd_eval(args):
 # ── Main ──────────────────────────────────────────────────────────────
 
 def cmd_agent(args):
-    """Run the diagnostic agent. With --provider, uses LLM; otherwise uses rules."""
-    # Read evidence
-    evidence = ""
-    if args.file:
-        path = Path(args.file)
-        if not path.exists():
-            print(f"错误: 文件不存在: {args.file}")
-            sys.exit(1)
-        evidence = path.read_text(encoding='utf-8', errors='replace')
-
-    # Route to LLM agent if provider is specified and not --rules
-    if args.provider and not args.rules:
-        from storageops.agent_llm import run
-        sys.exit(run(
-            user_evidence=evidence,
-            provider=args.provider,
-            model=args.model,
-            verbose=args.verbose,
-        ))
-
-    # Fall through to rule-based agent
+    """Run the autonomous multi-turn diagnostic agent."""
     from storageops.agent import agent_run
     sys.exit(agent_run(
         initial_file=args.file,
@@ -467,19 +447,10 @@ def main():
     p_eval.set_defaults(func=cmd_eval)
 
     # agent
-    p_agent = sub.add_parser('agent', help='Run diagnostic agent')
+    p_agent = sub.add_parser('agent', help='Run autonomous multi-turn diagnostic agent')
     p_agent.add_argument('file', nargs='?', help='Initial evidence file')
     p_agent.add_argument('--interactive', '-i', action='store_true',
                          help='Interactive mode: ask follow-up questions')
-    p_agent.add_argument('--provider', '-p', default=None,
-                         choices=['openai', 'anthropic', 'ollama'],
-                         help='LLM provider (enables AI-powered diagnosis)')
-    p_agent.add_argument('--model', '-m', default=None,
-                         help='Model name (default: gpt-4o-mini / claude-sonnet-4 / qwen2.5:14b)')
-    p_agent.add_argument('--verbose', '-v', action='store_true',
-                         help='Show LLM reasoning and tool calls')
-    p_agent.add_argument('--rules', action='store_true',
-                         help='Force rule-based agent (v0.4, no LLM)')
     p_agent.set_defaults(func=cmd_agent)
 
     args = parser.parse_args()
