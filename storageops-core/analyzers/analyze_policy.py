@@ -20,7 +20,11 @@ def _find_action_match(statement: dict, target_action: str) -> bool:
     for a in actions:
         if a == target_action or a == 's3:*' or a == '*':
             return True
-        # Check prefix match: "s3:*" matches "s3:GetObject"
+        # Prefix wildcard: "s3:Get*" matches "s3:GetObject", "s3:GetBucketPolicy", etc.
+        if a.endswith('*'):
+            prefix = a[:-1]
+            if target_action.startswith(prefix):
+                return True
     return False
 
 

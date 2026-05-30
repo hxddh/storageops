@@ -198,6 +198,12 @@ def cmd_triage(args):
 
 def cmd_analyze(args):
     """Analyze: run domain-specific parser + analyzer pipeline."""
+    if args.no_redact:
+        print(
+            "WARNING: --no-redact is active. Output may contain raw credentials. "
+            "Do not share or store this output without manual review.",
+            file=sys.stderr,
+        )
     path = Path(args.file)
     if not path.exists():
         print(json.dumps({"ok": False, "error": f"File not found: {args.file}"}))
@@ -399,11 +405,26 @@ def cmd_eval(args):
 # ── Main ──────────────────────────────────────────────────────────────
 
 def cmd_agent(args):
-    """Run the autonomous multi-turn diagnostic agent."""
+    """Run the diagnostic agent (rule-based or LLM-powered)."""
     from storageops.agent import agent_run
+
+    # Warn if --no-redact is combined with LLM provider
+    if getattr(args, 'no_redact', False):
+        print(
+            "WARNING: --no-redact is active. Output may contain raw credentials. "
+            "Do not share or store this output without manual review.",
+            file=sys.stderr,
+        )
+
     sys.exit(agent_run(
         initial_file=args.file,
-        interactive=args.interactive,
+        interactive=getattr(args, 'interactive', False),
+        llm_provider=getattr(args, 'llm_provider', None),
+        llm_model=getattr(args, 'llm_model', None),
+        llm_key=getattr(args, 'llm_key', None),
+        llm_base_url=getattr(args, 'llm_base_url', None),
+        max_turns=getattr(args, 'max_turns', 8),
+        verbose=getattr(args, 'verbose', False),
     ))
 
 
@@ -447,10 +468,29 @@ def main():
     p_eval.set_defaults(func=cmd_eval)
 
     # agent
-    p_agent = sub.add_parser('agent', help='Run autonomous multi-turn diagnostic agent')
+    p_agent = sub.add_parser(
+        'agent',
+        help='Run diagnostic agent (offline rule-based, or LLM-powered with --llm-provider)',
+    )
     p_agent.add_argument('file', nargs='?', help='Initial evidence file')
     p_agent.add_argument('--interactive', '-i', action='store_true',
-                         help='Interactive mode: ask follow-up questions')
+                         help='Interactive mode (rule-based only): ask follow-up questions')
+    # LLM provider options
+    p_agent.add_argument(
+        '--llm-provider',
+        choices=['anthropic', 'openai', 'openai-compatible', 'ollama'],
+        help='Enable LLM-powered agent. Supported: anthropic, openai, openai-compatible, ollama',
+    )
+    p_agent.add_argument('--llm-model', help='LLM model name override')
+    p_agent.add_argument(
+        '--llm-key',
+        help='LLM API key (prefer ANTHROPIC_API_KEY / STORAGEOPS_LLM_KEY env var instead)',
+    )
+    p_agent.add_argument('--llm-base-url', help='LLM API base URL (for openai-compatible/ollama)')
+    p_agent.add_argument('--max-turns', type=int, default=8,
+                         help='Maximum agent turns (default: 8)')
+    p_agent.add_argument('--verbose', '-v', action='store_true',
+                         help='Print tool calls and turn progress to stderr')
     p_agent.set_defaults(func=cmd_agent)
 
     args = parser.parse_args()

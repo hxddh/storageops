@@ -19,7 +19,7 @@ sys.path.insert(0, str(PROJECT_ROOT / 'storageops-core' / 'parsers'))
 sys.path.insert(0, str(PROJECT_ROOT / 'storageops-core' / 'analyzers'))
 sys.path.insert(0, str(PROJECT_ROOT / 'storageops-core' / 'analyzers'))
 
-from secret_scanner import scan as scan_secrets
+from secret_scanner import scan as scan_secrets  # noqa: E402
 
 VALIDATION_DIR = Path(__file__).parent
 
@@ -264,7 +264,7 @@ def main():
         # Step 3: Missing evidence check
         if 'minimal' in case['id']:
             if triage['primary_domain'] == 'unknown_insufficient_evidence':
-                print(f"  ✓ 正确识别为证据不足")
+                print("  ✓ 正确识别为证据不足")
             else:
                 gap = f"EVIDENCE GAP [{case['id']}]: should detect insufficient evidence"
                 gaps.append(gap)

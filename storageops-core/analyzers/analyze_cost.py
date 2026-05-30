@@ -61,7 +61,7 @@ def analyze(data: dict) -> dict:
         storage_class = p.get('storage_class', 'STANDARD').upper()
         count = p['object_count']
         total_bytes = p['total_size_bytes']
-        age_days = p.get('avg_object_age_days', 0)
+        age_days = p.get('avg_object_age_days', None)  # None means "not provided"
 
         actual_gb = total_bytes / (1024 ** 3)
         price_per_gb = prices.get(storage_class, 0)
@@ -88,10 +88,10 @@ def analyze(data: dict) -> dict:
         billable_gb = max(actual_gb, penalty_gb) if penalty_gb > 0 else actual_gb
         billable_cost = billable_gb * price_per_gb
 
-        # Minimum storage duration check
+        # Minimum storage duration check — only when age is explicitly provided
         min_days = MIN_STORAGE_DAYS.get(storage_class, 0)
         duration_risk = False
-        if min_days > 0 and age_days < min_days:
+        if min_days > 0 and age_days is not None and age_days < min_days:
             duration_risk = True
             issues.append({
                 "prefix": prefix,
@@ -130,6 +130,7 @@ def analyze(data: dict) -> dict:
             "penalty_multiplier": round(billable_cost / actual_cost, 1) if actual_cost > 0 else 0,
             "has_min_size_penalty": penalty_cost > 0,
             "has_duration_risk": duration_risk,
+            "avg_object_age_days": age_days,
         })
 
     # Sort by cost (highest first)

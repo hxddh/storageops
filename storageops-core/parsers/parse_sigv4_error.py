@@ -17,9 +17,9 @@ from typing import Optional
 
 def parse_xml_error(text: str) -> dict:
     """Extract error details from S3 XML error response."""
-    h = lambda tag: (
-        (m := re.search(f'<{tag}>([^<]+)</{tag}>', text)) and m.group(1)
-    )
+    def h(tag):
+        m = re.search(f'<{tag}>([^<]+)</{tag}>', text)
+        return m.group(1) if m else None
 
     return {
         "code": h('Code') or '',

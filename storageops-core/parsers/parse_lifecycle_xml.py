@@ -140,9 +140,21 @@ def parse(text: str) -> dict:
     enabled_rules = [r for r in rules if r['enabled']]
     disabled_rules = [r for r in rules if not r['enabled']]
 
-    # Check for overlapping prefixes
+    # Check for overlapping prefixes (exact duplicates AND hierarchical containment)
     prefixes = [r['filter_prefix'] for r in rules if r['filter_prefix']]
-    overlapping = len(prefixes) != len(set(prefixes))
+    overlapping = False
+    if len(prefixes) != len(set(prefixes)):
+        overlapping = True
+    else:
+        # Check hierarchical containment: e.g. "logs/" contains "logs/2024/"
+        sorted_pfx = sorted(prefixes)
+        for i in range(len(sorted_pfx) - 1):
+            if sorted_pfx[i + 1].startswith(sorted_pfx[i]):
+                overlapping = True
+                break
+    # An empty prefix ("") means "all objects" — overlaps with everything
+    if '' in prefixes and len(prefixes) > 1:
+        overlapping = True
 
     # Warnings
     if overlapping:
