@@ -445,6 +445,60 @@ def cmd_memory(args):
                 print(f"    {entry.get('summary', '')[:120]}")
 
 
+def cmd_audit(args):
+    """Show audit log: list sessions, show a session timeline, or print stats."""
+    from storageops.audit_reader import list_sessions, get_session, compute_stats
+
+    if args.audit_action == "stats":
+        stats = compute_stats()
+        print(json.dumps(stats, indent=2, ensure_ascii=False))
+        return
+
+    if args.audit_action == "show":
+        events = get_session(args.session_id)
+        if not events:
+            print(f"No events found for session {args.session_id!r}", file=sys.stderr)
+            sys.exit(1)
+        for ev in events:
+            ts = ev.get("ts", "")[:19].replace("T", " ")
+            event = ev.get("event", "?")
+            extra = ""
+            if event == "llm_call":
+                extra = (f"  turn={ev.get('turn')} in={ev.get('input_tokens')} "
+                         f"out={ev.get('output_tokens')} stop={ev.get('stop_reason')}")
+            elif event == "tool_call":
+                extra = f"  turn={ev.get('turn')} tool={ev.get('tool')} keys={ev.get('input_keys')}"
+            elif event == "tool_result":
+                status = "ok" if ev.get("ok") else f"err={ev.get('error')}"
+                extra = f"  turn={ev.get('turn')} tool={ev.get('tool')} {status}"
+            elif event in ("session_start", "session_end"):
+                extra = (f"  domain={ev.get('domain')} outcome={ev.get('outcome')} "
+                         f"turns={ev.get('turns_used')}")
+            elif event == "critique_turn":
+                extra = f"  turn={ev.get('turn')} confirmed={ev.get('confirmed')}"
+            elif event == "memory_save":
+                extra = f"  domain={ev.get('domain')} root_cause={ev.get('root_cause')}"
+            print(f"  [{ts}] {event}{extra}")
+        return
+
+    # default: list
+    sessions = list_sessions(limit=args.limit)
+    if not sessions:
+        print("No sessions found in audit log. Run storageops agent with --llm-provider first.")
+        return
+    for s in sessions:
+        ts = s["ts"]
+        sid = s["session_id"]
+        domain = s["domain"]
+        outcome = s["outcome"]
+        turns = s["turns_used"]
+        tokens = s["input_tokens"] + s["output_tokens"]
+        tools = ", ".join(sorted(set(s["tools"]))) or "-"
+        print(f"  [{ts}] {sid}  {domain:<30} {outcome:<20} turns={turns} tokens={tokens}")
+        if getattr(args, "verbose", False):
+            print(f"    provider={s['provider']}  tools={tools}")
+
+
 def cmd_agent(args):
     """Run the diagnostic agent (rule-based or LLM-powered)."""
     from storageops.agent import agent_run
@@ -539,6 +593,22 @@ def main():
     p_agent.add_argument('--supervisor', action='store_true',
                          help='Use multi-agent supervisor: triage first, then route to specialist(s)')
     p_agent.set_defaults(func=cmd_agent)
+
+    # audit
+    p_audit = sub.add_parser('audit', help='Inspect agent session audit log')
+    audit_sub = p_audit.add_subparsers(dest='audit_action')
+
+    audit_list = audit_sub.add_parser('list', help='List recent agent sessions')
+    audit_list.add_argument('--limit', type=int, default=20, help='Max sessions (default 20)')
+    audit_list.add_argument('--verbose', '-v', action='store_true',
+                            help='Show provider and tools per session')
+
+    audit_show = audit_sub.add_parser('show', help='Show full timeline for one session')
+    audit_show.add_argument('session_id', help='Session ID (from audit list output)')
+
+    audit_sub.add_parser('stats', help='Aggregate token usage, tool frequency, success rate')
+
+    p_audit.set_defaults(func=cmd_audit, audit_action='list', limit=20, verbose=False)
 
     # mcp
     p_mcp = sub.add_parser('mcp', help='Start MCP server (for Claude Desktop / MCP clients)')
