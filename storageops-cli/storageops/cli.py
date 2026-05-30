@@ -404,6 +404,18 @@ def cmd_eval(args):
 
 # ── Main ──────────────────────────────────────────────────────────────
 
+def cmd_mcp(args):
+    """Start the StorageOps MCP server (for Claude Desktop / MCP clients)."""
+    from storageops.mcp_server import run_mcp_server
+    run_mcp_server()
+
+
+def cmd_serve(args):
+    """Start the StorageOps HTTP API server."""
+    from storageops.api_server import run
+    run(host=args.host, port=args.port, reload=args.reload)
+
+
 def cmd_memory(args):
     """List or search past diagnosed cases in agent memory."""
     from storageops.memory_store import list_cases, search_cases
@@ -454,6 +466,8 @@ def cmd_agent(args):
         llm_base_url=getattr(args, 'llm_base_url', None),
         max_turns=getattr(args, 'max_turns', 8),
         verbose=getattr(args, 'verbose', False),
+        stream=getattr(args, 'stream', False),
+        supervisor=getattr(args, 'supervisor', False),
     ))
 
 
@@ -520,7 +534,22 @@ def main():
                          help='Maximum agent turns (default: 8)')
     p_agent.add_argument('--verbose', '-v', action='store_true',
                          help='Print tool calls and turn progress to stderr')
+    p_agent.add_argument('--stream', action='store_true',
+                         help='Stream LLM output to stdout as it is generated')
+    p_agent.add_argument('--supervisor', action='store_true',
+                         help='Use multi-agent supervisor: triage first, then route to specialist(s)')
     p_agent.set_defaults(func=cmd_agent)
+
+    # mcp
+    p_mcp = sub.add_parser('mcp', help='Start MCP server (for Claude Desktop / MCP clients)')
+    p_mcp.set_defaults(func=cmd_mcp)
+
+    # serve
+    p_serve = sub.add_parser('serve', help='Start HTTP API server (FastAPI)')
+    p_serve.add_argument('--host', default='127.0.0.1', help='Bind host (default: 127.0.0.1)')
+    p_serve.add_argument('--port', type=int, default=8080, help='Port (default: 8080)')
+    p_serve.add_argument('--reload', action='store_true', help='Auto-reload on code changes')
+    p_serve.set_defaults(func=cmd_serve)
 
     # memory
     p_memory = sub.add_parser('memory', help='List or search past diagnosed cases')

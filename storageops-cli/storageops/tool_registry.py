@@ -231,6 +231,43 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "generate_lifecycle_fix",
+        "description": (
+            "Generate a corrected S3 lifecycle configuration XML that fixes detected issues. "
+            "Automatically adds ObjectSizeGreaterThan 128 KB filters to STANDARD_IA transitions "
+            "(preventing minimum-size billing for small objects) and enforces minimum 30-day "
+            "transition delays. Output is XML the user must review and apply manually."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "xml_text": {
+                    "type": "string",
+                    "description": "The original lifecycle configuration XML to fix",
+                },
+            },
+            "required": ["xml_text"],
+        },
+    },
+    {
+        "name": "generate_policy_fix",
+        "description": (
+            "Generate a fix for an IAM or bucket policy causing AccessDenied (403). "
+            "Analyzes the denial source and outputs specific policy statement(s) to add. "
+            "Output must be reviewed and applied manually — this tool never modifies live policies."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "principal": {"type": "string", "description": "ARN of the denied principal"},
+                "action": {"type": "string", "description": "S3 action, e.g. s3:GetObject"},
+                "resource": {"type": "string", "description": "Resource ARN"},
+                "iam_policy": {"type": "object", "description": "IAM policy JSON"},
+                "bucket_policy": {"type": "object", "description": "Bucket policy JSON"},
+            },
+        },
+    },
+    {
         "name": "search_memory",
         "description": (
             "Search your memory of past diagnosed cases for similar patterns. "
@@ -352,6 +389,14 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
         elif name == "detect_throttling":
             from detect_throttling import detect  # noqa: E402
             return detect(inputs)
+
+        elif name == "generate_lifecycle_fix":
+            from storageops.action_tools import generate_lifecycle_fix
+            return generate_lifecycle_fix(inputs["xml_text"])
+
+        elif name == "generate_policy_fix":
+            from storageops.action_tools import generate_policy_fix
+            return generate_policy_fix(inputs)
 
         elif name == "search_memory":
             from storageops.memory_store import search_cases
