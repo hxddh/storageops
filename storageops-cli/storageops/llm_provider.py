@@ -6,13 +6,13 @@ Supported providers (use --llm-provider or set the corresponding env var):
   Provider name      Env var               Default model
   ─────────────────  ────────────────────  ──────────────────────
   anthropic          ANTHROPIC_API_KEY      claude-opus-4-8
-  openai             OPENAI_API_KEY         gpt-4o
-  deepseek           DEEPSEEK_API_KEY       deepseek-chat
-  moonshot           MOONSHOT_API_KEY       moonshot-v1-8k
-  qwen               DASHSCOPE_API_KEY      qwen-max
-  zhipu              ZHIPU_API_KEY          glm-4-plus
-  groq               GROQ_API_KEY           llama-3.3-70b-versatile
-  ollama             (none required)        llama3.2
+  openai             OPENAI_API_KEY         gpt-5.5
+  deepseek           DEEPSEEK_API_KEY       deepseek-v4-pro
+  moonshot           MOONSHOT_API_KEY       kimi-k2.6
+  qwen               DASHSCOPE_API_KEY      qwen3-max
+  zhipu              ZHIPU_API_KEY          glm-5.1
+  groq               GROQ_API_KEY           meta-llama/llama-4-scout-17b-16e-instruct
+  ollama             (none required)        llama3.3
   openai-compatible  STORAGEOPS_LLM_KEY     (set --llm-model)
 
 Provider is auto-detected from the first env var found above — no need
@@ -40,12 +40,12 @@ from typing import Any
 
 _PRESETS: dict[str, tuple[str, str, str]] = {
     "anthropic":   ("ANTHROPIC_API_KEY",  "",                                                  "claude-opus-4-8"),
-    "openai":      ("OPENAI_API_KEY",     "https://api.openai.com/v1",                         "gpt-4o"),
-    "deepseek":    ("DEEPSEEK_API_KEY",   "https://api.deepseek.com/v1",                       "deepseek-v3"),
+    "openai":      ("OPENAI_API_KEY",     "https://api.openai.com/v1",                         "gpt-5.5"),
+    "deepseek":    ("DEEPSEEK_API_KEY",   "https://api.deepseek.com/v1",                       "deepseek-v4-pro"),
     "moonshot":    ("MOONSHOT_API_KEY",   "https://api.moonshot.cn/v1",                        "kimi-k2.6"),
     "qwen":        ("DASHSCOPE_API_KEY",  "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen3-max"),
-    "zhipu":       ("ZHIPU_API_KEY",      "https://open.bigmodel.cn/api/paas/v4",              "glm-4.7"),
-    "groq":        ("GROQ_API_KEY",       "https://api.groq.com/openai/v1",                    "llama-3.3-70b-versatile"),
+    "zhipu":       ("ZHIPU_API_KEY",      "https://open.bigmodel.cn/api/paas/v4",              "glm-5.1"),
+    "groq":        ("GROQ_API_KEY",       "https://api.groq.com/openai/v1",                    "meta-llama/llama-4-scout-17b-16e-instruct"),
 }
 
 # Providers that use the OpenAI-compatible client (all except anthropic and ollama)
@@ -319,7 +319,7 @@ def _convert_anthropic_msg_to_openai(msg: dict) -> list[dict]:
 class OllamaProvider:
     """Local Ollama provider — no API key required."""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.3"):
         self.base_url = base_url.rstrip("/")
         self.model = model
 
@@ -449,7 +449,7 @@ def build_provider(
 
     elif provider_name == "ollama":
         url = base_url or cfg.get("llm_base_url", "http://localhost:11434")
-        return OllamaProvider(base_url=url, model=resolved_model or "llama3.2")
+        return OllamaProvider(base_url=url, model=resolved_model or "llama3.3")
 
     elif provider_name in _OPENAI_COMPAT:
         preset = _PRESETS.get(provider_name)

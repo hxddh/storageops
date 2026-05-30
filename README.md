@@ -2,44 +2,70 @@
 
 [![CI](https://github.com/hxddh/storageops/actions/workflows/ci.yml/badge.svg)](https://github.com/hxddh/storageops/actions)
 
-Autonomous diagnostic agent for S3-compatible object storage. Diagnoses access errors, throttling, lifecycle cost issues, FUSE mount hangs, TLS failures, and more — offline, no cloud connections required.
+Autonomous diagnostic agent for S3-compatible object storage. Give it a log file or error output — it reasons through the evidence with multi-turn tool calls and writes a structured report with root cause and remediation steps. Works entirely offline; no cloud connections required.
+
+---
+
+## Prerequisites
+
+Before you start, verify these are installed:
+
+```bash
+python3 --version   # must be 3.9 or later
+pip --version
+git --version
+```
+
+You will also need an API key from one of the supported LLM providers listed below. (The rule-based `triage` command works without any key.)
 
 ---
 
 ## Install
 
-**Requirements:** Python 3.9 or later, pip
-
 ```bash
-# Clone the repo
+# Step 1 — clone the repository
 git clone https://github.com/hxddh/storageops.git
+
+# Step 2 — enter the project directory
 cd storageops
 
-# Install with LLM support
+# Step 3 — install with LLM support
 pip install -e "storageops-cli/[llm]"
 
-# Verify
+# Step 4 — verify
 storageops --help
 ```
+
+You should see:
+```
+usage: storageops [-h] {triage,analyze,report,eval,agent,audit,mcp,serve,memory} ...
+```
+
+> **Tip:** Use a virtual environment to avoid dependency conflicts:
+> ```bash
+> python3 -m venv .venv
+> source .venv/bin/activate    # Windows: .venv\Scripts\activate
+> pip install -e "storageops-cli/[llm]"
+> ```
 
 ---
 
 ## Configure
 
-Set the API key for whichever LLM provider you use. The agent auto-detects it — no other configuration needed.
+Export the API key for whichever LLM provider you use. StorageOps auto-detects the provider from the environment variable — no other flags needed.
 
 ```bash
-# Pick one:
+# Set exactly one of these:
 export ANTHROPIC_API_KEY=sk-ant-...     # Anthropic Claude  (recommended)
-export OPENAI_API_KEY=sk-...            # OpenAI GPT-4o
+export OPENAI_API_KEY=sk-...            # OpenAI
 export DEEPSEEK_API_KEY=sk-...          # DeepSeek
 export MOONSHOT_API_KEY=sk-...          # Moonshot / Kimi
 export DASHSCOPE_API_KEY=sk-...         # Qwen / Alibaba Cloud
 export ZHIPU_API_KEY=...                # Zhipu / GLM
-export GROQ_API_KEY=gsk_...             # Groq
+export GROQ_API_KEY=gsk_...             # Groq  (free tier available)
 ```
 
-To make this permanent, add the `export` line to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.).
+To make this permanent across terminal sessions, add the `export` line to `~/.bashrc` or `~/.zshrc`.
 
 ---
 
@@ -49,9 +75,7 @@ To make this permanent, add the `export` line to your shell profile (`~/.bashrc`
 storageops agent /path/to/your/error.log
 ```
 
-The agent reads your log, calls diagnostic tools, reasons through the evidence, and prints a structured report with the root cause and remediation steps.
-
-**Example output:**
+The agent detects your provider from the environment variable, reads the log, calls diagnostic tools, reasons through the evidence, and prints a structured report:
 
 ```
 ---
@@ -78,21 +102,26 @@ s3_upload_cutoff = 200Mi
 
 ## Supported Providers
 
-| Provider | Env var | Default model |
+| Provider | Set this env var | Default model |
 |---|---|---|
-| Anthropic Claude | `ANTHROPIC_API_KEY` | claude-opus-4-8 |
-| OpenAI | `OPENAI_API_KEY` | gpt-4o |
-| DeepSeek | `DEEPSEEK_API_KEY` | deepseek-v3 |
-| Moonshot / Kimi | `MOONSHOT_API_KEY` | kimi-k2.6 |
-| Qwen / Alibaba Cloud | `DASHSCOPE_API_KEY` | qwen3-max |
-| Zhipu / GLM | `ZHIPU_API_KEY` | glm-4.7 |
-| Groq | `GROQ_API_KEY` | llama-3.3-70b-versatile |
-| Ollama (local, no key) | — | llama3.2 |
+| Anthropic Claude | `ANTHROPIC_API_KEY` | `claude-opus-4-8` |
+| OpenAI | `OPENAI_API_KEY` | `gpt-5.5` |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-v4-pro` |
+| Moonshot / Kimi | `MOONSHOT_API_KEY` | `kimi-k2.6` |
+| Qwen / Alibaba Cloud | `DASHSCOPE_API_KEY` | `qwen3-max` |
+| Zhipu / GLM | `ZHIPU_API_KEY` | `glm-5.1` |
+| Groq | `GROQ_API_KEY` | `meta-llama/llama-4-scout-17b-16e-instruct` |
+| Ollama (local, no key) | — | `llama3.3` |
 
-**Ollama:**
+**Override model or provider** at runtime with flags:
 ```bash
-ollama pull llama3.1
-storageops agent error.log --llm-provider ollama --llm-model llama3.1
+storageops agent error.log --llm-provider deepseek --llm-model deepseek-v3
+```
+
+**Ollama (local models, no API key required):**
+```bash
+ollama pull llama3.3
+storageops agent error.log --llm-provider ollama --llm-model llama3.3
 ```
 
 **Custom OpenAI-compatible endpoint:**
@@ -108,11 +137,11 @@ storageops agent error.log \
 
 ## Diagnostic Domains
 
-The agent automatically routes to the right specialist based on your evidence:
+The agent automatically routes to the right specialist based on the evidence:
 
-| Domain | Diagnoses |
+| Domain | What it diagnoses |
 |---|---|
-| `s3_protocol_compatibility` | SigV4 errors, clock skew, ETag mismatch, multipart |
+| `s3_protocol_compatibility` | SigV4 errors, clock skew, ETag mismatch, multipart upload |
 | `cli_sdk_behavior` | rclone, s5cmd, AWS CLI, botocore errors |
 | `performance_throughput` | Throttling (SlowDown/429), hot prefix, slow transfers |
 | `security_iam_policy` | 403 AccessDenied, IAM/bucket policy, KMS, cross-account |
@@ -127,12 +156,13 @@ The agent automatically routes to the right specialist based on your evidence:
 ```
 storageops agent <file> [options]
 
-  --llm-provider    Override auto-detected provider
-  --llm-model       Override default model
-  --llm-key         API key (prefer env var)
-  --llm-base-url    Base URL for ollama or custom endpoint
+  --llm-provider    anthropic | openai | deepseek | moonshot | qwen | zhipu | groq | ollama | openai-compatible
+                    Default: auto-detected from env var (see Configure above)
+  --llm-model       Override the default model for the selected provider
+  --llm-key         API key — set env var instead wherever possible
+  --llm-base-url    Base URL for Ollama or a custom endpoint
   --max-turns N     Max reasoning turns (default: 8; use 12 for complex cases)
-  --verbose         Show each tool call and result
+  --verbose         Print each tool call and result as the agent works
   --stream          Stream output token by token
   --supervisor      Multi-agent mode: triage → route → specialists
   --interactive     Follow-up REPL after the initial diagnosis
