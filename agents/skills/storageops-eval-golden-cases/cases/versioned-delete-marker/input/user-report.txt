@@ -1,0 +1,59 @@
+Problem: Our application reports "file not found" for objects we know exist.
+When we check S3 via the AWS console, we can see the objects listed under
+"Show versions" but they don't appear in the default (non-versioned) view.
+This started happening after a junior engineer ran a cleanup script yesterday.
+
+Environment:
+  Bucket: customer-uploads-prod
+  Versioning: enabled
+  Region: ap-southeast-1
+
+Specific object check:
+  $ aws s3api get-object --bucket customer-uploads-prod \
+      --key uploads/2026-05/receipt-2847.pdf \
+      --output text
+  An error occurred (NoSuchKey) when calling the GetObject operation:
+  The specified key does not exist.
+
+  $ aws s3api list-object-versions \
+      --bucket customer-uploads-prod \
+      --prefix uploads/2026-05/receipt-2847.pdf
+  {
+    "DeleteMarkers": [
+      {
+        "Key": "uploads/2026-05/receipt-2847.pdf",
+        "VersionId": "null",
+        "IsLatest": true,
+        "LastModified": "2026-05-29T14:32:17Z",
+        "Owner": {"ID": "abc123"}
+      }
+    ],
+    "Versions": [
+      {
+        "Key": "uploads/2026-05/receipt-2847.pdf",
+        "VersionId": "Lnkp8M1yEXAMPLEVERSIONID",
+        "IsLatest": false,
+        "LastModified": "2026-05-20T09:15:42Z",
+        "ETag": "\"9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\"",
+        "Size": 245120,
+        "StorageClass": "STANDARD"
+      }
+    ]
+  }
+
+Cleanup script (provided by engineer):
+  #!/bin/bash
+  # Delete all files in uploads/2026-05/ older than 7 days
+  aws s3 rm s3://customer-uploads-prod/uploads/2026-05/ --recursive \
+    --exclude "*" --include "*.tmp"
+  # ... script ran but engineer says it may have accidentally run without filters
+
+Issue scope:
+  $ aws s3api list-object-versions --bucket customer-uploads-prod \
+      --prefix uploads/2026-05/ \
+      | python3 -c "import sys,json; v=json.load(sys.stdin); \
+        print(f'Delete markers: {len(v.get(\"DeleteMarkers\",[]))}')"
+  Delete markers: 1847
+
+All 1847 delete markers have VersionId: "null" and were created on 2026-05-29T14:xx.
+The original object versions all still exist with their original VersionIds.

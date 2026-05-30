@@ -218,6 +218,15 @@ class TestTriageConfidenceThresholds(unittest.TestCase):
     def test_confidence_cross_region_slow(self):
         self._check("cross-region-slow")
 
+    def test_confidence_cors_preflight_failed(self):
+        self._check("cors-preflight-failed")
+
+    def test_confidence_crr_replication_lag(self):
+        self._check("crr-replication-lag")
+
+    def test_confidence_versioned_delete_marker(self):
+        self._check("versioned-delete-marker")
+
 
 if __name__ == "__main__":
     unittest.main()

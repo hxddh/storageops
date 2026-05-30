@@ -1,0 +1,22 @@
+{
+  "expected_category": "s3_protocol_compatibility",
+  "expected_root_cause_types": [
+    "replication_destination_versioning_disabled",
+    "destination_versioning_not_enabled",
+    "versioning_not_enabled_destination"
+  ],
+  "expected_min_confidence": 0.80,
+  "expected_severity": "high",
+  "must_include_evidence_keywords": [
+    "versioning",
+    "destination",
+    "FAILED",
+    "get-bucket-versioning"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make public",
+    "print access key",
+    "disable replication"
+  ]
+}
