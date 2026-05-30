@@ -1,6 +1,6 @@
 # StorageOps v1.0
 
-[![CI](https://github.com/rustjia/storageops/actions/workflows/ci.yml/badge.svg)](https://github.com/rustjia/storageops/actions)
+[![CI](https://github.com/hxddh/storageops/actions/workflows/ci.yml/badge.svg)](https://github.com/hxddh/storageops/actions)
 
 A professional diagnostic system for object storage operations. Stack:
 - **Skills** — 10 agent-readable diagnostic skills with reference docs
@@ -11,7 +11,7 @@ A professional diagnostic system for object storage operations. Stack:
 ## Quick Start
 
 ```bash
-git clone https://github.com/rustjia/storageops.git
+git clone https://github.com/hxddh/storageops.git
 cd storageops
 pip install -e storageops-cli/
 
