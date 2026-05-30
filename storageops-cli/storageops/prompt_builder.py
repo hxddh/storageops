@@ -144,12 +144,33 @@ def wrap_evidence(text: str, label: str = "evidence") -> str:
 
 def build_initial_message(evidence_text: str, domain: str) -> str:
     """Build the first user turn message."""
+    domain_hint = (
+        f"Detected domain hint: **{domain}**"
+        if domain and domain != "unknown"
+        else "Domain: **unknown** — start with triage to identify the domain before diving into parsers."
+    )
     return (
         f"Please diagnose the following storage issue.\n\n"
         f"{wrap_evidence(evidence_text, label='initial_evidence')}\n\n"
-        f"Detected domain hint: **{domain}**\n\n"
-        f"Begin with your investigation plan (2–3 bullet points: what evidence you see, "
-        f"which tools you'll call, what hypotheses you'll test). "
-        f"Then call `search_memory` to check for similar past cases, "
-        f"followed by `scan_secrets`, then your parsing and analysis tools."
+        f"{domain_hint}\n\n"
+        f"**Required tool call order:**\n"
+        f"1. Write your 2–3 bullet investigation plan (what you see, what tools you'll call, "
+        f"what hypotheses you'll test)\n"
+        f"2. Call `search_memory` — check for prior cases with similar symptoms\n"
+        f"3. Call `scan_secrets` — redact credentials before any further analysis\n"
+        f"4. Call relevant parsing tools (`parse_rclone_log`, `parse_sigv4_error`, "
+        f"`parse_awscli_debug`, `parse_lifecycle_xml`) on the evidence\n"
+        f"5. Call analysis tools (`analyze_policy`, `detect_throttling`, `analyze_cost`, "
+        f"`analyze_throughput`) on the parsed results\n"
+        f"6. Optionally call `generate_lifecycle_fix` or `generate_policy_fix` to produce "
+        f"a manual-review fix if the root cause is confirmed\n"
+        f"7. Write your final report with the YAML frontmatter block:\n"
+        f"```\n---\n"
+        f"category: <domain>\n"
+        f"root_cause_type: <snake_case_identifier>\n"
+        f"confidence: <0.0–1.0>\n"
+        f"severity: <critical|high|medium|low>\n"
+        f"---\n```\n"
+        f"If critical evidence is missing, state what you need and why, "
+        f"and set confidence accordingly (≤0.6 when key data is absent)."
     )
