@@ -1,0 +1,28 @@
+# Error Response
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>SignatureDoesNotMatch</Code>
+  <Message>The request signature we calculated does not match the signature you provided. Check your key and signing method.</Message>
+  <AWSAccessKeyId>AKIA[REDACTED]</AWSAccessKeyId>
+  <StringToSign>AWS4-HMAC-SHA256
+20240615T023000Z
+20240615/us-east-1/s3/aws4_request
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</StringToSign>
+  <SignatureProvided>abc123...</SignatureProvided>
+  <StringToSignBytes>41 57 53 34 2d 48 4d 41 43 2d 53 48 41 32 35 36 0a ...</StringToSignBytes>
+  <CanonicalRequest>GET
+/
+
+host:s3.example.com
+x-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+x-amz-date:20240615T023000Z
+
+host;x-amz-content-sha256;x-amz-date
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</CanonicalRequest>
+  <CanonicalRequestBytes>47 45 54 0a ...</CanonicalRequestBytes>
+  <RequestId>N4M4B4VJV5KDP3WA</RequestId>
+  <HostId>host-id-example</HostId>
+</Error>
+```

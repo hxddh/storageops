@@ -1,0 +1,37 @@
+# awscli --debug Output (Excerpt)
+
+```
+2024-06-15 10:30:00,123 - MainThread - botocore.auth - DEBUG - Calculating signature using v4 auth.
+2024-06-15 10:30:00,124 - MainThread - botocore.auth - DEBUG - CanonicalRequest:
+GET
+/
+
+host:s3.example.com
+x-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+x-amz-date:20240615T023000Z
+
+host;x-amz-content-sha256;x-amz-date
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+2024-06-15 10:30:00,125 - MainThread - botocore.auth - DEBUG - StringToSign:
+AWS4-HMAC-SHA256
+20240615T023000Z
+20240615/us-east-1/s3/aws4_request
+<hash>
+2024-06-15 10:30:00,300 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest method=GET url=https://s3.example.com/>
+2024-06-15 10:30:00,450 - MainThread - botocore.parsers - DEBUG - Response headers: {'x-amz-request-id': 'N4M4B4VJV5KDP3WA', 'content-type': 'application/xml'}
+2024-06-15 10:30:00,451 - MainThread - botocore.parsers - DEBUG - Response body:
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>SignatureDoesNotMatch</Code>
+  <Message>The request signature we calculated does not match the signature you provided. Check your key and signing method.</Message>
+  <RequestId>N4M4B4VJV5KDP3WA</RequestId>
+  <HostId>...</HostId>
+  <StringToSign>AWS4-HMAC-SHA256
+20240615T023000Z
+20240615/us-east-1/s3/aws4_request
+<hash></StringToSign>
+  <StringToSignBytes>41 57 53 34 2d ...</StringToSignBytes>
+</Error>
+```
+
+Note: The request timestamp `20240615T023000Z` is 02:30 UTC, but the system clock shows `2024-06-15 10:30:00` which is 10:30 local time (UTC+8). The system clock is ahead by approximately 8 hours, but the signing timestamp is using UTC (02:30). However, the actual issue is that the system clock is wrong — it's actually 2024-06-14 18:30 UTC, making the system clock ~8 hours ahead of real time.

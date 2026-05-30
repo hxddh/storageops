@@ -1,0 +1,53 @@
+# rclone Copy with -vv --dump headers
+
+```bash
+$ rclone version
+rclone v1.65.0
+
+$ rclone copy source:bucket/largefile.bin dest:bucket/largefile.bin -vv --dump headers
+
+2024/06/15 12:00:00 DEBUG : rclone: Version "v1.65.0" starting with parameters [...]
+2024/06/15 12:00:00 DEBUG : Creating backend with remote "source:bucket"
+2024/06/15 12:00:00 DEBUG : Using config file from "/home/user/.config/rclone/rclone.conf"
+2024/06/15 12:00:05 DEBUG : largefile.bin: Need to transfer - File not found at Destination
+2024/06/15 12:00:05 DEBUG : largefile.bin: S3 bucket bucket path largefile.bin: Waiting for checks to finish
+2024/06/15 12:00:05 DEBUG : largefile.bin: S3 bucket bucket path largefile.bin: Waiting for transfers to finish
+2024/06/15 12:00:05 DEBUG : largefile.bin: MD5 = a1b2c3d4e5f6789012345678abcdef01 from source
+2024/06/15 12:00:10 DEBUG : largefile.bin: Copied (server-side copy)
+2024/06/15 12:00:11 DEBUG : largefile.bin: MD5 = a1b2c3d4e5f6789012345678abcdef01-3 from destination
+
+2024/06/15 12:00:11 ERROR : largefile.bin: corrupted on transfer: md5 hash differ "a1b2c3d4e5f6789012345678abcdef01" vs "a1b2c3d4e5f6789012345678abcdef01-3"
+
+2024/06/15 12:00:11 INFO  : largefile.bin: Removing failed copy
+
+2024/06/15 12:00:11 ERROR : Attempt 1/3 failed with 1 errors and: corrupted on transfer: md5 hash differ
+```
+
+## Analysis Clues
+
+- Source ETag: `a1b2c3d4e5f6789012345678abcdef01` (32 hex chars, no suffix → single PUT ETag = MD5)
+- Destination ETag: `a1b2c3d4e5f6789012345678abcdef01-3` (32 hex chars + "-3" → multipart ETag)
+- Server-side copy internally used multipart upload on the destination despite source being single-part
+- rclone compares full-object MD5 with multipart ETag format → mismatch
+- File size is identical (not a truncated upload)
+- Not a network corruption issue — the transfer was server-side
+
+## rclone Config (redacted)
+
+```
+[source]
+type = s3
+provider = Other
+access_key_id = [REDACTED]
+secret_access_key = [REDACTED]
+endpoint = https://source.example.com
+region = us-east-1
+
+[dest]
+type = s3
+provider = Other
+access_key_id = [REDACTED]
+secret_access_key = [REDACTED]
+endpoint = https://dest.example.com
+region = us-east-1
+```

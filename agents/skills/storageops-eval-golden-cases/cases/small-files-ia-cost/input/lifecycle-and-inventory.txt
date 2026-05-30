@@ -1,0 +1,30 @@
+# Lifecycle Configuration (XML)
+
+```xml
+<LifecycleConfiguration>
+  <Rule>
+    <ID>MoveToIA-After30Days</ID>
+    <Filter>
+      <Prefix>logs/</Prefix>
+    </Filter>
+    <Status>Enabled</Status>
+    <Transition>
+      <Days>30</Days>
+      <StorageClass>STANDARD_IA</StorageClass>
+    </Transition>
+  </Rule>
+</LifecycleConfiguration>
+```
+
+## S3 Inventory Summary
+
+| Storage Class | Object Count | Total Actual Size | Avg Object Size |
+|---|---|---|---|
+| STANDARD | 2,000,000 | ~2 GB | ~1 KB |
+| STANDARD_IA | 8,000,000 | ~8 GB | ~1 KB |
+
+IA objects billed at minimum 128 KB each:
+8,000,000 × 128 KB = 1,024,000,000 KB = ~976 GB billed for ~8 GB actual.
+
+Total billed storage: STANDARD (2 GB) + STANDARD_IA (976 GB) ≈ 978 GB
+User expected: ~10 GB

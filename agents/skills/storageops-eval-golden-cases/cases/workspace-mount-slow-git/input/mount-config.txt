@@ -1,0 +1,28 @@
+# Mount Configuration
+
+```bash
+bosfs my-bucket /workspace/openclaw \
+  -o url=https://bj.bcebos.com \
+  -o passwd_file=/etc/bosfs/passwd \
+  -o allow_other \
+  -o use_cache=/tmp/bosfs-cache \
+  -o stat_cache_expire=1
+```
+
+## Workspace Layout
+
+```
+/workspace/openclaw/
+  openclaw.yaml
+  skills/
+    (installed skill files)
+  sessions/
+    (session state files)
+  temp/
+    (temporary outputs)
+  projects/
+    .git/
+    src/
+    node_modules/
+  venv/
+```

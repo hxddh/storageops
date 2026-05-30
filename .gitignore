@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets — never commit credential files
+*.pem
+*.key
+credentials
+*.env
+
+# Temp files
+*.tmp
+*.swp
+*.swo
+*~

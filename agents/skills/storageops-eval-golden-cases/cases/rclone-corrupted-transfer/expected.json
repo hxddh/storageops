@@ -1,0 +1,34 @@
+{
+  "expected_category": "cli_sdk_behavior",
+  "expected_subcategory": "rclone",
+  "expected_severity": "medium",
+  "expected_min_confidence": 0.70,
+  "must_include_evidence_keywords": [
+    "rclone",
+    "corrupted on transfer",
+    "ETag",
+    "multipart"
+  ],
+  "should_include_evidence_keywords": [
+    "server-side copy",
+    "MD5",
+    "-3"
+  ],
+  "must_include_recommendation_keywords": [
+    "ignore-checksum",
+    "use-multipart-etag"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "print access key",
+    "network corruption",
+    "bit flip",
+    "faulty RAM",
+    "disk error"
+  ],
+  "expected_root_cause_types": ["tool_sdk_incompatibility"],
+  "required_report_sections": ["摘要", "诊断结论", "关键证据", "修复建议"],
+  "input_type": "log_file",
+  "domain": "cli_sdk_behavior"
+}

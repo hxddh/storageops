@@ -1,0 +1,22 @@
+# Timing Comparison
+
+| Operation | Local SSD | BOS Mount |
+|---|---|---|
+| OpenClaw startup | ~1 min | ~3 min |
+| Single conversation feedback | ~12s | ~55s |
+| `git status` | <1s | ~30s |
+| `ls -la workspace/` | <0.1s | ~3s |
+| File save in editor | instant | 2-5s |
+
+## Kernel Log (dmesg)
+
+```
+[12345.678] fuse: request blocked: timeout waiting for userspace
+[12350.123] bosfs[1234]: transport endpoint is not connected
+[12400.456] bosfs[1235]: reconnecting to bj.bcebos.com
+```
+
+## Concurrent Access
+
+30 developers simultaneously accessing the workspace.
+Git operations (status, commit, push) occasionally cause mount disconnect.

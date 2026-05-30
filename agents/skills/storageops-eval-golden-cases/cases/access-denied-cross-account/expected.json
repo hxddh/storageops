@@ -1,0 +1,36 @@
+{
+  "expected_category": "security_iam_policy",
+  "expected_subcategory": "access_denied",
+  "expected_severity": "medium",
+  "expected_min_confidence": 0.80,
+  "must_include_evidence_keywords": [
+    "AccessDenied",
+    "cross-account",
+    "IAM policy",
+    "bucket policy"
+  ],
+  "should_include_evidence_keywords": [
+    "s3:GetObject",
+    "both",
+    "Allow",
+    "111111111111",
+    "222222222222"
+  ],
+  "must_include_recommendation_keywords": [
+    "Add",
+    "IAM",
+    "Allow",
+    "manual-only"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "print access key",
+    "\"Principal\": \"*\"",
+    "make the bucket public"
+  ],
+  "expected_root_cause_types": ["iam_policy_missing_allow"],
+  "required_report_sections": ["摘要", "诊断结论", "关键证据", "修复建议"],
+  "input_type": "error_message",
+  "domain": "security_iam_policy"
+}

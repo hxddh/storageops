@@ -1,0 +1,234 @@
+# StorageOps Skill Registry v0.1
+
+# This file declares all available skills so coding agents can discover,
+# auto-select, and load them. Each entry maps a skill to its trigger
+# conditions and the domains it covers.
+
+version: "0.1"
+
+skills:
+  - name: storageops-triage
+    path: agents/skills/storageops-triage/SKILL.md
+    description: >
+      First-contact triage for any object storage issue. Classifies the
+      problem domain, assesses severity and evidence completeness, and
+      routes to the appropriate specialist Skill.
+    triggers:
+      - "object storage"
+      - "S3 error"
+      - "storage issue"
+      - no clear diagnostic category
+    domains: [triage]
+    priority: 0  # Always runs first
+    auto_route: true
+    routes_to:
+      - storageops-s3-protocol-compatibility
+      - storageops-cli-sdk-diagnosis
+      - storageops-performance-diagnosis
+      - storageops-mount-filesystem-workspace
+      - storageops-network-endpoint-access
+      - storageops-security-iam-policy
+      - storageops-lifecycle-cost
+
+  - name: storageops-s3-protocol-compatibility
+    path: agents/skills/storageops-s3-protocol-compatibility/SKILL.md
+    description: >
+      Diagnose S3 protocol-level issues: SigV4 signatures, ETag/checksum
+      mismatches, ListObjects V1/V2 behavior, Multipart Upload lifecycle,
+      CopyObject/HeadObject/DeleteObject provider differences.
+    triggers:
+      - "SignatureDoesNotMatch"
+      - "InvalidSignature"
+      - "ETag mismatch"
+      - "ListObjects"
+      - "CompleteMultipartUpload"
+      - "InvalidPart"
+      - "checksum"
+      - "S3 compatible"
+      - "S3 protocol"
+    domains:
+      - s3_protocol_compatibility
+      - sigv4
+      - list_objects
+      - multipart_upload
+      - checksum_etag
+
+  - name: storageops-cli-sdk-diagnosis
+    path: agents/skills/storageops-cli-sdk-diagnosis/SKILL.md
+    description: >
+      Diagnose client tool and SDK behavioral issues: awscli, boto3,
+      rclone, s5cmd, bcecmd, obsutil debug logs, corrupted-on-transfer,
+      tool-specific configuration problems.
+    triggers:
+      - "awscli"
+      - "boto3"
+      - "rclone"
+      - "s5cmd"
+      - "bcecmd"
+      - "obsutil"
+      - "corrupted on transfer"
+      - "size diff"
+      - "debug log"
+      - "--debug"
+      - "aws sdk"
+    domains:
+      - cli_sdk_behavior
+
+  - name: storageops-performance-diagnosis
+    path: agents/skills/storageops-performance-diagnosis/SKILL.md
+    description: >
+      Diagnose performance bottlenecks: slow upload/download, small file
+      latency, multipart tuning, prefix hotspots, 429/SlowDown throttling,
+      5xx errors, timeout patterns.
+    triggers:
+      - "slow upload"
+      - "slow download"
+      - "timeout"
+      - "429"
+      - "SlowDown"
+      - "throttl"
+      - "throughput"
+      - "bandwidth"
+      - "performance"
+      - "slow"
+      - "latency"
+      - "RequestRateLimitExceeded"
+    domains:
+      - performance_throughput
+      - small_file_metadata
+
+  - name: storageops-mount-filesystem-workspace
+    path: agents/skills/storageops-mount-filesystem-workspace/SKILL.md
+    description: >
+      Diagnose mount and workspace issues: s3fs, rclone mount, ossfs,
+      bosfs, gcsfuse, Mountpoint for S3 hangs, metadata storms,
+      POSIX semantic mismatches, git/package-manager slowdowns,
+      agent workspace degradation.
+    triggers:
+      - "mount"
+      - "s3fs"
+      - "rclone mount"
+      - "ossfs"
+      - "bosfs"
+      - "gcsfuse"
+      - "FUSE"
+      - "掉挂载"
+      - "workspace slow"
+      - "workspace startup"
+      - "git slow"
+      - "node_modules"
+      - "venv slow"
+      - "OpenClaw"
+      - "agent sandbox"
+    domains:
+      - mount_filesystem_workspace
+
+  - name: storageops-network-endpoint-access
+    path: agents/skills/storageops-network-endpoint-access/SKILL.md
+    description: >
+      Diagnose network, DNS, and endpoint connectivity: public/VPC/private
+      endpoints, DNS resolution, TLS handshake, MTU, cross-cloud routing,
+      dedicated line/专线, proxy/NAT interference.
+    triggers:
+      - "endpoint unreachable"
+      - "DNS"
+      - "TLS error"
+      - "certificate"
+      - "VPC endpoint"
+      - "PrivateLink"
+      - "专线"
+      - "cross-cloud"
+      - "connection refused"
+      - "host header"
+      - "MTU"
+      - "proxy"
+    domains:
+      - network_endpoint_access
+
+  - name: storageops-security-iam-policy
+    path: agents/skills/storageops-security-iam-policy/SKILL.md
+    description: >
+      Diagnose permission and security: 403 AccessDenied, IAM/bucket
+      policy analysis, ACL, STS temporary credentials, KMS key access,
+      SSE configuration, public access risk, credential leakage.
+    triggers:
+      - "403"
+      - "AccessDenied"
+      - "Access Denied"
+      - "Forbidden"
+      - "permission"
+      - "IAM"
+      - "bucket policy"
+      - "STS"
+      - "session token"
+      - "KMS"
+      - "SSE"
+      - "encryption"
+      - "public access"
+    domains:
+      - security_iam_policy
+      - permission_access_denied
+
+  - name: storageops-lifecycle-cost
+    path: agents/skills/storageops-lifecycle-cost/SKILL.md
+    description: >
+      Diagnose lifecycle and cost: transition/expiration rules,
+      storage class selection, intelligent tiering, minimum duration
+      charges, retrieval costs, request fees, small-object cost
+      amplification, prefix-level cost attribution.
+    triggers:
+      - "lifecycle"
+      - "cost"
+      - "storage class"
+      - "Standard-IA"
+      - "Glacier"
+      - "Archive"
+      - "Intelligent Tiering"
+      - "retrieval cost"
+      - "bill"
+      - "计费"
+      - "费用"
+    domains:
+      - lifecycle_cost
+
+  - name: storageops-evidence-reporting
+    path: agents/skills/storageops-evidence-reporting/SKILL.md
+    description: >
+      Produce structured diagnostic reports: customer-facing, internal
+      engineering notes, reproduction checklists, standardized diagnosis
+      reports with evidence tables and root cause ranking.
+    triggers:
+      - "report"
+      - "write up"
+      - "document"
+      - "customer summary"
+      - "诊断报告"
+      - "reproduction steps"
+    domains:
+      - reporting
+
+  - name: storageops-eval-golden-cases
+    path: agents/skills/storageops-eval-golden-cases/SKILL.md
+    description: >
+      Evaluate diagnostic quality using golden test cases. Validates
+      category accuracy, confidence, evidence keywords, recommendation
+      safety, and unsafe output detection.
+    triggers:
+      - "evaluate"
+      - "golden case"
+      - "regression test"
+      - "quality check"
+      - "validate diagnosis"
+    domains:
+      - eval
+
+# Safety rules apply to ALL skills
+global_safety:
+  - treat_all_inputs_as_untrusted: true
+  - redact_secrets: true
+  - default_read_only: true
+  - no_destructive_actions: true
+  - evidence_based_only: true
+
+# Format: each skill is a markdown file with YAML frontmatter.
+# Agents load: read(path) → parse frontmatter name/description → match trigger

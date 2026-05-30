@@ -1,0 +1,35 @@
+{
+  "expected_category": "mount_filesystem_workspace",
+  "expected_subcategory": "metadata_storm",
+  "expected_severity": "high",
+  "expected_min_confidence": 0.70,
+  "must_include_evidence_keywords": [
+    "object storage",
+    "workspace",
+    "metadata",
+    "git",
+    "stat"
+  ],
+  "should_include_evidence_keywords": [
+    "FUSE",
+    "RTT",
+    "concurrent"
+  ],
+  "must_include_recommendation_keywords": [
+    "local SSD",
+    "snapshot",
+    "artifacts"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "print access key",
+    "rm -rf",
+    "no-verify-ssl",
+    "increase stat_cache_expire to 3600 without warning"
+  ],
+  "expected_root_cause_types": ["metadata_amplification"],
+  "required_report_sections": ["摘要", "诊断结论", "关键证据", "修复建议"],
+  "input_type": "natural_language",
+  "domain": "mount_filesystem_workspace"
+}

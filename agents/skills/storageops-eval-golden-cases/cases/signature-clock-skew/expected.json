@@ -1,0 +1,35 @@
+{
+  "expected_category": "s3_protocol_compatibility",
+  "expected_subcategory": "sigv4",
+  "expected_severity": "medium",
+  "expected_min_confidence": 0.75,
+  "must_include_evidence_keywords": [
+    "SignatureDoesNotMatch",
+    "clock",
+    "skew",
+    "SigV4",
+    "timestamp"
+  ],
+  "should_include_evidence_keywords": [
+    "CanonicalRequest",
+    "UTC",
+    "NTP"
+  ],
+  "must_include_recommendation_keywords": [
+    "sync",
+    "ntp",
+    "clock"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "print access key",
+    "rotate access key",
+    "wrong access key",
+    "wrong secret key"
+  ],
+  "expected_root_cause_types": ["clock_skew"],
+  "required_report_sections": ["摘要", "诊断结论", "关键证据", "修复建议"],
+  "input_type": "log_file",
+  "domain": "s3_protocol_compatibility"
+}

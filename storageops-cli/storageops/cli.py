@@ -1,0 +1,464 @@
+"""
+StorageOps CLI v0.3
+
+Usage:
+    storageops triage <evidence-file>
+    storageops analyze <domain> <evidence-file>
+    storageops report <analysis-json>
+    storageops eval --cases-dir <dir> [--outputs-dir <dir>]
+    storageops agent <evidence-file> [--interactive]
+
+All commands operate on offline artifacts only. No cloud connections.
+"""
+import argparse
+import json
+import sys
+import re
+from pathlib import Path
+
+# Resolve storageops-core path relative to this CLI's location
+CLI_DIR = Path(__file__).parent.parent
+PROJECT_ROOT = CLI_DIR.parent
+CORE_DIR = PROJECT_ROOT / 'storageops-core'
+
+# Ensure core modules are importable
+for sub in ['utils', 'parsers', 'analyzers']:
+    p = str(CORE_DIR / sub)
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+
+# ── Auto-Detection ────────────────────────────────────────────────────
+
+SIGNATURES = {
+    's3_protocol_compatibility': [
+        (r'SignatureDoesNotMatch', 'sigv4'),
+        (r'InvalidSignature', 'sigv4'),
+        (r'CanonicalRequest', 'sigv4'),
+        (r'StringToSign', 'sigv4'),
+        (r'<Code>InvalidPart</Code>', 'multipart_upload'),
+        (r'CompleteMultipartUpload', 'multipart_upload'),
+        (r'ListObjects', 'list_objects'),
+        (r'ETag.*mismatch', 'checksum_etag'),
+    ],
+    'cli_sdk_behavior': [
+        (r'corrupted on transfer', 'rclone'),
+        (r'rclone\s+v[\d.]+', 'rclone'),
+        (r'size differ', 'rclone'),
+        (r'bcecmd', 'bcecmd'),
+        (r'obsutil', 'obsutil'),
+        (r's5cmd', 's5cmd'),
+        (r'botocore\.', 'boto3'),
+        (r'aws-cli/', 'awscli'),
+    ],
+    'performance_throughput': [
+        (r'\b429\b', 'throttling'),
+        (r'SlowDown', 'throttling'),
+        (r'RequestRateLimitExceeded', 'throttling'),
+        (r'ThrottlingException', 'throttling'),
+        (r'timeout', 'timeout'),
+        (r'throughput', 'throughput'),
+        (r'MB/s', 'throughput'),
+        (r'MiB/s', 'throughput'),
+    ],
+    'mount_filesystem_workspace': [
+        (r'\bfuse\b', 'mount'),
+        (r's3fs|bosfs|ossfs|gcsfuse', 'mount'),
+        (r'rclone mount', 'mount'),
+        (r'掉挂载|mount.*disconnect', 'mount'),
+        (r'stat.*storm|metadata.*amplif', 'mount'),
+        (r'workspace.*slow', 'mount'),
+    ],
+    'network_endpoint_access': [
+        (r'endpoint.*unreachable|connection refused', 'network'),
+        (r'TLS.*error|certificate.*error', 'network'),
+        (r'DNS.*fail|NXDOMAIN', 'network'),
+        (r'VPC.*endpoint|PrivateLink', 'network'),
+        (r'MTU', 'network'),
+    ],
+    'security_iam_policy': [
+        (r'AccessDenied', 'security'),
+        (r'Access Denied', 'security'),
+        (r'\b403\b', 'security'),
+        (r'bucket.*policy|IAM.*policy', 'security'),
+        (r'STS.*expir|session.*token.*expir', 'security'),
+        (r'KMS.*denied|kms:Decrypt', 'security'),
+    ],
+    'lifecycle_cost': [
+        (r'lifecycle.*rule|LifecycleConfiguration', 'lifecycle'),
+        (r'STANDARD_IA|GLACIER|DEEP_ARCHIVE', 'lifecycle'),
+        (r'minimum.*storage.*duration', 'lifecycle'),
+        (r'retrieval.*cost|request.*cost', 'lifecycle'),
+        (r'Intelligent.*Tiering', 'lifecycle'),
+    ],
+}
+
+
+def auto_detect(text: str) -> list[dict]:
+    """Auto-detect issue domain from evidence text."""
+    scores = {}
+    for domain, patterns in SIGNATURES.items():
+        score = 0
+        matches = []
+        for pattern, subdomain in patterns:
+            if re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
+                score += 1
+                matches.append(subdomain)
+        if score > 0:
+            scores[domain] = {
+                'score': score,
+                'subdomains': list(set(matches)),
+            }
+
+    ranked = sorted(scores.items(), key=lambda x: x[1]['score'], reverse=True)
+    return [
+        {
+            'domain': domain,
+            'confidence': min(round(info['score'] / max(1, sum(
+                1 for _ in SIGNATURES[domain])), 2), 0.95),
+            'subdomains': info['subdomains'],
+        }
+        for domain, info in ranked
+    ]
+
+
+# ── Commands ──────────────────────────────────────────────────────────
+
+SKILL_ROUTE_MAP = {
+    's3_protocol_compatibility': 'storageops-s3-protocol-compatibility',
+    'cli_sdk_behavior': 'storageops-cli-sdk-diagnosis',
+    'performance_throughput': 'storageops-performance-diagnosis',
+    'mount_filesystem_workspace': 'storageops-mount-filesystem-workspace',
+    'network_endpoint_access': 'storageops-network-endpoint-access',
+    'security_iam_policy': 'storageops-security-iam-policy',
+    'lifecycle_cost': 'storageops-lifecycle-cost',
+}
+
+
+def cmd_triage(args):
+    """Triage: classify evidence and suggest routing."""
+    path = Path(args.file)
+    if not path.exists():
+        print(json.dumps({"ok": False, "error": f"File not found: {args.file}"}))
+        sys.exit(1)
+
+    text = path.read_text(encoding='utf-8', errors='replace')
+
+    # Run secret scan first
+    from secret_scanner import scan as scan_secrets
+    secret_result = scan_secrets(text)
+
+    # Auto-detect domain
+    detections = auto_detect(text)
+
+    # Determine evidence type
+    input_type = 'unknown'
+    if re.search(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}.*DEBUG', text):
+        input_type = 'log_file'
+    elif re.search(r'<\?xml.*<Error>', text, re.IGNORECASE):
+        input_type = 'error_message'
+    elif re.search(r'access_key_id|endpoint.*https?://', text, re.IGNORECASE):
+        input_type = 'config_file'
+    elif re.search(r'<?xml.*<LifecycleConfiguration>', text, re.IGNORECASE):
+        input_type = 'config_file'
+    else:
+        input_type = 'natural_language'
+
+    # Build output
+    primary = detections[0] if detections else {
+        'domain': 'unknown_insufficient_evidence',
+        'confidence': 0.0,
+        'subdomains': [],
+    }
+
+    output = {
+        "ok": True,
+        "module": "triage",
+        "input_type": input_type,
+        "primary_domain": primary['domain'],
+        "primary_confidence": primary['confidence'],
+        "severity": "unknown",
+        "evidence_quality": "partial" if primary['confidence'] < 0.5 else "sufficient",
+        "routing": {
+            "primary_skill": SKILL_ROUTE_MAP.get(primary['domain'], 'storageops-triage'),
+            "all_detections": detections,
+        },
+        "secret_scan": {
+            "findings_count": secret_result['count'],
+            "has_secrets": secret_result['count'] > 0,
+        },
+        "recommended_next_command": (
+            f"storageops analyze {primary['domain']} {args.file}"
+            if primary['domain'] != 'unknown_insufficient_evidence'
+            else "Please provide more detailed evidence (debug logs, error messages, config)"
+        ),
+    }
+    print(json.dumps(output, indent=2, ensure_ascii=False))
+
+
+def cmd_analyze(args):
+    """Analyze: run domain-specific parser + analyzer pipeline."""
+    path = Path(args.file)
+    if not path.exists():
+        print(json.dumps({"ok": False, "error": f"File not found: {args.file}"}))
+        sys.exit(1)
+
+    text = path.read_text(encoding='utf-8', errors='replace')
+    domain = args.domain
+
+    # Run secret scan
+    from secret_scanner import scan as scan_secrets
+    secret_result = scan_secrets(text)
+    if secret_result['count'] > 0 and not args.no_redact:
+        text = secret_result['redacted_text']
+
+    result = None
+
+    if domain in ('s3_protocol_compatibility', 'sigv4'):
+        from parse_sigv4_error import parse_xml_error, diagnose as diagnose_sigv4
+        from parse_awscli_debug import parse as parse_awscli
+
+        # Try as XML error first
+        if '<Code>SignatureDoesNotMatch</Code>' in text:
+            error = parse_xml_error(text)
+            result = diagnose_sigv4(error)
+        else:
+            result = parse_awscli(text)
+
+    elif domain in ('cli_sdk_behavior', 'rclone'):
+        if 'rclone' in text.lower():
+            from parse_rclone_log import parse as parse_rclone
+            result = parse_rclone(text)
+        elif 's5cmd' in text.lower():
+            from parse_s5cmd_error import parse as parse_s5cmd_err
+            result = parse_s5cmd_err(text)
+        else:
+            from parse_awscli_debug import parse as parse_awscli
+            result = parse_awscli(text) if 'aws' in text.lower() else {"error": "Unknown CLI tool"}
+
+    elif domain in ('performance_throughput', 'throttling'):
+        from parse_s5cmd_log import parse as parse_s5cmd
+        from parse_awscli_debug import parse as parse_awscli
+        from detect_throttling import detect as detect_throttling
+        from analyze_throughput import analyze as analyze_throughput
+
+        if 's5cmd' in text.lower():
+            parsed = parse_s5cmd(text)
+        else:
+            parsed = parse_awscli(text)
+
+        if args.subdomain == 'throttling' or parsed.get('summary', {}).get('has_throttling'):
+            result = detect_throttling(parsed)
+        else:
+            result = analyze_throughput({
+                "object_size_mb": args.object_size or 100,
+                "rtt_ms": args.rtt or 50,
+                "bandwidth_mbps": args.bandwidth or 1000,
+                "observed_throughput_mbps": 50,  # placeholder
+            })
+
+    elif domain in ('security_iam_policy',):
+        from analyze_policy import analyze as analyze_policy
+        from analyze_policy import analyze_inline_403
+        # Try to parse as JSON input
+        try:
+            policy_data = json.loads(text)
+            result = analyze_policy(policy_data)
+        except json.JSONDecodeError:
+            # If not JSON, do inline 403 analysis from error text
+            result = analyze_inline_403(text)
+
+    elif domain in ('lifecycle_cost',):
+        from analyze_cost import analyze as analyze_cost
+        try:
+            cost_data = json.loads(text)
+        except json.JSONDecodeError:
+            cost_data = {
+                "storage_price_per_gb": {"STANDARD": 0.023, "STANDARD_IA": 0.0125},
+                "prefixes": [],
+                "note": "Could not parse JSON. Provide inventory data JSON.",
+            }
+        result = analyze_cost(cost_data)
+
+    elif domain in ('mount_filesystem_workspace',):
+        from analyze_metadata_amplification import analyze as analyze_amp
+        try:
+            amp_data = json.loads(text)
+        except json.JSONDecodeError:
+            amp_data = {
+                "rtt_ms": 50,
+                "syscalls": {"stat": 10000, "open": 2000, "readdir": 200},
+                "operation_name": "git status",
+                "note": "Using default syscall profile. Provide strace data for accurate analysis.",
+            }
+        result = analyze_amp(amp_data)
+
+    elif domain in ('network_endpoint_access',):
+        result = {
+            "ok": True,
+            "module": "network_diagnosis",
+            "note": "Network diagnosis requires live network tools (dig, curl, traceroute). "
+                    "Run these manually and collect output:\n"
+                    "  dig <endpoint-hostname>\n"
+                    "  curl -v --connect-timeout 5 https://<endpoint>\n"
+                    "  mtr -r -c 10 <endpoint-hostname>",
+            "recommendations": [
+                "Collect DNS resolution, TCP connectivity, TLS handshake, and RTT data.",
+                "Use storageops-network-endpoint-access Skill for manual diagnosis guidance.",
+            ],
+        }
+
+    else:
+        result = {"ok": False, "error": f"Unknown domain: {domain}"}
+
+    if result is None:
+        result = {"ok": False, "error": "Analysis produced no results"}
+
+    result["ok"] = True
+    result["module"] = f"analyze_{domain}"
+    result["redacted"] = secret_result['count'] > 0 and not args.no_redact
+    print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+
+
+def cmd_report(args):
+    """Generate a markdown report from analysis JSON."""
+    path = Path(args.file)
+    if not path.exists():
+        print(json.dumps({"ok": False, "error": f"File not found: {args.file}"}))
+        sys.exit(1)
+
+    data = json.loads(path.read_text())
+
+    report = f"""# 诊断报告 (Diagnosis Report)
+
+**生成时间:** Generated by StorageOps CLI v0.3
+**分类:** {data.get('domain', data.get('category', 'unknown'))}
+**置信度:** {data.get('confidence', data.get('primary_confidence', 'N/A'))}
+
+## 摘要
+
+{data.get('conclusion', data.get('note', 'Analysis results below.'))}
+
+## 诊断结论
+
+```json
+{json.dumps(data, indent=2, ensure_ascii=False, default=str)[:3000]}
+```
+
+## 修复建议
+
+{chr(10).join('- ' + r for r in data.get('recommendations', data.get('recommendation', ['See analysis for recommendations']))) if isinstance(data.get('recommendations', data.get('recommendation', [])), list) else '- ' + str(data.get('recommendations', data.get('recommendation', 'See analysis for recommendations')))}
+
+## 后续排查清单
+
+- [ ] Review analysis results above
+- [ ] Collect additional evidence if confidence is low
+- [ ] Apply recommendations (manual-only: review before executing)
+- [ ] Validate fix and re-run analysis
+
+---
+*This report was auto-generated by StorageOps CLI v0.3. All conclusions should be verified.*
+"""
+    print(report)
+
+
+def cmd_eval(args):
+    """Run golden case evaluation."""
+    from eval_runner import evaluate_case, evaluate_all
+    cases_dir = Path(args.cases_dir)
+    outputs_dir = Path(args.outputs_dir) if args.outputs_dir else Path('.')
+
+    if args.case:
+        case_path = cases_dir / args.case
+        output_path = outputs_dir / f"{args.case}.md"
+        if not output_path.exists():
+            print(json.dumps({"ok": False, "error": f"Output not found: {output_path}"}))
+            sys.exit(1)
+        output_text = output_path.read_text(encoding='utf-8', errors='replace')
+        result = evaluate_case(case_path, output_text)
+    elif args.all:
+        result = evaluate_all(cases_dir, outputs_dir)
+    else:
+        print(json.dumps({"ok": False, "error": "Specify --case or --all"}))
+        sys.exit(1)
+
+    result["ok"] = True
+    result["module"] = "eval"
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+
+    # Exit non-zero if any case failed
+    if not result.get('passed', True):
+        if isinstance(result.get('passed'), bool) and not result['passed']:
+            sys.exit(1)
+        elif isinstance(result.get('cases'), list):
+            failed = sum(1 for c in result['cases'] if not c.get('passed', True))
+            if failed > 0:
+                sys.exit(1)
+
+
+# ── Main ──────────────────────────────────────────────────────────────
+
+def cmd_agent(args):
+    """Run the autonomous multi-turn diagnostic agent."""
+    from storageops.agent import agent_run
+    sys.exit(agent_run(
+        initial_file=args.file,
+        interactive=args.interactive,
+    ))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='StorageOps CLI — object storage diagnostic toolkit',
+        prog='storageops',
+    )
+    sub = parser.add_subparsers(dest='command', help='Commands')
+
+    # triage
+    p_triage = sub.add_parser('triage', help='Classify evidence and route to specialist skill')
+    p_triage.add_argument('file', help='Evidence file (log, error, config, description)')
+    p_triage.set_defaults(func=cmd_triage)
+
+    # analyze
+    p_analyze = sub.add_parser('analyze', help='Run domain-specific parser + analyzer')
+    p_analyze.add_argument('domain', help='Domain: s3_protocol_compatibility, cli_sdk_behavior, '
+                            'performance_throughput, mount_filesystem_workspace, '
+                            'network_endpoint_access, security_iam_policy, lifecycle_cost')
+    p_analyze.add_argument('file', help='Evidence file')
+    p_analyze.add_argument('--subdomain', help='Specific subdomain', default=None)
+    p_analyze.add_argument('--no-redact', action='store_true', help='Skip secret redaction')
+    p_analyze.add_argument('--object-size', type=float, help='Object size in MB (for throughput)')
+    p_analyze.add_argument('--rtt', type=float, help='RTT in ms (for throughput)')
+    p_analyze.add_argument('--bandwidth', type=float, help='Bandwidth in Mbps (for throughput)')
+    p_analyze.set_defaults(func=cmd_analyze)
+
+    # report
+    p_report = sub.add_parser('report', help='Generate markdown report from analysis JSON')
+    p_report.add_argument('file', help='Analysis JSON file')
+    p_report.set_defaults(func=cmd_report)
+
+    # eval
+    p_eval = sub.add_parser('eval', help='Run golden case evaluation')
+    p_eval.add_argument('--cases-dir', default='agents/skills/storageops-eval-golden-cases/cases',
+                        help='Golden cases directory')
+    p_eval.add_argument('--outputs-dir', default='.', help='Diagnosis outputs directory')
+    p_eval.add_argument('--case', help='Single case name')
+    p_eval.add_argument('--all', action='store_true', help='Evaluate all cases')
+    p_eval.set_defaults(func=cmd_eval)
+
+    # agent
+    p_agent = sub.add_parser('agent', help='Run autonomous multi-turn diagnostic agent')
+    p_agent.add_argument('file', nargs='?', help='Initial evidence file')
+    p_agent.add_argument('--interactive', '-i', action='store_true',
+                         help='Interactive mode: ask follow-up questions')
+    p_agent.set_defaults(func=cmd_agent)
+
+    args = parser.parse_args()
+    if hasattr(args, 'func'):
+        args.func(args)
+    else:
+        parser.print_help()
+
+
+if __name__ == '__main__':
+    main()

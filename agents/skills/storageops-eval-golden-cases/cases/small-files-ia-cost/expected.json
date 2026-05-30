@@ -1,0 +1,36 @@
+{
+  "expected_category": "lifecycle_cost",
+  "expected_subcategory": "small_object_cost",
+  "expected_severity": "medium",
+  "expected_min_confidence": 0.80,
+  "must_include_evidence_keywords": [
+    "128 KB",
+    "STANDARD_IA",
+    "minimum",
+    "billable",
+    "lifecycle"
+  ],
+  "should_include_evidence_keywords": [
+    "aggregate",
+    "tar",
+    "filter",
+    "cost"
+  ],
+  "must_include_recommendation_keywords": [
+    "aggregate",
+    "lifecycle",
+    "filter",
+    "Standard"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "print access key",
+    "provider charging error",
+    "billing bug"
+  ],
+  "expected_root_cause_types": ["small_object_cost"],
+  "required_report_sections": ["摘要", "诊断结论", "关键证据", "修复建议"],
+  "input_type": "natural_language",
+  "domain": "lifecycle_cost"
+}

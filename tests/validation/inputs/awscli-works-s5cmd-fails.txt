@@ -1,0 +1,22 @@
+# User Report
+
+同一个 S3 兼容 endpoint，awscli 可以正常 list，s5cmd 报错。
+
+=== awscli (works) ===
+$ aws s3 ls s3://my-bucket/ --endpoint-url https://storage.internal.example.com
+2024-08-15 10:00:00     102400 file1.txt
+2024-08-15 10:00:01     204800 file2.txt
+
+=== s5cmd (fails) ===
+$ s5cmd --endpoint-url https://storage.internal.example.com ls s3://my-bucket/
+ERROR "ls s3://my-bucket/*": InvalidBucketName: The specified bucket is not valid.
+
+s5cmd version: v2.2.2
+
+s5cmd env:
+S5CMD_ENDPOINT_URL=https://storage.internal.example.com
+
+# Other info:
+# S3-compatible provider: internal MinIO deployment
+# DNS: storage.internal.example.com resolves correctly
+# No proxy configured

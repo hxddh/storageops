@@ -1,0 +1,19 @@
+# System Information
+
+```bash
+$ date -u
+Fri Jun 14 18:30:00 UTC 2024
+
+$ aws --version
+aws-cli/2.15.0 Python/3.11.6 Darwin/23.0.0 source/arm64
+
+$ aws configure list
+      Name                    Value             Type    Location
+      ----                    -----             ----    --------
+   profile                <not set>             None    None
+access_key     ****************XXXX shared-credentials-file
+secret_key     ****************XXXX shared-credentials-file
+    region                us-east-1      config-file    ~/.aws/config
+```
+
+Note: The system clock (`date -u` output) shows the time is actually ~8 hours behind what the signing timestamp asserts. The x-amz-date in the canonical request is `20240615T023000Z` but the actual UTC time is `2024-06-14 18:30:00`. This clock skew of ~8 hours exceeds the ±15 minute SigV4 tolerance.

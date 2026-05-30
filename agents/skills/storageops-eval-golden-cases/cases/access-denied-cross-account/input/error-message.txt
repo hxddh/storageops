@@ -1,0 +1,15 @@
+# Error Message
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>AccessDenied</Code>
+  <Message>Access Denied</Message>
+  <RequestId>TX1234567890</RequestId>
+  <HostId>host-id-example</HostId>
+</Error>
+```
+
+User: alice in Account A (111111111111)
+Action: `aws s3 cp s3://shared-data/report.pdf . --profile alice`
+Bucket: shared-data in Account B (222222222222)

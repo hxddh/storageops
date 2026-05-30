@@ -1,0 +1,36 @@
+2024-07-20 08:15:00,123 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest method=GET url=https://s3.cn-north-1.mycloud.com/>
+2024-07-20 08:15:00,456 - MainThread - botocore.parsers - DEBUG - Response body:
+<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>AccessDenied</Code><Message>Access Denied</Message><RequestId>TX001</RequestId></Error>
+
+2024-07-20 08:15:01,789 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest method=PUT url=https://s3.cn-north-1.mycloud.com/bucket/file1.bin?partNumber=1&uploadId=abc123>
+2024-07-20 08:15:02,012 - MainThread - botocore.parsers - DEBUG - Response headers: {'x-amz-request-id': 'TX002', 'content-type': 'application/xml'}
+HTTP/1.1 200 OK
+
+2024-07-20 08:15:03,000 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest method=PUT url=https://s3.cn-north-1.mycloud.com/bucket/file2.bin?partNumber=2&uploadId=abc123>
+2024-07-20 08:15:03,500 - MainThread - botocore.parsers - DEBUG - Response headers: {'x-amz-request-id': 'TX003'}
+HTTP/1.1 429 Too Many Requests
+2024-07-20 08:15:03,501 - MainThread - botocore.parsers - DEBUG - Response body:
+<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>SlowDown</Code><Message>Please reduce your request rate.</Message><RequestId>TX003</RequestId></Error>
+2024-07-20 08:15:03,502 - MainThread - botocore.retry - DEBUG - Retry needed, retrying attempt 1 after 1.5 seconds
+
+2024-07-20 08:15:05,000 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest method=PUT url=https://s3.cn-north-1.mycloud.com/bucket/file3.bin?partNumber=3&uploadId=abc123>
+2024-07-20 08:15:07,000 - MainThread - botocore.parsers - DEBUG - Request timed out after 2.0 seconds
+2024-07-20 08:15:07,001 - MainThread - botocore.retry - DEBUG - Retry needed, retrying attempt 2 after 3.0 seconds
+
+2024-07-20 08:15:10,000 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest method=PUT url=https://s3.cn-north-1.mycloud.com/bucket/file3.bin?partNumber=3&uploadId=abc123>
+2024-07-20 08:15:10,300 - MainThread - botocore.parsers - DEBUG - Response headers: {'x-amz-request-id': 'TX004'}
+HTTP/1.1 200 OK
+
+2024-07-20 08:15:11,000 - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest method=GET url=https://s3.cn-north-1.mycloud.com/bucket/another-file>
+2024-07-20 08:15:11,200 - MainThread - botocore.parsers - DEBUG - Response body:
+<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>AccessDenied</Code><Message>Access Denied</Message><RequestId>TX005</RequestId></Error>
+
+[user@host ~]$ aws --version
+aws-cli/2.13.0
+
+# User comment: I was uploading a large file and kept getting errors. Some parts work, some don't.
+# The first request got 403, then some parts got 429, then one timed out.
+# What's going on?

@@ -1,0 +1,46 @@
+# Bucket Policy (Account B — 222222222222)
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::111111111111:root"
+      },
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::shared-data",
+        "arn:aws:s3:::shared-data/*"
+      ]
+    }
+  ]
+}
+```
+
+Bucket: shared-data
+Account: 222222222222
+
+# Alice's IAM Policy (Account A — 111111111111)
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+Note: Alice's IAM policy does NOT include `s3:GetObject` or `s3:ListBucket` for the shared-data bucket. The bucket policy allows Account A's root, but Alice needs her own IAM Allow too.
