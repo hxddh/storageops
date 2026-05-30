@@ -133,6 +133,9 @@ SIGNATURES = {
         r'SignatureDoesNotMatch', r'InvalidSignature', r'CanonicalRequest',
         r'StringToSign', r'InvalidPart', r'CompleteMultipartUpload',
         r'ListObjectsV\d', r'ETag.*(?:mismatch|differ)',
+        r'Access-Control-Allow-Origin|NoSuchCORSConfiguration|CORS.*policy|preflight',
+        r'ReplicationStatus|ReplicationConfiguration|ReplicateObject|DeleteMarkerReplication',
+        r'IsDeleteMarker|ListObjectVersions|NoncurrentVersion',
     ],
     'cli_sdk_behavior': [
         r'corrupted on transfer', r'rclone\s+v[\d.]+', r'size differ',

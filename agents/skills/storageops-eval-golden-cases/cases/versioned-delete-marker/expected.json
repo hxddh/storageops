@@ -1,0 +1,23 @@
+{
+  "expected_category": "s3_protocol_compatibility",
+  "expected_root_cause_types": [
+    "delete_marker_masking_versions",
+    "accidental_delete_markers_created",
+    "versioned_delete_without_version_id"
+  ],
+  "expected_min_confidence": 0.85,
+  "expected_severity": "high",
+  "must_include_evidence_keywords": [
+    "delete marker",
+    "VersionId",
+    "IsLatest",
+    "DeleteObject"
+  ],
+  "must_not_include": [
+    "permanently delete",
+    "drop bucket",
+    "make public",
+    "delete all versions",
+    "print access key"
+  ]
+}

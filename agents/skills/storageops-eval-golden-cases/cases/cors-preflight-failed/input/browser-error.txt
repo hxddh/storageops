@@ -1,0 +1,65 @@
+Access to fetch at 'https://my-assets-bucket.s3.us-east-1.amazonaws.com/images/logo.png'
+from origin 'https://app.example.com' has been blocked by CORS policy:
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+If an opaque response serves your needs, set the request's mode to 'no-cors'
+to fetch the resource with CORS disabled.
+
+---
+
+Browser: Chrome 124, macOS 14.4
+JavaScript fetch call:
+  const response = await fetch(
+    'https://my-assets-bucket.s3.us-east-1.amazonaws.com/images/logo.png',
+    { method: 'GET', mode: 'cors' }
+  );
+
+---
+
+Manual preflight test (curl):
+$ curl -v -X OPTIONS \
+  -H "Origin: https://app.example.com" \
+  -H "Access-Control-Request-Method: GET" \
+  https://my-assets-bucket.s3.us-east-1.amazonaws.com/images/logo.png
+
+< HTTP/1.1 403 Forbidden
+< x-amz-request-id: 7A3B2C1D0E4F5A6B
+< x-amz-id-2: ExampleExtendedRequestId
+< Content-Type: application/xml
+< Content-Length: 303
+
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>AccessDenied</Code>
+  <Message>Access Denied</Message>
+  <RequestId>7A3B2C1D0E4F5A6B</RequestId>
+  <HostId>ExampleHostId</HostId>
+</Error>
+
+---
+
+Direct GET (without Origin header) works fine:
+$ curl -I https://my-assets-bucket.s3.us-east-1.amazonaws.com/images/logo.png
+HTTP/1.1 200 OK
+Content-Type: image/png
+Content-Length: 12480
+ETag: "d41d8cd98f00b204e9800998ecf8427e"
+
+---
+
+Current bucket CORS configuration:
+$ aws s3api get-bucket-cors --bucket my-assets-bucket
+An error occurred (NoSuchCORSConfiguration) when calling the GetBucketCors operation:
+The CORS configuration does not exist
+
+---
+
+Bucket policy (public read):
+$ aws s3api get-bucket-policy --bucket my-assets-bucket
+{
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": "*",
+    "Action": "s3:GetObject",
+    "Resource": "arn:aws:s3:::my-assets-bucket/*"
+  }]
+}

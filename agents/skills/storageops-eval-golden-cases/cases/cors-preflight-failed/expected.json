@@ -1,0 +1,23 @@
+{
+  "expected_category": "s3_protocol_compatibility",
+  "expected_root_cause_types": [
+    "cors_configuration_missing",
+    "missing_cors_configuration",
+    "no_cors_configuration"
+  ],
+  "expected_min_confidence": 0.85,
+  "expected_severity": "medium",
+  "must_include_evidence_keywords": [
+    "CORS",
+    "NoSuchCORSConfiguration",
+    "Access-Control-Allow-Origin",
+    "put-bucket-cors"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "disable SSL",
+    "--no-verify-ssl",
+    "print access key"
+  ]
+}

@@ -40,6 +40,9 @@ SIGNATURES = {
         (r'CompleteMultipartUpload', 'multipart_upload'),
         (r'ListObjects', 'list_objects'),
         (r'ETag.*mismatch', 'checksum_etag'),
+        (r'Access-Control-Allow-Origin|NoSuchCORSConfiguration|CORS.*policy|preflight', 'cors'),
+        (r'ReplicationStatus|ReplicationConfiguration|ReplicateObject|DeleteMarkerReplication', 'replication'),
+        (r'IsDeleteMarker|ListObjectVersions|VersionId.*null|NoncurrentVersion', 'versioning'),
     ],
     'cli_sdk_behavior': [
         (r'corrupted on transfer', 'rclone'),

@@ -1,0 +1,79 @@
+Problem: Objects uploaded to source bucket are not appearing in destination bucket.
+Replication was configured 3 days ago. New objects created since then are missing
+in the destination.
+
+Environment:
+  Source bucket: prod-data-us-east-1 (us-east-1)
+  Destination bucket: prod-data-backup-eu-west-1 (eu-west-1)
+  Account: same AWS account (single-account replication)
+  Versioning: enabled on source (confirmed)
+
+Replication configuration:
+  $ aws s3api get-bucket-replication --bucket prod-data-us-east-1
+  {
+    "ReplicationConfiguration": {
+      "Role": "arn:aws:iam::123456789012:role/s3-replication-role",
+      "Rules": [{
+        "ID": "replicate-all",
+        "Status": "Enabled",
+        "Filter": {},
+        "Destination": {
+          "Bucket": "arn:aws:s3:::prod-data-backup-eu-west-1",
+          "StorageClass": "STANDARD_IA"
+        },
+        "DeleteMarkerReplication": {
+          "Status": "Disabled"
+        }
+      }]
+    }
+  }
+
+Object replication status check:
+  $ aws s3api head-object --bucket prod-data-us-east-1 --key logs/2026-05-28/app.log
+  {
+    "ContentType": "text/plain",
+    "ContentLength": 245120,
+    "ETag": "\"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4\"",
+    "ReplicationStatus": "FAILED"
+  }
+
+IAM Role permissions (role: s3-replication-role):
+  Trust policy: {"Service": "s3.amazonaws.com"}
+
+  Attached policy:
+  {
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:GetReplicationConfiguration",
+          "s3:ListBucket"
+        ],
+        "Resource": "arn:aws:s3:::prod-data-us-east-1"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:GetObjectVersionForReplication",
+          "s3:GetObjectVersionAcl",
+          "s3:GetObjectVersionTagging"
+        ],
+        "Resource": "arn:aws:s3:::prod-data-us-east-1/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["s3:ReplicateObject", "s3:ReplicateTags"],
+        "Resource": "arn:aws:s3:::prod-data-backup-eu-west-1/*"
+      }
+    ]
+  }
+
+Destination bucket versioning:
+  $ aws s3api get-bucket-versioning --bucket prod-data-backup-eu-west-1
+  {}
+
+CloudWatch metric OperationsFailedReplication for prod-data-us-east-1: 847 (past 24h)
+CloudWatch metric OperationsPendingReplication: 0 (objects tried, all failed)
+
+Note: Objects created BEFORE replication was configured (3 days ago) are also
+missing from the destination.
