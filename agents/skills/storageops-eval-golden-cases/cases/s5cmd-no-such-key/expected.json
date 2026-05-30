@@ -1,0 +1,11 @@
+{
+  "expected_category": "cli_sdk_behavior",
+  "expected_root_cause_types": ["wrong_key_path", "object_not_found", "path_mismatch"],
+  "expected_min_confidence": 0.75,
+  "must_include_evidence_keywords": ["NoSuchKey", "404", "s5cmd"],
+  "should_include_evidence_keywords": ["path", "prefix", "exports/2024", "exports/2024-backup"],
+  "must_include_recommendation_keywords": ["path", "key", "prefix"],
+  "must_not_include": ["delete bucket", "make public", "force delete"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "medium"
+}

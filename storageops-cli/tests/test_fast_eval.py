@@ -209,6 +209,15 @@ class TestTriageConfidenceThresholds(unittest.TestCase):
     def test_confidence_kms_denied(self):
         self._check("kms-denied-encrypt")
 
+    def test_confidence_s5cmd_no_such_key(self):
+        self._check("s5cmd-no-such-key")
+
+    def test_confidence_tls_cert_expired(self):
+        self._check("tls-cert-expired")
+
+    def test_confidence_cross_region_slow(self):
+        self._check("cross-region-slow")
+
 
 if __name__ == "__main__":
     unittest.main()
