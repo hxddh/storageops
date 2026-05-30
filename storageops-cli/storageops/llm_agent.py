@@ -33,6 +33,7 @@ from secret_scanner import scan as _scan_secrets  # noqa: E402
 from storageops.llm_provider import LLMResponse, build_provider  # noqa: E402
 from storageops.tool_registry import TOOL_DEFINITIONS, dispatch_tool  # noqa: E402
 from storageops.prompt_builder import build_system_prompt, build_initial_message  # noqa: E402
+from storageops.memory_store import save_case as _save_case  # noqa: E402
 from storageops import audit_logger  # noqa: E402
 
 
@@ -64,6 +65,40 @@ def _check_unsafe(text: str) -> list[str]:
 
 class UnsafeOutputError(Exception):
     pass
+
+
+# ── Critique prompt ───────────────────────────────────────────────────
+
+_CRITIQUE_PROMPT = """\
+Review the diagnosis you just provided. Consider:
+1. Is the root cause well-supported by tool evidence, or are there plausible alternatives?
+2. Is the confidence level appropriate given the evidence available?
+3. Are there critical evidence gaps that would change the conclusion?
+4. Are the remediation steps actionable, safe, and complete?
+
+If your diagnosis is solid, respond with exactly:
+CONFIRMED: <one-sentence root cause summary>
+
+If you need to revise, provide the complete updated diagnosis report \
+(including YAML frontmatter)."""
+
+
+# ── Metadata extraction helpers ───────────────────────────────────────
+
+def _yaml_field(text: str, field: str) -> str:
+    """Extract a field value from YAML frontmatter."""
+    m = re.search(rf'^{field}:\s*(.+)$', text, re.MULTILINE | re.IGNORECASE)
+    return m.group(1).strip() if m else ""
+
+
+def _short_summary(text: str, max_len: int = 500) -> str:
+    """Extract a short summary from the report body (strips frontmatter)."""
+    stripped = re.sub(r'^---\n.*?\n---\n', '', text, flags=re.DOTALL)
+    for para in stripped.split('\n\n'):
+        clean = para.strip().lstrip('#').strip()
+        if clean and len(clean) > 20:
+            return clean[:max_len]
+    return text[:max_len]
 
 
 # ── Message helpers ───────────────────────────────────────────────────
@@ -201,7 +236,41 @@ def run_llm_agent(
 
             # ── Final answer ─────────────────────────────────────────
             if response.stop_reason in ("end_turn", "stop"):
-                final_text = response.content or ""
+                first_answer = response.content or ""
+
+                # ── Critique turn ─────────────────────────────────────
+                if turns_used < max_turns and first_answer:
+                    turns_used += 1
+                    if verbose:
+                        print(
+                            f"\n  [Critique turn {turns_used}/{max_turns}]",
+                            file=sys.stderr,
+                        )
+                    critique_resp = provider.complete(
+                        messages=messages + [
+                            {"role": "user", "content": _CRITIQUE_PROMPT}
+                        ],
+                        tools=None,
+                        system=system_prompt,
+                        max_tokens=1024,
+                    )
+                    audit_logger.log_llm_call(
+                        session_id, turns_used, provider_name, provider_model,
+                        critique_resp.input_tokens, critique_resp.output_tokens,
+                        critique_resp.stop_reason,
+                    )
+                    critique_text = critique_resp.content or ""
+                    confirmed = critique_text.strip().upper().startswith("CONFIRMED:")
+                    audit_logger.log_critique_turn(session_id, turns_used, confirmed)
+
+                    if verbose:
+                        status = "confirmed" if confirmed else "revised"
+                        print(f"    → critique: {status}", file=sys.stderr)
+
+                    # Use original if confirmed, revised text otherwise
+                    final_text = first_answer if confirmed else (critique_text or first_answer)
+                else:
+                    final_text = first_answer
 
                 # Secret-scan LLM output
                 out_scan = _scan_secrets(final_text)
@@ -221,10 +290,18 @@ def run_llm_agent(
                         f"LLM output blocked — unsafe patterns detected: {unsafe}"
                     )
 
+                # Auto-save to memory
+                root_cause = _yaml_field(final_text, "root_cause_type") or "unknown"
+                summary = _short_summary(final_text)
+                keywords = list({domain, root_cause} | set(tool_calls_made))
+                _save_case(session_id, domain, root_cause, summary, keywords)
+                audit_logger.log_memory_save(session_id, domain, root_cause)
+
                 audit_logger.log_session_end(session_id, turns_used, "success")
                 return {
                     "report": final_text,
                     "domain": domain,
+                    "root_cause": root_cause,
                     "turns_used": turns_used,
                     "session_id": session_id,
                     "tool_calls_made": tool_calls_made,

@@ -404,6 +404,35 @@ def cmd_eval(args):
 
 # ── Main ──────────────────────────────────────────────────────────────
 
+def cmd_memory(args):
+    """List or search past diagnosed cases in agent memory."""
+    from storageops.memory_store import list_cases, search_cases
+
+    if args.memory_action == "search":
+        query = " ".join(args.query)
+        results = search_cases(query, domain=getattr(args, 'domain', None), top_k=args.limit)
+        output = {
+            "query": query,
+            "count": len(results),
+            "results": results,
+        }
+        print(json.dumps(output, indent=2, ensure_ascii=False))
+
+    else:  # list
+        results = list_cases(domain=getattr(args, 'domain', None), limit=args.limit)
+        if not results:
+            print("No past cases found. Run storageops agent with --llm-provider to build memory.")
+            return
+        for entry in results:
+            ts = entry.get("ts", "")[:19].replace("T", " ")
+            domain = entry.get("domain", "?")
+            rc = entry.get("root_cause", "unknown")
+            session = entry.get("session_id", "")[:8]
+            print(f"  [{ts}] [{session}] {domain} → {rc}")
+            if args.verbose:
+                print(f"    {entry.get('summary', '')[:120]}")
+
+
 def cmd_agent(args):
     """Run the diagnostic agent (rule-based or LLM-powered)."""
     from storageops.agent import agent_run
@@ -492,6 +521,23 @@ def main():
     p_agent.add_argument('--verbose', '-v', action='store_true',
                          help='Print tool calls and turn progress to stderr')
     p_agent.set_defaults(func=cmd_agent)
+
+    # memory
+    p_memory = sub.add_parser('memory', help='List or search past diagnosed cases')
+    mem_sub = p_memory.add_subparsers(dest='memory_action')
+
+    mem_list = mem_sub.add_parser('list', help='List recent diagnoses')
+    mem_list.add_argument('--domain', help='Filter by domain')
+    mem_list.add_argument('--limit', type=int, default=20, help='Max entries (default 20)')
+    mem_list.add_argument('--verbose', '-v', action='store_true', help='Show summary text')
+
+    mem_search = mem_sub.add_parser('search', help='Search past diagnoses by keyword')
+    mem_search.add_argument('query', nargs='+', help='Search keywords')
+    mem_search.add_argument('--domain', help='Filter by domain')
+    mem_search.add_argument('--limit', type=int, default=5, help='Max results (default 5)')
+
+    p_memory.set_defaults(func=cmd_memory, memory_action='list',
+                          domain=None, limit=20, verbose=False)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):

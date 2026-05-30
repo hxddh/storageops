@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+# importlib mode resolves namespace collisions between storageops-core/tests/
+# and storageops-cli/tests/ when running pytest from the repo root.
+addopts = "--import-mode=importlib"
+
+[tool.ruff]
+line-length = 100
