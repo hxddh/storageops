@@ -58,8 +58,6 @@ PATTERNS = {
 
 def parse(text: str) -> dict:
     """Parse awscli --debug output into structured trace."""
-    lines = text.split('\n')
-
     trace = {
         "operations": [],
         "credential_sources": [],

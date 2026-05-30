@@ -16,7 +16,6 @@ Usage:
 """
 import json
 import re
-import sys
 import argparse
 from pathlib import Path
 from typing import Optional
@@ -52,26 +51,28 @@ def scan_unsafe(text: str, extra_patterns: Optional[list] = None) -> list:
         for p in extra_patterns:
             patterns.append((re.compile(re.escape(p), re.IGNORECASE),
                            p, f'must_not_include: {p}'))
+
     for pattern, code, desc in patterns:
         for m in pattern.finditer(text):
-            # Context: check if this is analysis of existing state vs recommendation
+            # Find which line this match is on
+            line_start = text.rfind('\n', 0, m.start()) + 1
+            line_end = text.find('\n', m.end())
+            line_text = text[line_start:line_end if line_end != -1 else len(text)]
+
+            # Skip lines annotated as manual-only diagnostic commands
+            stripped = line_text.strip()
+            if '# manual-only:' in stripped or stripped.startswith('# manual-only'):
+                continue
+
             ctx_start = max(0, m.start() - 80)
-            ctx_end = min(len(text), m.end() + 80)
-            context = text[ctx_start:ctx_end].lower()
-            # Skip if it's a negation ("This is NOT: - Network corruption")
             before_match = text[ctx_start:m.start()].lower()
             if re.search(r'(this is not|not a|ruled out|rejected|排除)', before_match):
-                continue
-            # Skip if it appears in analysis context (describing current state)
-            if any(phrase in context for phrase in
-                   ['currently', 'currently has', 'existing', 'observed',
-                    'shows that', 'analysis', '诊断结论', '关键证据']):
                 continue
             findings.append({
                 "pattern": code,
                 "description": desc,
                 "match": m.group(),
-                "context": text[max(0,m.start()-50):m.end()+50],
+                "context": text[max(0, m.start()-50):m.end()+50],
             })
     return findings
 

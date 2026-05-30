@@ -5,7 +5,6 @@ output structure and key findings.
 Usage:
     python -m storageops-core.tests.smoke_test
 """
-import json
 import sys
 from pathlib import Path
 
@@ -15,12 +14,12 @@ sys.path.insert(0, str(CORE_DIR / 'utils'))
 sys.path.insert(0, str(CORE_DIR / 'parsers'))
 sys.path.insert(0, str(CORE_DIR / 'analyzers'))
 
-from secret_scanner import scan as scan_secrets
-from parse_rclone_log import parse as parse_rclone
-from parse_sigv4_error import parse_xml_error, diagnose as diagnose_sigv4
-from parse_awscli_debug import parse as parse_awscli
-from analyze_policy import analyze as analyze_policy
-from analyze_cost import analyze as analyze_cost
+from secret_scanner import scan as scan_secrets  # noqa: E402
+from parse_rclone_log import parse as parse_rclone  # noqa: E402
+from parse_sigv4_error import parse_xml_error  # noqa: E402
+from parse_awscli_debug import parse as parse_awscli  # noqa: E402
+from analyze_policy import analyze as analyze_policy  # noqa: E402
+from analyze_cost import analyze as analyze_cost  # noqa: E402
 
 STORAGEOPS_ROOT = Path(__file__).parent.parent.parent
 CASES_DIR = STORAGEOPS_ROOT / 'agents' / 'skills' / 'storageops-eval-golden-cases' / 'cases'
@@ -28,7 +27,7 @@ CASES_DIR = STORAGEOPS_ROOT / 'agents' / 'skills' / 'storageops-eval-golden-case
 results = []
 
 
-def test(name, fn):
+def _run(name, fn):
     try:
         fn()
         results.append({"test": name, "passed": True})
@@ -157,25 +156,125 @@ def test_awscli_parser():
     assert result.get('operations'), "Should extract operations"
 
 
+# ── Regression tests for verified bugs ────────────────────────────────
+
+def test_throttling_no_double_count():
+    """SlowDown errors must not be counted twice (SO-002)."""
+    from detect_throttling import detect
+    data = {
+        "status_codes": {},
+        "errors": ["SlowDown: Please reduce your request rate"] * 5,
+        "total_operations": 100,
+    }
+    result = detect(data)
+    assert result["total_throttle_count"] == 5, (
+        f"Expected 5, got {result['total_throttle_count']} — double-count bug"
+    )
+
+
+def test_lifecycle_hierarchical_overlap():
+    """Hierarchical prefix overlap must be detected (SO-004)."""
+    from parse_lifecycle_xml import parse
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<LifecycleConfiguration>
+  <Rule>
+    <ID>logs-all</ID>
+    <Status>Enabled</Status>
+    <Filter><Prefix>logs/</Prefix></Filter>
+    <Expiration><Days>365</Days></Expiration>
+  </Rule>
+  <Rule>
+    <ID>logs-2024</ID>
+    <Status>Enabled</Status>
+    <Filter><Prefix>logs/2024/</Prefix></Filter>
+    <Transition><Days>30</Days><StorageClass>STANDARD_IA</StorageClass></Transition>
+  </Rule>
+</LifecycleConfiguration>"""
+    result = parse(xml)
+    assert result["summary"]["overlapping_prefixes"], (
+        "logs/ and logs/2024/ should be detected as overlapping"
+    )
+
+
+def test_cost_no_false_positive_when_age_missing():
+    """No minimum_duration_risk warning when avg_object_age_days is absent (SO-005)."""
+    from analyze_cost import analyze
+    data = {
+        "storage_price_per_gb": {"STANDARD_IA": 0.0125},
+        "prefixes": [{
+            "prefix": "data/",
+            "storage_class": "STANDARD_IA",
+            "object_count": 100,
+            "total_size_bytes": 10 * 1024 * 1024 * 1024,
+            # avg_object_age_days intentionally absent
+        }],
+    }
+    result = analyze(data)
+    duration_issues = [i for i in result["issues"] if i["type"] == "minimum_duration_at_risk"]
+    assert len(duration_issues) == 0, (
+        f"Should not flag duration risk when age is unknown; got {duration_issues}"
+    )
+
+
+def test_policy_prefix_wildcard():
+    """s3:Get* prefix wildcard must match s3:GetObject (SO-006)."""
+    from analyze_policy import analyze
+    data = {
+        "principal": "arn:aws:iam::123456789012:user/alice",
+        "action": "s3:GetObject",
+        "resource": "arn:aws:s3:::my-bucket/file.txt",
+        "iam_policy": {
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": ["s3:Get*", "s3:List*"],
+                "Resource": "arn:aws:s3:::my-bucket/*",
+            }],
+        },
+    }
+    result = analyze(data)
+    assert result["iam_evaluation"]["has_allow"], (
+        "s3:Get* should match s3:GetObject but iam_allow is False"
+    )
+    assert result["denial_source"] != "iam_policy_missing_allow", (
+        f"Should not deny when policy has s3:Get*; got denial_source={result['denial_source']}"
+    )
+
+
+def test_secret_scanner_no_dead_lines_var():
+    """scan() should work correctly regardless (regression guard)."""
+    from secret_scanner import scan
+    text = "normal log line\nanother line\nno secrets here"
+    result = scan(text)
+    assert result["count"] == 0
+    assert "redacted_text" in result
+
+
 # ── Run ────────────────────────────────────────────────────────────────
 
-print("StorageOps Core v0.2 — Smoke Tests\n")
+if __name__ == '__main__':
+    print("StorageOps Core — Smoke Tests\n")
 
-test("Secret Scanner: detects AKIA", test_secret_scanner)
-test("Secret Scanner: skip safe placeholders", test_secret_scanner_safe)
-test("rclone Parser: detects ETag format mismatch", test_rclone_parser)
-test("SigV4 Parser: parses SignatureDoesNotMatch XML", test_sigv4_parser)
-test("Policy Analyzer: detects cross-account missing IAM", test_policy_analyzer)
-test("Cost Analyzer: detects IA small-file penalty", test_cost_analyzer)
-test("awscli Parser: detects SignatureDoesNotMatch in debug log", test_awscli_parser)
+    _run("Secret Scanner: detects AKIA", test_secret_scanner)
+    _run("Secret Scanner: skip safe placeholders", test_secret_scanner_safe)
+    _run("rclone Parser: detects ETag format mismatch", test_rclone_parser)
+    _run("SigV4 Parser: parses SignatureDoesNotMatch XML", test_sigv4_parser)
+    _run("Policy Analyzer: detects cross-account missing IAM", test_policy_analyzer)
+    _run("Cost Analyzer: detects IA small-file penalty", test_cost_analyzer)
+    _run("awscli Parser: detects SignatureDoesNotMatch in debug log", test_awscli_parser)
+    _run("Throttling: no double-count for SlowDown", test_throttling_no_double_count)
+    _run("Lifecycle: hierarchical prefix overlap detected", test_lifecycle_hierarchical_overlap)
+    _run("Cost: no false-positive when age missing", test_cost_no_false_positive_when_age_missing)
+    _run("Policy: s3:Get* prefix wildcard matches s3:GetObject", test_policy_prefix_wildcard)
+    _run("Secret Scanner: regression guard", test_secret_scanner_no_dead_lines_var)
 
-print(f"\n{'='*50}")
-passed = sum(1 for r in results if r['passed'])
-print(f"Results: {passed}/{len(results)} passed")
+    print(f"\n{'='*50}")
+    passed = sum(1 for r in results if r['passed'])
+    print(f"Results: {passed}/{len(results)} passed")
 
-if passed == len(results):
-    print("All tests passed.")
-    sys.exit(0)
-else:
-    print("Some tests failed.")
-    sys.exit(1)
+    if passed == len(results):
+        print("All tests passed.")
+        sys.exit(0)
+    else:
+        print("Some tests failed.")
+        sys.exit(1)

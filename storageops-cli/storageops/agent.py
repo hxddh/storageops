@@ -1,13 +1,19 @@
 """
-StorageOps Agent v1.0 — autonomous multi-turn diagnostic agent.
+StorageOps Agent — diagnostic orchestrator.
 
-Orchestrates the full diagnostic cycle: evidence collection → triage →
-domain analysis → report generation. Handles insufficient evidence by
-asking targeted follow-up questions.
+Two modes:
+  1. Rule-based (default, offline): deterministic parsers + analyzers.
+     storageops agent <file>
 
-Usage (via CLI):
-    storageops agent <evidence-file>
-    storageops agent --interactive
+  2. LLM-powered (requires --llm-provider + API key): ReAct loop with
+     tool-calling, SKILL.md system prompt, and unsafe output gate.
+     storageops agent <file> --llm-provider anthropic
+
+API keys are NEVER hardcoded. Provide via:
+  - ANTHROPIC_API_KEY environment variable
+  - STORAGEOPS_LLM_KEY environment variable
+  - ~/.storageops/config.yaml
+  - --llm-key flag (not recommended for scripts)
 """
 import json
 import re
@@ -177,9 +183,7 @@ def classify_evidence(text: str) -> dict:
     else:
         checklist = EVIDENCE_CHECKLIST.get(primary, {})
         required = checklist.get('required', [])
-        helpful = checklist.get('helpful', [])
         required_count = len(required)
-        found_count = 0  # Simplified: we assume partial until interactive
         quality = 'partial' if required_count > 0 else 'sufficient'
 
     return {
@@ -207,17 +211,6 @@ def assess_evidence(text: str, domain: str) -> dict:
         r'(?:Error|ERROR|AccessDenied|SignatureDoesNotMatch|corrupted|failed)',
         text
     ))
-    has_config = bool(re.search(
-        r'(?:endpoint|region|access_key|concurrency|part.size)', text, re.IGNORECASE
-    ))
-    has_timing = bool(re.search(
-        r'(?:\d+\s*(?:ms|s|MB/s|MiB/s)|RTT|latency|ping)', text, re.IGNORECASE
-    ))
-    has_tool = bool(re.search(
-        r'(?:aws-cli|rclone\s+v|s5cmd\s+v|bcecmd|obsutil|boto3)',
-        text, re.IGNORECASE
-    ))
-
     for req in checklist.get('required', []):
         indicator = _indicator_for(req)
         if indicator and not indicator(text):
@@ -278,7 +271,7 @@ def generate_questions(domain: str, evidence: dict) -> list[str]:
         if 'error' in item.lower() or 'message' in item.lower():
             questions.append("请提供完整的错误消息或 debug 日志。")
         elif 'tool' in item.lower() or 'version' in item.lower():
-            questions.append(f"你使用的是什么工具？请提供版本号（如 `aws --version`、`rclone version`）。")
+            questions.append("你使用的是什么工具？请提供版本号（如 `aws --version`、`rclone version`）。")
         elif 'endpoint' in item.lower():
             questions.append("你连接的 endpoint URL 是什么？是公网、内网还是 VPC endpoint？")
         elif 'mount' in item.lower():
@@ -482,7 +475,99 @@ def _extract_recommendations(analysis: dict, domain: str) -> str:
 
 # ── Main Agent Loop ───────────────────────────────────────────────────
 
-def agent_run(initial_file: str = None, interactive: bool = False) -> int:
+def agent_run(
+    initial_file: str = None,
+    interactive: bool = False,
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
+    llm_key: str | None = None,
+    llm_base_url: str | None = None,
+    max_turns: int = 8,
+    verbose: bool = False,
+) -> int:
+    """Run the agent diagnostic loop. Returns exit code.
+
+    If llm_provider is set, delegates to the LLM-powered agent.
+    Otherwise runs the offline rule-based engine.
+    """
+    if llm_provider:
+        return _agent_run_llm(
+            initial_file=initial_file,
+            provider_name=llm_provider,
+            model=llm_model,
+            api_key=llm_key,
+            base_url=llm_base_url,
+            max_turns=max_turns,
+            verbose=verbose,
+        )
+    return _agent_run_rules(initial_file=initial_file, interactive=interactive)
+
+
+def _agent_run_llm(
+    initial_file: str | None,
+    provider_name: str,
+    model: str | None,
+    api_key: str | None,
+    base_url: str | None,
+    max_turns: int,
+    verbose: bool,
+) -> int:
+    """LLM-powered diagnostic agent."""
+    try:
+        from storageops.llm_agent import run_llm_agent
+    except ImportError as exc:
+        print(f"Error: LLM agent unavailable — {exc}")
+        print("Install LLM dependencies: pip install 'storageops[llm]'")
+        return 1
+
+    if not initial_file:
+        print("Error: --llm-provider requires an evidence file argument.")
+        return 1
+
+    path = Path(initial_file)
+    if not path.exists():
+        print(f"Error: file not found: {initial_file}")
+        return 1
+
+    evidence = path.read_text(encoding="utf-8", errors="replace")
+
+    # Quick domain triage using the rule engine
+    classification = classify_evidence(evidence)
+    domain = classification["primary_domain"]
+    if domain == "unknown":
+        domain = "unknown"  # triage skill will handle it
+
+    print(f"\n[StorageOps LLM Agent] provider={provider_name} domain={domain}")
+    if verbose:
+        print(f"  session evidence: {len(evidence)} chars, domain={domain}")
+
+    result = run_llm_agent(
+        evidence_text=evidence,
+        domain=domain,
+        provider_name=provider_name,
+        api_key=api_key,
+        model=model,
+        base_url=base_url,
+        max_turns=max_turns,
+        verbose=verbose,
+    )
+
+    print(f"\n{'='*60}")
+    print(result["report"])
+    print(f"{'='*60}")
+    print(
+        f"\n[Session {result['session_id']}] "
+        f"turns={result['turns_used']} "
+        f"tools={result['tool_calls_made']} "
+        f"redacted={result.get('secrets_redacted', 0)}"
+    )
+    if result.get("error"):
+        print(f"Status: {result['error']}")
+
+    return 0 if result["ok"] else 1
+
+
+def _agent_run_rules(initial_file: str = None, interactive: bool = False) -> int:
     """Run the agent diagnostic loop. Returns exit code."""
     all_evidence = []
     turn = 0
@@ -532,7 +617,7 @@ def agent_run(initial_file: str = None, interactive: bool = False) -> int:
         # Check if evidence is sufficient
         if evidence['quality'] in ('insufficient', 'partial') and turn < max_turns:
             questions = generate_questions(domain, evidence)
-            print(f"\n  需要补充以下信息：")
+            print("\n  需要补充以下信息：")
             for q in questions[:3]:
                 print(f"    • {q}")
 
@@ -550,7 +635,7 @@ def agent_run(initial_file: str = None, interactive: bool = False) -> int:
             continue
 
         # Run analysis
-        print(f"\n  正在分析...")
+        print("\n  正在分析...")
         analysis = run_analysis(domain, combined_text)
         analysis['domain'] = domain
         analysis['evidence_quality'] = evidence['quality']
@@ -565,7 +650,7 @@ def agent_run(initial_file: str = None, interactive: bool = False) -> int:
         if classification['all_domains'] and len(classification['all_domains']) > 1:
             others = [d for d in classification['all_domains'] if d != domain]
             print(f"\n  还检测到其他可能相关的域: {', '.join(others)}")
-            print(f"  建议分别分析这些域以获得完整诊断。")
+            print("  建议分别分析这些域以获得完整诊断。")
 
         return 0
 
