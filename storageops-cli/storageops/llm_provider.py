@@ -39,13 +39,13 @@ from typing import Any
 # Each entry: (env_var, base_url, default_model)
 
 _PRESETS: dict[str, tuple[str, str, str]] = {
-    "anthropic":   ("ANTHROPIC_API_KEY",  "",                                                "claude-opus-4-8"),
-    "openai":      ("OPENAI_API_KEY",     "https://api.openai.com/v1",                       "gpt-4o"),
-    "deepseek":    ("DEEPSEEK_API_KEY",   "https://api.deepseek.com/v1",                     "deepseek-chat"),
-    "moonshot":    ("MOONSHOT_API_KEY",   "https://api.moonshot.cn/v1",                      "moonshot-v1-8k"),
-    "qwen":        ("DASHSCOPE_API_KEY",  "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-max"),
-    "zhipu":       ("ZHIPU_API_KEY",      "https://open.bigmodel.cn/api/paas/v4",            "glm-4-plus"),
-    "groq":        ("GROQ_API_KEY",       "https://api.groq.com/openai/v1",                  "llama-3.3-70b-versatile"),
+    "anthropic":   ("ANTHROPIC_API_KEY",  "",                                                  "claude-opus-4-8"),
+    "openai":      ("OPENAI_API_KEY",     "https://api.openai.com/v1",                         "gpt-4o"),
+    "deepseek":    ("DEEPSEEK_API_KEY",   "https://api.deepseek.com/v1",                       "deepseek-v3"),
+    "moonshot":    ("MOONSHOT_API_KEY",   "https://api.moonshot.cn/v1",                        "kimi-k2.6"),
+    "qwen":        ("DASHSCOPE_API_KEY",  "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen3-max"),
+    "zhipu":       ("ZHIPU_API_KEY",      "https://open.bigmodel.cn/api/paas/v4",              "glm-4.7"),
+    "groq":        ("GROQ_API_KEY",       "https://api.groq.com/openai/v1",                    "llama-3.3-70b-versatile"),
 }
 
 # Providers that use the OpenAI-compatible client (all except anthropic and ollama)
