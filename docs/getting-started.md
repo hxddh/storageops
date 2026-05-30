@@ -308,6 +308,59 @@ pip install -e "storageops-cli/[llm]"
 
 ---
 
+## Upgrading
+
+StorageOps is installed as an editable package from a git clone. Upgrading means
+pulling the latest code and re-installing to pick up any new dependencies.
+
+### Standard upgrade
+
+```bash
+# 1. Go to the directory where you cloned the repo
+cd storageops
+
+# 2. Pull the latest changes
+git pull origin main
+
+# 3. Reinstall (picks up any new Python dependencies)
+pip install -e "storageops-cli/[llm]"
+```
+
+If you installed inside a virtual environment, activate it first:
+
+```bash
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
+git pull origin main
+pip install -e "storageops-cli/[llm]"
+```
+
+### What changes after an upgrade
+
+- **Immediately (after `git pull`)**: new diagnostic rules, signature patterns, skill content, provider defaults
+- **After `pip install`**: new Python packages, if `storageops-cli/pyproject.toml` added dependencies
+- **Never touched**: `~/.storageops/memory.jsonl` (past diagnoses), `~/.storageops/audit.jsonl` (session history), `~/.storageops/config.yaml` (your config)
+
+### Verify the upgrade
+
+```bash
+storageops --help | head -1
+git -C . log --oneline -3   # shows the 3 most recent commits you're on
+```
+
+### Rolling back
+
+If an upgrade breaks something, you can roll back to any previous commit:
+
+```bash
+git log --oneline -10          # find the commit to go back to
+git checkout <commit-hash>     # go to that commit
+pip install -e "storageops-cli/[llm]"
+```
+
+To return to the latest: `git checkout main && git pull origin main`.
+
+---
+
 ## Next Steps
 
 - **[CLI Reference](cli-reference.md)** — full documentation of every command and flag
