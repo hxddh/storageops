@@ -82,10 +82,10 @@ s3_upload_cutoff = 200Mi
 |---|---|---|
 | Anthropic Claude | `ANTHROPIC_API_KEY` | claude-opus-4-8 |
 | OpenAI | `OPENAI_API_KEY` | gpt-4o |
-| DeepSeek | `DEEPSEEK_API_KEY` | deepseek-chat |
-| Moonshot / Kimi | `MOONSHOT_API_KEY` | moonshot-v1-8k |
-| Qwen / Alibaba Cloud | `DASHSCOPE_API_KEY` | qwen-max |
-| Zhipu / GLM | `ZHIPU_API_KEY` | glm-4-plus |
+| DeepSeek | `DEEPSEEK_API_KEY` | deepseek-v3 |
+| Moonshot / Kimi | `MOONSHOT_API_KEY` | kimi-k2.6 |
+| Qwen / Alibaba Cloud | `DASHSCOPE_API_KEY` | qwen3-max |
+| Zhipu / GLM | `ZHIPU_API_KEY` | glm-4.7 |
 | Groq | `GROQ_API_KEY` | llama-3.3-70b-versatile |
 | Ollama (local, no key) | — | llama3.2 |
 
