@@ -108,7 +108,7 @@ def main():
     
     if parsed['string_to_sign']:
         sts_analysis = analyze_string_to_sign(parsed['string_to_sign'])
-        print(f"\n--- StringToSign 解析 ---")
+        print("\n--- StringToSign 解析 ---")
         print(f"  Algorithm:  {sts_analysis.get('algorithm', 'N/A')}")
         print(f"  Timestamp:  {sts_analysis.get('timestamp', 'N/A')}")
         print(f"  Region:     {sts_analysis.get('scope_region', 'N/A')}")
@@ -117,7 +117,7 @@ def main():
     
     if parsed['canonical_request']:
         cr_analysis = analyze_canonical_request(parsed['canonical_request'])
-        print(f"\n--- CanonicalRequest 解析 ---")
+        print("\n--- CanonicalRequest 解析 ---")
         print(f"  Method:     {cr_analysis.get('http_method', 'N/A')}")
         print(f"  URI:        {cr_analysis.get('canonical_uri', 'N/A')}")
         print(f"  Query:      {cr_analysis.get('canonical_query_string', 'N/A')}")
@@ -125,7 +125,7 @@ def main():
         print(f"  Payload:    {cr_analysis.get('payload_hash', 'N/A')}")
     
     # Diagnostic hints
-    print(f"\n--- 诊断提示 ---")
+    print("\n--- 诊断提示 ---")
     
     if parsed['string_to_sign']:
         sts = parsed['string_to_sign']
@@ -146,18 +146,18 @@ def main():
         
         # Check UNSIGNED-PAYLOAD consistency
         if 'UNSIGNED-PAYLOAD' in cr:
-            print(f"  💡 使用了 UNSIGNED-PAYLOAD — 确保 x-amz-content-sha256 header 一致")
+            print("  💡 使用了 UNSIGNED-PAYLOAD — 确保 x-amz-content-sha256 header 一致")
         
         # Check host header
         if cr_analysis.get('host'):
             print(f"  💡 Host header: {cr_analysis['host']} — 确保 endpoint URL 与此一致")
     
-    print(f"\n--- 需要对比的信息 ---")
-    print(f"  1. Client 使用的 endpoint/region 与 StringToSign 中的一致?")
-    print(f"  2. Client 时钟与服务器时间差 < 15 分钟?")
-    print(f"  3. path-style vs virtual-hosted-style 一致?")
-    print(f"  4. 签名算法 (AWS4-HMAC-SHA256) 被 provider 支持?")
-    print(f"  5. 参考: agents/skills/storageops-s3-protocol-compatibility/references/provider-quirks/")
+    print("\n--- 需要对比的信息 ---")
+    print("  1. Client 使用的 endpoint/region 与 StringToSign 中的一致?")
+    print("  2. Client 时钟与服务器时间差 < 15 分钟?")
+    print("  3. path-style vs virtual-hosted-style 一致?")
+    print("  4. 签名算法 (AWS4-HMAC-SHA256) 被 provider 支持?")
+    print("  5. 参考: agents/skills/storageops-s3-protocol-compatibility/references/provider-quirks/")
 
 if __name__ == '__main__':
     main()
