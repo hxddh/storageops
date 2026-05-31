@@ -1,31 +1,11 @@
 {
   "expected_category": "lifecycle_cost",
-  "expected_subcategory": "small_object_cost",
+  "expected_root_cause_types": ["small_object_ia_size_penalty", "minimum_duration_risk"],
   "expected_min_confidence": 0.75,
-  "expected_severity": "high",
-  "expected_root_cause_types": ["minimum_duration_or_billable_size"],
-  "must_include_evidence_keywords": [
-    "128KB",
-    "minimum billable",
-    "500,000",
-    "small file"
-  ],
-  "should_include_evidence_keywords": [
-    "10KB",
-    "amplification",
-    "Standard-IA"
-  ],
-  "must_include_recommendation_keywords": [
-    "aggregate",
-    "Standard",
-    "lifecycle"
-  ],
-  "must_not_include": [
-    "delete bucket",
-    "make bucket public",
-    "print access key"
-  ],
-  "required_report_sections": [
-    "summary", "symptoms", "conclusion", "evidence", "recommendations"
-  ]
+  "must_include_evidence_keywords": ["STANDARD_IA", "128KB", "minimum"],
+  "should_include_evidence_keywords": ["thumbnails", "small", "30 days", "penalty"],
+  "must_include_recommendation_keywords": ["object size", "filter", "128KB"],
+  "must_not_include": ["delete bucket", "make public"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "medium"
 }

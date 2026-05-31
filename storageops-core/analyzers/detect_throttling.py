@@ -19,12 +19,21 @@ def detect(data: dict) -> dict:
     total_ops = data.get('total_operations', 0) or sum(status_codes.values())
     prefix_errors = data.get('prefix_errors', {})
 
+    # Count each error exactly once: SlowDown takes priority over generic throttle match
+    slowdown_count = 0
+    generic_throttle_count = 0
+    for e in errors:
+        e_str = str(e).lower()
+        if 'slowdown' in e_str or 'slow down' in e_str:
+            slowdown_count += 1
+        elif any(t in e_str for t in ('throttl', 'rate limit', 'requestratelimit')):
+            generic_throttle_count += 1
+
+    status_429 = status_codes.get(429, 0) or status_codes.get('429', 0)
     throttle_indicators = {
-        '429': status_codes.get(429, 0) or status_codes.get('429', 0),
-        'SlowDown': sum(1 for e in errors if 'slowdown' in str(e).lower()),
-        'throttle_errors': sum(1 for e in errors
-                              if any(t in str(e).lower()
-                                     for t in ('throttl', 'rate limit', 'slow down'))),
+        '429': status_429,
+        'SlowDown': slowdown_count,
+        'throttle_errors': generic_throttle_count,
     }
 
     throttle_count = sum(throttle_indicators.values())

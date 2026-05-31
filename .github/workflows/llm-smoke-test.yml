@@ -1,0 +1,40 @@
+name: LLM Smoke Test
+
+# Run only on manual trigger or when a PR has the 'llm-test' label.
+# Requires ANTHROPIC_API_KEY to be set in repository secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      case:
+        description: "Golden case name (default: rclone-corrupted-transfer)"
+        required: false
+        default: "rclone-corrupted-transfer"
+  pull_request:
+    types: [labeled]
+
+jobs:
+  llm-smoke:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'llm-test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -e storageops-core
+          pip install -e "storageops-cli[llm]"
+
+      - name: Run LLM smoke test
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          STORAGEOPS_SMOKE_CASE: ${{ github.event.inputs.case || 'rclone-corrupted-transfer' }}
+        run: python .github/scripts/llm_smoke_test.py

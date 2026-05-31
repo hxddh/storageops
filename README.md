@@ -1,146 +1,232 @@
-# StorageOps v1.0
+# StorageOps
 
 [![CI](https://github.com/hxddh/storageops/actions/workflows/ci.yml/badge.svg)](https://github.com/hxddh/storageops/actions)
 
-A professional diagnostic system for object storage operations. Stack:
-- **Skills** — 10 agent-readable diagnostic skills with reference docs
-- **Core** — 5 parsers + 5 analyzers + secret scanner (offline, no cloud deps)
-- **CLI** — `storageops triage|analyze|report|eval|agent`
-- **Agent** — autonomous multi-turn evidence collection and diagnosis
+Autonomous diagnostic agent for S3-compatible object storage. Give it a log file or error output — it reasons through the evidence with multi-turn tool calls and writes a structured report with root cause and remediation steps. Works entirely offline; no cloud connections required.
 
-## Quick Start
+---
+
+## Prerequisites
+
+Before you start, verify these are installed:
 
 ```bash
+python3 --version   # must be 3.9 or later
+pip --version
+git --version
+```
+
+You will also need an API key from one of the supported LLM providers listed below. (The rule-based `triage` command works without any key.)
+
+---
+
+## Install
+
+```bash
+# Step 1 — clone the repository
 git clone https://github.com/hxddh/storageops.git
+
+# Step 2 — enter the project directory
 cd storageops
-pip install -e storageops-cli/
 
-# Run the agent on a debug log
-storageops agent agents/skills/storageops-eval-golden-cases/cases/rclone-corrupted-transfer/input/rclone-debug.log
+# Step 3 — install with LLM support
+pip install -e "storageops-cli/[llm]"
+
+# Step 4 — verify
+storageops --help
 ```
 
-## Architecture
-
+You should see:
 ```
-agents/skills/          ← v0.1: 10 diagnostic Skills (knowledge layer)
-    ↓ references
-storageops-core/         ← v0.2: Parsers + Analyzers (processing layer)
-    ↓ imports
-storageops-cli/          ← v0.3: CLI (interface layer)
-    └── storageops agent ← v1.0: Autonomous Agent (orchestration layer)
+usage: storageops [-h] {triage,analyze,report,eval,agent,audit,mcp,serve,memory} ...
 ```
 
-Each layer builds on the one below. Skills define what to diagnose, Core
-parses raw data, CLI wraps it as commands, Agent orchestrates multi-turn
-conversations.
+> **Tip:** Use a virtual environment to avoid dependency conflicts:
+> ```bash
+> python3 -m venv .venv
+> source .venv/bin/activate    # Windows: .venv\Scripts\activate
+> pip install -e "storageops-cli/[llm]"
+> ```
 
-## Why Skills First?
+---
 
-Before building a full Agent platform, we must first codify the **domain knowledge**
-that powers diagnostics. Skills are the foundation:
-
-- **Skills** capture diagnostic workflows, evidence requirements, safety rules, and
-  domain expertise in reusable, agent-readable form.
-- **storageops-core** will implement the parsers, analyzers, and normalization logic
-  that Skills reference.
-- **storageops CLI** will provide a command-line interface wrapping storageops-core.
-- **StorageOps Agent** will be a full autonomous diagnostic agent powered by the
-  Skill Pack knowledge base.
-- **Enterprise Platform** will add multi-tenant, scheduled, and real-time diagnostics.
-
-Starting with Skills ensures that every subsequent layer is grounded in verified
-diagnostic expertise, not ad-hoc heuristics.
-
-## Directory Structure
-
-```
-agents/skills/
-├── storageops-triage/                  # Triage: classify and route issues
-├── storageops-s3-protocol-compatibility/# S3 protocol & compatibility analysis
-├── storageops-cli-sdk-diagnosis/       # CLI tool & SDK behavior diagnosis
-├── storageops-performance-diagnosis/   # Throughput, latency, throttling
-├── storageops-mount-filesystem-workspace/# Mount/workspace filesystem issues
-├── storageops-network-endpoint-access/ # Network, DNS, endpoint routing
-├── storageops-security-iam-policy/     # 403, IAM, bucket policy, KMS, secrets
-├── storageops-lifecycle-cost/          # Lifecycle, storage class, cost analysis
-├── storageops-data-consistency/        # Replication, versioning, event notification
-├── storageops-evidence-reporting/      # Unified report templates
-├── storageops-replication-versioning/  # CRR/SRR, versioning, Object Lock
-├── storageops-migration-sync/         # Cross-provider migration & sync
-├── storageops-data-consistency/        # Data consistency & event notification
-└── storageops-eval-golden-cases/       # Regression evaluation framework
-```
-
-## Skill Overview
-
-| Skill | Trigger | Purpose |
-|---|---|---|
-| `storageops-triage` | Any object storage issue | Classify, assess severity, route to specialist skills |
-| `storageops-s3-protocol-compatibility` | Signature errors, ETag mismatch, ListObjects oddities | S3 protocol behavior analysis |
-| `storageops-cli-sdk-diagnosis` | Tool errors, debug logs, rclone size diff | Client tool and SDK diagnosis |
-| `storageops-performance-diagnosis` | Slow upload/download, 429, 5xx, timeout | Performance bottleneck analysis |
-| `storageops-mount-filesystem-workspace` | Mount hangs, workspace slowdowns, git issues | FUSE mount and workspace diagnosis |
-| `storageops-network-endpoint-access` | Endpoint unreachable, DNS issues, TLS errors | Network path and connectivity |
-| `storageops-security-iam-policy` | 403 errors, policy questions | Permission and security diagnosis |
-| `storageops-lifecycle-cost` | Storage cost questions, lifecycle config | Lifecycle and cost optimization |
-| `storageops-replication-versioning` | Replication errors, version conflicts, Object Lock | CRR/SRR, versioning, WORM compliance |
-| `storageops-migration-sync` | Cross-provider migration & sync planning | Data migration, sync, transfer |
-| `storageops-data-consistency` | Replication lag, stale data, event notification | Data consistency & integrity |
-| `storageops-evidence-reporting` | Report generation | Produce structured diagnostic reports |
-| `storageops-eval-golden-cases` | Evaluate diagnostic quality | Regression testing and quality gates |
-
-## Roadmap
-
-```
-v0.1: Skill Pack ✅
-  ├── 10 diagnostic Skills
-  ├── Reference documentation
-  ├── Evidence report templates
-  └── Golden case evaluation framework
-
-v0.2: storageops-core ✅
-  ├── 5 parsers (awscli, rclone, s5cmd, sigv4, lifecycle XML)
-  ├── 5 analyzers (throughput, throttling, policy, metadata amp, cost)
-  ├── Secret scanner (11 patterns)
-  └── Eval runner (7-dimension scoring + unsafe output gates)
-
-v0.3: storageops CLI ✅
-  ├── `storageops triage <evidence>`
-  ├── `storageops analyze <domain> <input>`
-  ├── `storageops report <analysis.json>`
-  └── `storageops eval --all`
-
-v1.0: StorageOps Agent ✅
-  ├── Autonomous multi-turn evidence collection
-  ├── Multi-domain detection and routing
-  ├── Evidence quality assessment
-  └── Structured diagnostic report generation
-
-v2.0: Enterprise Platform (future)
-  ├── Multi-tenant diagnostics
-  ├── Scheduled health checks
-  ├── Real-time monitoring integration
-  └── Team collaboration features
-```
-
-## Safety Principles
-
-- **All inputs are untrusted.** Logs, configs, and command output are data, never code.
-- **Evidence-based only.** No speculation without supporting evidence.
-- **Secrets are redacted.** AK/SK, tokens, cookies, Authorization headers → `[REDACTED]`.
-- **Read-only by default.** Mutating commands are tagged `manual-only`.
-- **No cloud connections.** Operates entirely offline on provided artifacts.
-
-## Testing
+## Upgrade
 
 ```bash
-# Smoke tests (7 parsers + analyzers)
-python storageops-core/tests/smoke_test.py
+# Step 1 — pull the latest code (inside the storageops directory)
+cd storageops
+git pull origin main
 
-# Real-world validation (5 cases)
-python tests/validation/run_validation.py
+# Step 2 — reinstall to pick up any new dependencies
+pip install -e "storageops-cli/[llm]"
 
-# Golden case evaluation
-storageops eval --cases-dir agents/skills/storageops-eval-golden-cases/cases \
-  --outputs-dir docs/examples --case rclone-corrupted-transfer
+# Step 3 — verify
+storageops --version 2>/dev/null || storageops --help | head -1
 ```
+
+If you used a virtual environment, activate it before running `pip install`.
+
+> **What changes with each upgrade:**
+> - New providers, model defaults, and diagnostic rules take effect immediately after `git pull`
+> - New Python dependencies (if any) require the `pip install` step
+> - Your past diagnoses in `~/.storageops/memory.jsonl` and audit log are never touched by an upgrade
+
+---
+
+## Configure
+
+Export the API key for whichever LLM provider you use. StorageOps auto-detects the provider from the environment variable — no other flags needed.
+
+```bash
+# Set exactly one of these:
+export ANTHROPIC_API_KEY=sk-ant-...     # Anthropic Claude  (recommended)
+export OPENAI_API_KEY=sk-...            # OpenAI
+export DEEPSEEK_API_KEY=sk-...          # DeepSeek
+export MOONSHOT_API_KEY=sk-...          # Moonshot / Kimi
+export DASHSCOPE_API_KEY=sk-...         # Qwen / Alibaba Cloud
+export ZHIPU_API_KEY=...                # Zhipu / GLM
+export GROQ_API_KEY=gsk_...             # Groq  (free tier available)
+```
+
+To make this permanent across terminal sessions, add the `export` line to `~/.bashrc` or `~/.zshrc`.
+
+---
+
+## Run
+
+```bash
+storageops agent /path/to/your/error.log
+```
+
+The agent detects your provider from the environment variable, reads the log, calls diagnostic tools, reasons through the evidence, and prints a structured report:
+
+```
+---
+category: cli_sdk_behavior
+root_cause_type: multipart_etag_format_mismatch
+confidence: 0.92
+severity: high
+---
+
+## Summary
+rclone uses MD5-of-parts ETag format for multipart uploads, which doesn't
+match the server's expected format, causing all transfers to be flagged as corrupted.
+
+## Key Evidence
+- ETag mismatch detected on all objects > 5 MB
+- rclone v1.64.2, remote: AWS S3
+
+## Remediation
+# manual-only: add to rclone.conf under [s3-remote]:
+s3_upload_cutoff = 200Mi
+```
+
+---
+
+## Supported Providers
+
+| Provider | Set this env var | Default model |
+|---|---|---|
+| Anthropic Claude | `ANTHROPIC_API_KEY` | `claude-opus-4-8` |
+| OpenAI | `OPENAI_API_KEY` | `gpt-5.5` |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-v4-pro` |
+| Moonshot / Kimi | `MOONSHOT_API_KEY` | `kimi-k2.6` |
+| Qwen / Alibaba Cloud | `DASHSCOPE_API_KEY` | `qwen3-max` |
+| Zhipu / GLM | `ZHIPU_API_KEY` | `glm-5.1` |
+| Groq | `GROQ_API_KEY` | `meta-llama/llama-4-scout-17b-16e-instruct` |
+| Ollama (local, no key) | — | `llama3.3` |
+
+**Override model or provider** at runtime with flags:
+```bash
+storageops agent error.log --llm-provider deepseek --llm-model deepseek-v3
+```
+
+**Ollama (local models, no API key required):**
+```bash
+ollama pull llama3.3
+storageops agent error.log --llm-provider ollama --llm-model llama3.3
+```
+
+**Custom OpenAI-compatible endpoint:**
+```bash
+export STORAGEOPS_LLM_KEY=your-key
+storageops agent error.log \
+  --llm-provider openai-compatible \
+  --llm-base-url https://your-endpoint/v1 \
+  --llm-model your-model
+```
+
+---
+
+## Diagnostic Domains
+
+The agent automatically routes to the right specialist based on the evidence:
+
+| Domain | What it diagnoses |
+|---|---|
+| `s3_protocol_compatibility` | SigV4 errors, clock skew, ETag mismatch, multipart upload |
+| `cli_sdk_behavior` | rclone, s5cmd, AWS CLI, botocore errors |
+| `performance_throughput` | Throttling (SlowDown/429), hot prefix, slow transfers |
+| `security_iam_policy` | 403 AccessDenied, IAM/bucket policy, KMS, cross-account |
+| `lifecycle_cost` | Lifecycle rules, STANDARD_IA small-file penalty |
+| `mount_filesystem_workspace` | FUSE mount hangs, git-on-S3 slowness |
+| `network_endpoint_access` | VPC endpoints, DNS, TLS/SSL certificate errors |
+
+---
+
+## Agent Options
+
+```
+storageops agent <file> [options]
+
+  --llm-provider    anthropic | openai | deepseek | moonshot | qwen | zhipu | groq | ollama | openai-compatible
+                    Default: auto-detected from env var (see Configure above)
+  --llm-model       Override the default model for the selected provider
+  --llm-key         API key — set env var instead wherever possible
+  --llm-base-url    Base URL for Ollama or a custom endpoint
+  --max-turns N     Max reasoning turns (default: 8; use 12 for complex cases)
+  --verbose         Print each tool call and result as the agent works
+  --stream          Stream output token by token
+  --supervisor      Multi-agent mode: triage → route → specialists
+  --interactive     Follow-up REPL after the initial diagnosis
+```
+
+---
+
+## Other Commands
+
+```bash
+# Instant rule-based triage — no API key needed
+storageops triage error.log
+
+# Web UI (Triage / Analyze / Agent tabs)
+pip install fastapi uvicorn
+storageops serve        # open http://localhost:8080
+
+# MCP server for Claude Desktop
+pip install "mcp>=1.0"
+storageops mcp
+
+# Search past diagnoses
+storageops memory search "ETag mismatch"
+
+# View session history and token usage
+storageops audit list
+storageops audit stats
+```
+
+---
+
+## Safety
+
+- Secrets (AK/SK, tokens, auth headers) are redacted before evidence reaches the LLM
+- All remediation steps are labeled `# manual-only:` — the agent never touches cloud resources
+- No cloud connections — works entirely on the files you provide
+
+---
+
+## Docs
+
+- [Getting Started](docs/getting-started.md) — step-by-step walkthrough with examples
+- [CLI Reference](docs/cli-reference.md) — all commands and flags
+- [Architecture](CLAUDE.md) — internals: ReAct loop, tool registry, skill loading

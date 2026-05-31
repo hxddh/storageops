@@ -4,9 +4,11 @@ description: >
   Diagnose S3 protocol-level issues including SigV4 signature failures
   (SignatureDoesNotMatch), ETag and checksum mismatches, ListObjects V1/V2
   behavior differences, Multipart Upload failures (InvalidPart, InvalidPartOrder,
-  CompleteMultipartUpload errors), and CopyObject/HeadObject/DeleteObject
+  CompleteMultipartUpload errors), CORS preflight failures (browser cross-origin
+  errors, missing Access-Control headers), and CopyObject/HeadObject/DeleteObject
   behavioral differences between AWS S3 baseline and S3-compatible providers.
-  Use when the error message references S3 API operations or XML response bodies.
+  Use when the error message references S3 API operations or XML response bodies,
+  or when a browser reports a CORS policy error accessing an S3 endpoint.
 ---
 
 # S3 Protocol Compatibility Diagnosis
@@ -18,6 +20,8 @@ description: >
 - ListObjects V2 returns unexpected results (truncation, missing keys, empty CommonPrefixes).
 - Multipart upload fails during CompleteMultipartUpload, or parts appear duplicated/missing.
 - CopyObject, HeadObject, or DeleteObject behaves differently than expected.
+- Browser JavaScript reports "No 'Access-Control-Allow-Origin' header" or CORS policy error.
+- S3 CORS preflight (OPTIONS) returns 403 or missing `Access-Control-*` headers.
 - You need to compare an S3-compatible provider's behavior against the AWS S3 baseline.
 
 ## Do not use this skill when
@@ -73,6 +77,7 @@ See reference files:
 - `references/multipart-upload.md` — Multipart upload lifecycle
 - `references/checksum-etag.md` — ETag and checksum semantics
 - `references/aws-s3-baseline.md` — AWS S3 expected behavior
+- `references/cors.md` — CORS configuration and preflight diagnosis
 
 ## Diagnosis workflow
 
@@ -137,7 +142,7 @@ Before finalizing, exclude these cross-domain possibilities:
 
 ```yaml
 category: s3_protocol_compatibility
-subcategory: sigv4 | list_objects | multipart_upload | checksum_etag | copy_object | head_object | delete_object
+subcategory: sigv4 | list_objects | multipart_upload | checksum_etag | copy_object | head_object | delete_object | cors
 confidence: <0.0–1.0>
 severity: critical | high | medium | low
 root_cause_type: client_configuration | clock_skew | provider_behavior_difference | provider_bug | protocol_misuse

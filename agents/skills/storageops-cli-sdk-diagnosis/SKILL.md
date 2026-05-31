@@ -4,7 +4,8 @@ description: >
   Diagnose client tool and SDK behavioral issues including awscli debug log
   analysis, boto3/botocore exception traces, rclone corrupted-on-transfer / size
   diff errors, bcecmd debug output, s5cmd concurrency and part-size tuning,
-  obsutil SignatureDoesNotMatch, and Go/Java SDK configuration issues. Use when
+  obsutil SignatureDoesNotMatch, s3cmd signature and config errors, MinIO mc (mc)
+  alias and SSL issues, and Go/Java/Node.js SDK configuration issues. Use when
   errors are tool-specific rather than raw S3 API errors, or when comparing
   behavior across different clients against the same endpoint.
 ---
@@ -13,11 +14,13 @@ description: >
 
 ## When to use this skill
 
-- Error output from a specific CLI tool (awscli, bcecmd, rclone, s5cmd, obsutil).
-- SDK exception stack trace (boto3, botocore, Go SDK, Java SDK).
+- Error output from a specific CLI tool (awscli, bcecmd, rclone, s5cmd, obsutil, s3cmd, mc).
+- SDK exception stack trace (boto3, botocore, Go SDK, Java SDK, Node.js AWS SDK).
 - rclone reports "corrupted on transfer" or size diff after copy.
 - s5cmd performance is unexpectedly low despite network capacity.
 - obsutil fails with SignatureDoesNotMatch while awscli works to the same endpoint.
+- s3cmd returns `403 SignatureDoesNotMatch` or SSL certificate error.
+- MinIO client (`mc`) reports alias configuration or multipart failure.
 - You need to compare behavior of different tools against the same S3-compatible endpoint.
 - Debug log analysis is needed to trace request/response cycles.
 
@@ -54,6 +57,8 @@ See reference files:
 - `references/rclone.md`
 - `references/s5cmd.md`
 - `references/obsutil.md`
+- `references/s3cmd.md`
+- `references/minio-client.md`
 
 ## Diagnosis workflow
 

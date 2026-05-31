@@ -1,14 +1,11 @@
-2024/12/10 14:32:01 INFO : Starting sync prod:bucket/ to backup:bucket/
-2024/12/10 14:32:02 INFO : hot-data/report-00001.parquet: Copied (new)
-2024/12/10 14:32:03 INFO : hot-data/report-00002.parquet: Copied (new)
-2024/12/10 14:32:04 ERROR : hot-data/report-00003.parquet: HTTP 429 SlowDown: Please reduce your request rate.
-2024/12/10 14:32:04 ERROR : hot-data/report-00004.parquet: HTTP 429 SlowDown: Please reduce your request rate.
-2024/12/10 14:32:05 INFO : cold-archive/data-00001.parquet: Copied (new)
-2024/12/10 14:32:06 ERROR : hot-data/report-00005.parquet: HTTP 429 SlowDown: Please reduce your request rate.
-2024/12/10 14:32:06 ERROR : hot-data/report-00006.parquet: HTTP 429 SlowDown: Please reduce your request rate.
-2024/12/10 14:32:07 ERROR : hot-data/report-00007.parquet: HTTP 503 SlowDown: Reduce request rate.
-
-Error distribution by prefix:
-  /hot-data/: 89% of errors, 78% of requests, all 429/503
-  /cold-archive/: 3% of errors, 12% of requests, mostly 200
-  /metadata/: 8% of errors, 10% of requests, mixed 200/429
+2024-01-15 09:00:01 ERROR SlowDown: Please reduce your request rate.
+2024-01-15 09:00:02 ERROR SlowDown: Please reduce your request rate.
+2024-01-15 09:00:02 INFO  Retrying request to s3://my-bucket/data/2024/01/15/events.json attempt 1
+2024-01-15 09:00:03 ERROR SlowDown: Please reduce your request rate.
+2024-01-15 09:00:03 INFO  Retrying request to s3://my-bucket/data/2024/01/15/metrics.json attempt 1
+2024-01-15 09:00:05 ERROR SlowDown: Please reduce your request rate.
+2024-01-15 09:00:05 ERROR SlowDown: Please reduce your request rate.
+2024-01-15 09:00:06 INFO  PUT s3://my-bucket/data/2024/01/15/log-001.json 200 OK
+2024-01-15 09:00:07 ERROR SlowDown: Please reduce your request rate.
+2024-01-15 09:00:08 ERROR ThrottlingException: Rate exceeded for bucket my-bucket prefix data/2024/01/15/
+2024-01-15 09:00:09 INFO  Total operations: 500, Throttled: 7, Success: 493

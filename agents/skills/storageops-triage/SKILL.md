@@ -89,22 +89,29 @@ Collect time context if available:
 
 Map the input to one of the issue categories (see `references/issue-taxonomy.md`):
 
-- `signature_auth` → `storageops-s3-protocol-compatibility` or `storageops-security-iam-policy`
-- `permission_access_denied` → `storageops-security-iam-policy`
 - `s3_protocol_compatibility` → `storageops-s3-protocol-compatibility`
+  - Includes: SigV4 errors, clock skew, ETag mismatch, multipart failures, ListObjects V1/V2, CORS preflight errors
 - `cli_sdk_behavior` → `storageops-cli-sdk-diagnosis`
-- `multipart_upload` → `storageops-s3-protocol-compatibility` or `storageops-cli-sdk-diagnosis`
-- `list_objects` → `storageops-s3-protocol-compatibility`
-- `checksum_etag` → `storageops-s3-protocol-compatibility`
+  - Includes: awscli, rclone, s5cmd, bcecmd, obsutil, s3cmd, MinIO mc, boto3, Go/Java/Node.js SDKs
 - `performance_throughput` → `storageops-performance-diagnosis`
-- `small_file_metadata` → `storageops-performance-diagnosis`
-- `mount_filesystem_workspace` → `storageops-mount-filesystem-workspace`
-- `network_endpoint_access` → `storageops-network-endpoint-access`
+  - Includes: throttling (429/SlowDown), slow transfers, prefix hotspot, multipart tuning
 - `security_iam_policy` → `storageops-security-iam-policy`
+  - Includes: 403 AccessDenied, IAM/bucket policy, KMS, STS token expiration, cross-account
 - `lifecycle_cost` → `storageops-lifecycle-cost`
+<<<<<<< HEAD
 - `data_consistency` → `storageops-data-consistency`
 - `migration_sync` → `storageops-migration-sync`
 - `unknown_insufficient_evidence` → Request more evidence
+=======
+  - Includes: lifecycle rules, storage class costs, STANDARD_IA small-file penalty, Intelligent Tiering
+- `mount_filesystem_workspace` → `storageops-mount-filesystem-workspace`
+  - Includes: FUSE mount hangs, git-on-S3 slowness, metadata amplification
+- `network_endpoint_access` → `storageops-network-endpoint-access`
+  - Includes: VPC endpoints, DNS failures, TLS certificate errors, MTU issues, proxy
+- `replication_versioning` → `storageops-replication-versioning`
+  - Includes: CRR/SRR failures, delete marker propagation, versioning anomalies, Object Lock
+- `unknown_insufficient_evidence` → Request more evidence before routing
+>>>>>>> origin/main
 
 ### Step 4: Severity Assessment
 

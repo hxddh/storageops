@@ -59,6 +59,29 @@ SECRET_PATTERNS = [
     # rclone env_auth credential lines
     (re.compile(r'(access_key_id|secret_access_key)\s*=\s*\S+', re.IGNORECASE),
      'rclone Credential'),
+
+    # Alibaba Cloud Access Key ID (LTAI prefix + 16-24 alphanumeric chars)
+    (re.compile(r'\bLTAI[A-Za-z0-9]{16,24}\b'), 'Alibaba Cloud Access Key ID'),
+
+    # Alibaba Cloud secret key assignment (AccessKeySecret / aliyun_secret)
+    (re.compile(r'(?:AccessKeySecret|aliyun_secret|oss_secret)\s*[:=]\s*\S+', re.IGNORECASE),
+     'Alibaba Cloud Secret Key'),
+
+    # Tencent Cloud Secret ID (AKID prefix + 32 alphanumeric chars)
+    (re.compile(r'\bAKID[A-Za-z0-9]{32}\b'), 'Tencent Cloud Secret ID'),
+
+    # Tencent Cloud secret key assignment (SecretKey in Tencent SDK context)
+    (re.compile(r'(?:secretKey|secret_key|cos_secret)\s*[:=]\s*[A-Za-z0-9]{32,64}\b',
+                re.IGNORECASE),
+     'Tencent Cloud Secret Key'),
+
+    # Google Cloud service account private key (JSON format)
+    (re.compile(r'"private_key"\s*:\s*"-----BEGIN [A-Z ]+-----', re.IGNORECASE),
+     'GCP Service Account Private Key'),
+
+    # Google Cloud private_key_id
+    (re.compile(r'"private_key_id"\s*:\s*"[0-9a-f]{40}"', re.IGNORECASE),
+     'GCP Service Account Key ID'),
 ]
 
 # Patterns for "safe" placeholders that should NOT be redacted
@@ -100,7 +123,6 @@ def scan(text: str) -> dict:
         }
     """
     findings = []
-    lines = text.split('\n')
 
     for pattern, secret_type in SECRET_PATTERNS:
         for m in pattern.finditer(text):
