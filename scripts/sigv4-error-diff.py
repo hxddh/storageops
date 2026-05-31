@@ -12,7 +12,6 @@ StorageOps — SigV4 签名错误对比工具
 
 import xml.etree.ElementTree as ET
 import sys
-import re
 
 def parse_sigv4_error(xml_content: str) -> dict:
     """Parse SignatureDoesNotMatch XML response."""
@@ -141,7 +140,7 @@ def main():
                 diff_hours = abs((now - ts).total_seconds()) / 3600
                 if diff_hours > 0.25:  # 15 minutes
                     print(f"  ⚠️  请求时间距当前 {diff_hours:.1f} 小时 — 可能是时钟偏移!")
-            except:
+            except Exception:
                 pass
         
         # Check UNSIGNED-PAYLOAD consistency
