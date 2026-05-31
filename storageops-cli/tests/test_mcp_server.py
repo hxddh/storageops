@@ -87,6 +87,26 @@ class TestToolRegistryConsistency(unittest.TestCase):
                                             "has_failures": True, "failure_reasons": [],
                                             "summary": {"total_objects": 0, "failure_rate_pct": 0.0}}},
             "parse_hadoop_s3a":         {"log_text": "S3AFileSystem error s3a://bucket/path"},
+            "parse_network_diagnostics": {"diagnostic_text": "HTTP/1.1 200 OK"},
+            "analyze_network":          {"parsed": {
+                                            "endpoint": None,
+                                            "is_vpc_endpoint": False,
+                                            "is_s3_endpoint": False,
+                                            "dns": {"status": None, "resolved_ips": [],
+                                                    "nxdomain": False, "servfail": False,
+                                                    "query_time_ms": None, "cname_chain": []},
+                                            "tcp": {"connected": None, "refused": False,
+                                                    "timed_out": False, "http_status": None,
+                                                    "redirect_location": None, "server_header": None,
+                                                    "timing": {}},
+                                            "tls": {"error": None, "cert_common_name": None,
+                                                    "verified": True},
+                                            "latency": {"min_ms": None, "avg_ms": None,
+                                                        "max_ms": None, "packet_loss_pct": None,
+                                                        "host_unreachable": False},
+                                            "hops": [],
+                                            "summary": {"error_count": 0,
+                                                        "root_cause_hint": "unknown"}}},
         }
         for t in TOOL_DEFINITIONS:
             name = t["name"]

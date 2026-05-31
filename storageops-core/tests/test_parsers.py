@@ -278,3 +278,94 @@ class TestParseHadoopS3a:
         result = parse("")
         assert isinstance(result, dict)
         assert result["summary"]["error_count"] == 0
+
+
+class TestParseNetworkDiagnostics:
+    def test_nxdomain_detected(self):
+        from parse_network_diagnostics import parse
+        text = "; <<>> DiG 9.16 <<>> nonexistent.example.com\n;; ->>HEADER<<- opcode: QUERY, status: NXDOMAIN"
+        result = parse(text)
+        assert result["dns"]["nxdomain"] is True
+        assert result["summary"]["root_cause_hint"] == "dns_nxdomain"
+
+    def test_dns_resolved_ips(self):
+        from parse_network_diagnostics import parse
+        text = (
+            ";; ANSWER SECTION:\n"
+            "s3.amazonaws.com. 60 IN A 52.216.132.3\n"
+            "s3.amazonaws.com. 60 IN A 52.217.98.100\n"
+        )
+        result = parse(text)
+        assert len(result["dns"]["resolved_ips"]) == 2
+
+    def test_tcp_connection_refused(self):
+        from parse_network_diagnostics import parse
+        text = "curl: (7) Failed to connect to s3.amazonaws.com port 443: Connection refused"
+        result = parse(text)
+        assert result["tcp"]["refused"] is True
+        assert result["tcp"]["connected"] is False
+        assert result["summary"]["root_cause_hint"] == "tcp_connection_refused"
+
+    def test_http_status_200(self):
+        from parse_network_diagnostics import parse
+        text = "HTTP/1.1 200 OK\nServer: AmazonS3"
+        result = parse(text)
+        assert result["tcp"]["http_status"] == 200
+        assert result["summary"]["root_cause_hint"] == "connectivity_ok"
+
+    def test_http_403(self):
+        from parse_network_diagnostics import parse
+        text = "HTTP/1.1 403 Forbidden\nServer: AmazonS3"
+        result = parse(text)
+        assert result["tcp"]["http_status"] == 403
+        assert result["summary"]["root_cause_hint"] == "http_403_access_denied"
+
+    def test_tls_cert_error(self):
+        from parse_network_diagnostics import parse
+        text = "SSL certificate problem: unable to get local issuer certificate"
+        result = parse(text)
+        assert result["tls"]["verified"] is False
+        assert result["tls"]["error"] is not None
+
+    def test_ping_latency_parsed(self):
+        from parse_network_diagnostics import parse
+        text = "rtt min/avg/max/mdev = 1.234/5.678/12.345/1.000 ms"
+        result = parse(text)
+        assert result["latency"]["min_ms"] == 1.234
+        assert result["latency"]["avg_ms"] == 5.678
+
+    def test_packet_loss_detected(self):
+        from parse_network_diagnostics import parse
+        text = "10 packets transmitted, 7 received, 30% packet loss"
+        result = parse(text)
+        assert result["latency"]["packet_loss_pct"] == 30.0
+        assert result["summary"]["root_cause_hint"] == "packet_loss"
+
+    def test_vpc_endpoint_detected(self):
+        from parse_network_diagnostics import parse
+        text = "https://vpce-0abc123def.s3.us-east-1.vpce.amazonaws.com"
+        result = parse(text)
+        assert result["is_vpc_endpoint"] is True
+
+    def test_s3_endpoint_detected(self):
+        from parse_network_diagnostics import parse
+        text = "curl -v https://s3.us-east-1.amazonaws.com/my-bucket/"
+        result = parse(text)
+        assert result["is_s3_endpoint"] is True
+
+    def test_empty_input(self):
+        from parse_network_diagnostics import parse
+        result = parse("")
+        assert isinstance(result, dict)
+        assert result["dns"]["nxdomain"] is False
+        assert result["hops"] == []
+
+    def test_traceroute_hops_parsed(self):
+        from parse_network_diagnostics import parse
+        text = (
+            " 1  192.168.1.1 (192.168.1.1)  1.234 ms\n"
+            " 2  10.0.0.1 (10.0.0.1)  5.678 ms\n"
+        )
+        result = parse(text)
+        assert len(result["hops"]) == 2
+        assert result["hops"][0]["hop"] == 1
