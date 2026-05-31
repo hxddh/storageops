@@ -1350,37 +1350,34 @@ _HELP_TEXT = """\
 
 \033[1mUsage:\033[0m
   storageops                       Start interactive session
-  storageops [message|@file]       Describe your issue or pass a log file
-  storageops <command> [options]   Run a specific command
+  storageops [message|@file]       Describe issue or pass a log file
+  storageops < error.log           Pipe log via stdin
 
-\033[1mCommands:\033[0m
-  setup          Configure API key and install Pi Agent
-  config         View or edit configuration
-  update         Download latest Pi binary and reinstall skills
-  doctor         Check environment health: Pi, API key, skills
-  memory         Manage past diagnosed cases
-  mcp            Start MCP server (for Claude Desktop and MCP clients)
-  serve          Start HTTP API server and web UI
+\033[1mFirst time:\033[0m
+  storageops setup                 Download Pi Agent and configure API key
 
-\033[1mExamples:\033[0m
-  storageops                              Start interactive session
-  storageops "getting 429 SlowDown"       Describe your issue
-  storageops @error.log                   Diagnose a log file
-  storageops < error.log                  Pipe a log via stdin
-  httpmon --format json aws s3 ... | storageops  Capture wire traffic
+\033[1mServer mode:\033[0m
+  storageops mcp                   Start MCP server (for Claude Desktop)
+  storageops serve                 Start HTTP API server and web UI
 
-Inside a session, type \033[1m/\033[0m to see all commands including /resume.
-
-Run \033[1mstorageops <command> --help\033[0m for command-specific help.
+Inside a session, type \033[1m/\033[0m to see all commands.
 """
 
 
 def main() -> None:
     _argv = sys.argv[1:]
     _known_subcmds = {
+        # CI / scripting (hidden from --help)
         "triage", "analyze", "analyse", "diagnose", "agent", "scan", "batch",
-        "report", "eval", "memory", "audit", "mcp", "serve",
-        "setup", "doctor", "config", "update",
+        "report", "eval", "audit",
+        # Session management (hidden from --help)
+        "resume",
+        # Server commands
+        "mcp", "serve",
+        # First-time setup (shown in --help)
+        "setup",
+        # Compat: still routable but not advertised (use / inside session)
+        "doctor", "config", "update", "memory",
         "--help", "-h", "--version",
     }
     _first = _argv[0] if _argv else None

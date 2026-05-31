@@ -1,93 +1,48 @@
 # Getting Started
 
-This guide walks through installation, setup, and your first diagnosis — step by step.
+This guide walks through installation, setup, and your first diagnosis.
 
 ---
 
-## Step 1 — Check prerequisites
-
-```bash
-python3 --version   # 3.10 or later required
-pip --version
-```
-
----
-
-## Step 2 — Install
+## Step 1 — Install
 
 ```bash
 pip install storageops
 ```
 
-Verify:
+If `storageops` is not found after install, add pip's bin directory to PATH:
 
 ```bash
-storageops --help
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
 ```
 
-If `storageops` is not found, your pip bin directory may not be on `PATH`:
+Or use a virtual environment:
 
 ```bash
-# Common fix for user installs
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-**Recommended: use a virtual environment**
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate    # Windows: .venv\Scripts\activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install storageops
-storageops --help
 ```
 
 ---
 
-## Step 3 — Run setup
+## Step 2 — Run setup
 
 ```bash
 storageops setup
 ```
 
-The setup wizard:
-1. Downloads Pi Coding Agent automatically.
-2. Asks which LLM provider to use (Anthropic or OpenAI).
-3. Asks for your API key and saves it to `~/.storageops/config.json`.
-
-After setup, check that everything is healthy:
-
-```bash
-storageops doctor
-```
+This downloads Pi Coding Agent and asks for your API key. Paste your key — provider
+is auto-detected from the prefix (`sk-ant-` → Anthropic, `sk-` → OpenAI). That's it.
 
 ---
 
-## Step 4 — Try offline triage (no API key needed)
-
-Rule-based triage works instantly without any API key:
-
-```bash
-storageops triage \
-  agents/skills/storageops-eval-golden-cases/cases/throttling-hot-prefix/input/s3-access-log.txt
-```
-
-Expected output:
-```
-Domain:  performance_throughput  (0.72)
-Evidence quality: sufficient
-Recommended: storageops analyze performance_throughput <file>
-```
-
----
-
-## Step 5 — Start the interactive REPL
+## Step 3 — Start a session
 
 ```bash
 storageops
 ```
 
-Describe your issue in plain language. Press Enter to submit. Context accumulates across turns.
+Type your problem in plain language and press Enter. Type `/` to see all commands.
 
 ```
 StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit
@@ -96,12 +51,13 @@ StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /ex
 > Got 403 from boto3 on GetObject, but my IAM role has s3:GetObject
 ```
 
-**Reference a local file:**
+Reference a local file by prefixing with `@`:
+
 ```
 > here's the error trace @/var/log/s3-error.log
 ```
 
-**Slash commands:**
+### Slash commands
 
 | Command | Action |
 |---------|--------|
@@ -109,12 +65,15 @@ StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /ex
 | `/resume` | Pick a past session to continue |
 | `/clear` | Start a fresh session |
 | `/status` | Show session ID, Pi and API key status |
+| `/config` | View or change configuration |
+| `/memory` | Browse past diagnosed cases |
+| `/update` | Download latest Pi binary and reinstall skills |
 | `/doctor` | Check environment health |
 | `/setup` | Re-run setup wizard |
 | `/verbose` | Toggle verbose output (shows tool calls) |
 | `/exit` | Quit |
 
-Sessions are saved automatically to `~/.storageops/sessions/`. Use `/resume` inside a session to continue a past conversation.
+Sessions are saved automatically to `~/.storageops/sessions/`.
 
 ---
 
@@ -127,16 +86,11 @@ storageops
 > s3://my-bucket/data/file.csv — AccessDenied, but my IAM role has s3:GetObject
 ```
 
-The agent checks memory for similar cases, calls `analyze_policy` to trace the denial,
-and `generate_policy_fix` to output a corrected policy statement.
-
 ### Slow transfers — is it throttling?
 
 ```bash
 storageops < slow-transfer.log
 ```
-
-The agent detects 429/SlowDown patterns and calls `detect_throttling` + `analyze_throughput`.
 
 ### Capture wire-level traffic with httpmon
 
@@ -147,33 +101,39 @@ to give StorageOps full HTTP evidence:
 httpmon --format json aws s3 cp s3://bucket/key . 2>&1 | storageops
 ```
 
-### One-shot pipe
+### Multi-turn investigation
 
-```bash
-aws s3 cp s3://bucket/key . 2>&1 | storageops
-cat rclone-debug.log | storageops
+Add evidence progressively across turns — context accumulates:
+
+```
+> access denied on GetObject
+> here's my bucket policy: @policy.json
+> and the IAM role: @role.json
 ```
 
 ---
 
-## Manage configuration
+## Configuration
 
-```bash
-storageops config list              # show current config
-storageops config set provider openai
-storageops config set api_key sk-...
-storageops config get api_key       # prints [REDACTED]
+Inside a session:
+```
+/config                          # show current config
+/config set provider openai      # change provider
+/config set api_key sk-...       # set API key
 ```
 
 Config is stored at `~/.storageops/config.json`.
 
 ---
 
-## Update
+## Offline triage (no API key needed)
+
+Rule-based triage works without Pi or an API key:
 
 ```bash
-storageops update           # download latest Pi + reinstall skills
-storageops update --check   # check without installing
+storageops triage error.log
+storageops analyze security_iam_policy policy.json
+storageops scan logs/*.log
 ```
 
 ---
@@ -182,38 +142,22 @@ storageops update --check   # check without installing
 
 ### `storageops: command not found`
 
-pip installed the script but the bin directory is not on your PATH.
-
 ```bash
 python3 -m site --user-base          # shows e.g. /home/you/.local
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
 ```
 
-Or use a virtual environment.
+### Pi not found
 
-### `storageops doctor` shows Pi not found
+Run `/setup` inside a session, or `storageops setup` at the terminal.
 
-Run `storageops setup` to download Pi, or verify that `pi` is on your PATH.
+### API key missing or wrong
 
-### REPL returns "Pi is not available"
-
-1. Run `storageops setup` to (re-)install Pi.
-2. Ensure your API key is set: `storageops config list`.
-3. Check health: `storageops doctor`.
-
-### report shows `report_valid: false`
-
-The agent didn't include required YAML frontmatter. Try `diagnose` with a longer timeout:
-
-```bash
-storageops diagnose mylog.log --max-turns 12
-```
+Use `/config set api_key sk-...` inside a session, or `storageops setup` to re-configure.
 
 ---
 
 ## Next Steps
 
-- **[CLI Reference](cli-reference.md)** — full documentation of every command and flag
-- **[Tutorial](tutorial.md)** — worked examples for common S3 problems
-- **[Architecture Guide](../ARCHITECTURE.md)** — internals: tool registry, skill loading, Pi RPC
+- **[CLI Reference](cli-reference.md)** — all commands, flags, and output formats
+- **[Architecture Guide](../ARCHITECTURE.md)** — tool registry, skill loading, Pi RPC internals

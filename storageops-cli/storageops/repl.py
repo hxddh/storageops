@@ -34,13 +34,20 @@ def _hr(w: int = 60) -> str:
 
 # ── Slash commands ────────────────────────────────────────────────────
 
-_SLASH_CMDS = ["/help", "/resume", "/clear", "/status", "/doctor", "/setup", "/verbose", "/exit"]
+_SLASH_CMDS = [
+    "/help", "/resume", "/clear", "/status",
+    "/config", "/memory", "/update",
+    "/doctor", "/setup", "/verbose", "/exit",
+]
 
 _SLASH_CMD_HELP = {
     "/help":    "Show this command list",
     "/resume":  "Load a past session",
     "/clear":   "Clear context and start a fresh session",
     "/status":  "Show session info and configuration",
+    "/config":  "View or change configuration  (/config set <key> <val>)",
+    "/memory":  "Browse past cases  (/memory search <query>)",
+    "/update":  "Download latest Pi binary and reinstall skills",
     "/doctor":  "Run environment health check",
     "/setup":   "Re-run setup wizard",
     "/verbose": "Toggle verbose mode (show tool calls)",
@@ -448,6 +455,83 @@ def _handle_resume(current: DiagnosticSession) -> DiagnosticSession:
     return loaded
 
 
+# ── Config handler ────────────────────────────────────────────────────
+
+def _handle_config(parts: list[str]) -> None:
+    from storageops import config as cfg_mod
+    if len(parts) >= 4 and parts[1] == "set":
+        key = parts[2]
+        val = " ".join(parts[3:])
+        if key == "api_key":
+            from storageops.config import detect_provider_from_key
+            cfg_mod.update(api_key=val, provider=detect_provider_from_key(val))
+            print(f"\n  {_green('✓')}  api_key updated  ·  provider auto-detected\n")
+        else:
+            cfg_mod.update(**{key: val})
+            print(f"\n  {_green('✓')}  {key} = {val}\n")
+        return
+    cfg = cfg_mod.load()
+    provider  = cfg.get("provider", "anthropic")
+    raw_key   = cfg.get("api_key", "") or ""
+    key_str   = ("*" * 8 + raw_key[-4:]) if len(raw_key) > 8 else (_green("set") if raw_key else _yellow("not set  — /setup to configure"))
+    pi_cmd    = cfg.get("pi_command", _dim("default"))
+    workdir   = cfg.get("workdir",   _dim("~/.storageops"))
+    print()
+    print(f"  {_bold('provider')}    {_cyan(provider)}")
+    print(f"  {_bold('api_key')}     {key_str}")
+    print(f"  {_bold('pi_command')}  {pi_cmd}")
+    print(f"  {_bold('workdir')}     {workdir}")
+    print(f"\n  {_dim('/config set <key> <value> to change')}\n")
+
+
+# ── Memory handler ─────────────────────────────────────────────────────
+
+def _handle_memory(parts: list[str]) -> None:
+    try:
+        from storageops.memory_store import list_cases, search_cases
+    except ImportError:
+        print(f"\n  {_red('✗')}  memory_store not available\n")
+        return
+
+    if len(parts) >= 2 and parts[1] == "search":
+        query = " ".join(parts[2:]).strip()
+        if not query:
+            print(f"\n  {_dim('Usage: /memory search <query>')}\n")
+            return
+        results = search_cases(query, top_k=5)
+        if not results:
+            print(f"\n  {_dim('No results for:')} {query}\n")
+            return
+        print()
+        for r in results:
+            ts      = (r.get("timestamp") or "")[:16].replace("T", " ")
+            domain  = (r.get("domain") or "unknown").replace("_", " ")
+            summary = (r.get("summary") or "")[:80]
+            print(f"  {_cyan(domain)}  {_dim(ts)}")
+            if summary:
+                print(f"  {_dim(summary)}")
+            print()
+        return
+
+    cases = list_cases(limit=10)
+    if not cases:
+        print(f"\n  {_dim('No cases in memory yet.')}\n")
+        return
+    print()
+    for c in cases:
+        ts      = (c.get("timestamp") or "")[:16].replace("T", " ")
+        domain  = (c.get("domain") or "unknown").replace("_", " ")
+        summary = (c.get("summary") or "")[:72]
+        rc      = c.get("root_cause_type") or ""
+        print(f"  {_cyan(domain)}  {_dim(ts)}")
+        if rc:
+            print(f"  {_dim(rc)}")
+        if summary:
+            print(f"  {_dim(summary)}")
+        print()
+    print(f"  {_dim('/memory search <query> to search by keyword')}\n")
+
+
 # ── Response display ──────────────────────────────────────────────────
 
 def _print_result(result, *, elapsed: float | None = None, session_id: str | None = None) -> None:
@@ -675,6 +759,17 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             import argparse
             from storageops.cli import cmd_setup
             cmd_setup(argparse.Namespace(pi_command="pi"))
+
+        elif first == "/config":
+            _handle_config(text.split())
+
+        elif first == "/memory":
+            _handle_memory(text.split())
+
+        elif first == "/update":
+            import argparse
+            from storageops.cli import cmd_update
+            cmd_update(argparse.Namespace(check=False))
 
         elif first == "/verbose":
             session.verbose = not session.verbose
