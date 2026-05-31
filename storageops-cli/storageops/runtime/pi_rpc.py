@@ -12,19 +12,13 @@ import time
 from pathlib import Path
 from typing import Any
 
+from storageops.audit_logger import log_session_start, log_pi_result, log_session_end
 from storageops.report_validator import validate_agent_report
 from storageops.runtime.base import AgentRunOptions, AgentRunResult
 
-# Ensure storageops-core utilities are importable when this module is used directly.
-_CLI_DIR = Path(__file__).resolve().parents[2]
-_PROJECT_ROOT = _CLI_DIR.parent
-_CORE_DIR = _PROJECT_ROOT / "storageops-core"
-for _sub in ("utils", "parsers", "analyzers"):
-    _p = str(_CORE_DIR / _sub)
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
-from secret_scanner import scan as _scan_secrets  # noqa: E402
+from secret_scanner import scan as _scan_secrets
 
 _MIGRATION_ERROR = (
     "StorageOps no longer manages LLM providers. Configure providers and models "
@@ -135,12 +129,19 @@ class PiRpcRuntime:
         self.options = options or AgentRunOptions()
 
     def run(self, input_file: str | os.PathLike[str]) -> AgentRunResult:
+        import uuid
+        session_id = str(uuid.uuid4())[:8]
+
         input_path = Path(input_file)
         if not input_path.exists():
             return AgentRunResult(False, self.runtime_name, error=f"File not found: {input_file}")
 
         raw_text = input_path.read_text(encoding="utf-8", errors="replace")
         redacted_text, redaction_count = redact_for_pi(raw_text)
+
+        from storageops.agent import classify_evidence
+        domain = classify_evidence(redacted_text).get("primary_domain", "unknown")
+        log_session_start(session_id, domain, runtime="pi")
 
         with tempfile.TemporaryDirectory(prefix="storageops-pi-") as tmpdir:
             evidence_path = Path(tmpdir) / "redacted-evidence.txt"
@@ -167,7 +168,16 @@ class PiRpcRuntime:
             if self.options.pi_provider:
                 request["provider"] = self.options.pi_provider
 
-            return self._run_rpc(request)
+            result = self._run_rpc(request)
+            log_pi_result(
+                session_id,
+                ok=result.ok,
+                redaction_count=redaction_count,
+                validation_ok=result.ok,
+                event_count=len(result.raw_events),
+            )
+            log_session_end(session_id, "success" if result.ok else "failed")
+            return result
 
     def _command(self) -> list[str]:
         cmd = [self.options.pi_command, "--mode", "rpc"]

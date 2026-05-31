@@ -1,27 +1,17 @@
 """
-Tool registry: wraps storageops-core parsers + analyzers as LLM tool definitions.
+Tool registry: wraps storageops-core parsers + analyzers as Pi tool definitions.
 
 Each tool has a name, description, input_schema (JSON Schema), and a handler
 function. All tools operate on in-memory text/dicts — zero network calls,
 zero filesystem writes, zero cloud operations.
 
-The LLM decides which tools to call and in what order. This replaces the
-hardcoded dispatch in the legacy rule-based agent.
+Pi calls these tools via StorageOps MCP or CLI. sys.path is set up by
+storageops/__init__.py when the package is imported.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
-# Ensure storageops-core modules are importable
-_CORE = Path(__file__).parent.parent.parent / "storageops-core"
-for _sub in ("utils", "parsers", "analyzers"):
-    _p = str(_CORE / _sub)
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
-
-
-# ── Tool Definitions (schema for LLM) ────────────────────────────────
+# ── Tool Definitions ──────────────────────────────────────────────────
 
 TOOL_DEFINITIONS: list[dict] = [
     {
@@ -337,6 +327,27 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "parse_s5cmd_log",
+        "description": (
+            "Parse s5cmd debug log output into structured operation records. "
+            "Use when evidence contains s5cmd output, e.g. lines starting with "
+            "'ERROR' or 's5cmd [0-9]'. "
+            "Extracts: operation type (cp/sync/rm), error codes, failed keys, "
+            "throughput stats, and retry patterns. "
+            "Call AFTER scan_secrets on the log text."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "log_text": {
+                    "type": "string",
+                    "description": "Raw s5cmd log content (already redacted of secrets)",
+                },
+            },
+            "required": ["log_text"],
+        },
+    },
+    {
         "name": "analyze_throughput",
         "description": (
             "Analyze upload/download throughput against theoretical limits given RTT and bandwidth. "
@@ -445,6 +456,10 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
             top_k = min(int(inputs.get("top_k", 3)), 5)
             results = search_cases(query, domain=domain_filter, top_k=top_k)
             return {"results": results, "count": len(results), "query": query}
+
+        elif name == "parse_s5cmd_log":
+            from parse_s5cmd_error import parse
+            return parse(inputs["log_text"])
 
         elif name == "analyze_throughput":
             from analyze_throughput import analyze  # noqa: E402

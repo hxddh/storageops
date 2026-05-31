@@ -1,7 +1,7 @@
 """
-Validate the YAML frontmatter and required sections in LLM diagnostic reports.
+Validate the YAML frontmatter and required sections in Pi diagnostic reports.
 
-The agent's system prompt requires every report to start with a YAML block:
+The Pi agent's system prompt requires every report to start with a YAML block:
     ---
     category: <domain>
     root_cause_type: <type>

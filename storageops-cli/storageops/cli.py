@@ -16,116 +16,12 @@ import sys
 import re
 from pathlib import Path
 
-# Resolve storageops-core path relative to this CLI's location
-CLI_DIR = Path(__file__).parent.parent
-PROJECT_ROOT = CLI_DIR.parent
-CORE_DIR = PROJECT_ROOT / 'storageops-core'
-
-# Ensure core modules are importable
-for sub in ['utils', 'parsers', 'analyzers']:
-    p = str(CORE_DIR / sub)
-    if p not in sys.path:
-        sys.path.insert(0, p)
+# storageops/__init__.py adds storageops-core to sys.path on first import;
+# importing anything from this package triggers that setup.
+from signatures import auto_detect, SIGNATURES  # noqa: F401 — side-effect import
 
 
-# ── Auto-Detection ────────────────────────────────────────────────────
-
-SIGNATURES = {
-    's3_protocol_compatibility': [
-        (r'SignatureDoesNotMatch', 'sigv4'),
-        (r'InvalidSignature', 'sigv4'),
-        (r'CanonicalRequest', 'sigv4'),
-        (r'StringToSign', 'sigv4'),
-        (r'<Code>InvalidPart</Code>', 'multipart_upload'),
-        (r'CompleteMultipartUpload', 'multipart_upload'),
-        (r'ListObjects', 'list_objects'),
-        (r'ETag.*mismatch', 'checksum_etag'),
-        (r'Access-Control-Allow-Origin|NoSuchCORSConfiguration|CORS.*policy|preflight', 'cors'),
-        (r'ReplicationStatus|ReplicationConfiguration|ReplicateObject|DeleteMarkerReplication', 'replication'),
-        (r'IsDeleteMarker|ListObjectVersions|VersionId.*null|NoncurrentVersion', 'versioning'),
-    ],
-    'cli_sdk_behavior': [
-        (r'corrupted on transfer', 'rclone'),
-        (r'rclone\s+v[\d.]+', 'rclone'),
-        (r'size differ', 'rclone'),
-        (r'bcecmd', 'bcecmd'),
-        (r'obsutil', 'obsutil'),
-        (r's5cmd', 's5cmd'),
-        (r'botocore\.', 'boto3'),
-        (r'aws-cli/', 'awscli'),
-    ],
-    'performance_throughput': [
-        (r'\b429\b', 'throttling'),
-        (r'SlowDown', 'throttling'),
-        (r'RequestRateLimitExceeded', 'throttling'),
-        (r'ThrottlingException', 'throttling'),
-        (r'timeout', 'timeout'),
-        (r'throughput', 'throughput'),
-        (r'MB/s', 'throughput'),
-        (r'MiB/s', 'throughput'),
-    ],
-    'mount_filesystem_workspace': [
-        (r'\bfuse\b', 'mount'),
-        (r's3fs|bosfs|ossfs|gcsfuse', 'mount'),
-        (r'rclone mount', 'mount'),
-        (r'掉挂载|mount.*disconnect', 'mount'),
-        (r'stat.*storm|metadata.*amplif', 'mount'),
-        (r'workspace.*slow', 'mount'),
-    ],
-    'network_endpoint_access': [
-        (r'endpoint.*unreachable|connection refused', 'network'),
-        (r'TLS.*error|certificate.*error', 'network'),
-        (r'DNS.*fail|NXDOMAIN', 'network'),
-        (r'VPC.*endpoint|PrivateLink', 'network'),
-        (r'MTU', 'network'),
-    ],
-    'security_iam_policy': [
-        (r'AccessDenied', 'security'),
-        (r'Access Denied', 'security'),
-        (r'\b403\b', 'security'),
-        (r'bucket.*policy|IAM.*policy', 'security'),
-        (r'STS.*expir|session.*token.*expir', 'security'),
-        (r'KMS.*denied|kms:Decrypt', 'security'),
-    ],
-    'lifecycle_cost': [
-        (r'lifecycle.*rule|LifecycleConfiguration', 'lifecycle'),
-        (r'STANDARD_IA|GLACIER|DEEP_ARCHIVE', 'lifecycle'),
-        (r'minimum.*storage.*duration', 'lifecycle'),
-        (r'retrieval.*cost|request.*cost', 'lifecycle'),
-        (r'Intelligent.*Tiering', 'lifecycle'),
-    ],
-}
-
-
-def auto_detect(text: str) -> list[dict]:
-    """Auto-detect issue domain from evidence text."""
-    scores = {}
-    for domain, patterns in SIGNATURES.items():
-        score = 0
-        matches = []
-        for pattern, subdomain in patterns:
-            if re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
-                score += 1
-                matches.append(subdomain)
-        if score > 0:
-            scores[domain] = {
-                'score': score,
-                'subdomains': list(set(matches)),
-            }
-
-    ranked = sorted(scores.items(), key=lambda x: x[1]['score'], reverse=True)
-    return [
-        {
-            'domain': domain,
-            'confidence': min(round(info['score'] / max(1, sum(
-                1 for _ in SIGNATURES[domain])), 2), 0.95),
-            'subdomains': info['subdomains'],
-        }
-        for domain, info in ranked
-    ]
-
-
-# ── Commands ──────────────────────────────────────────────────────────
+# ── Domain routing ────────────────────────────────────────────────────
 
 SKILL_ROUTE_MAP = {
     's3_protocol_compatibility': 'storageops-s3-protocol-compatibility',
@@ -138,6 +34,8 @@ SKILL_ROUTE_MAP = {
 }
 
 
+# ── Commands ──────────────────────────────────────────────────────────
+
 def cmd_triage(args):
     """Triage: classify evidence and suggest routing."""
     path = Path(args.file)
@@ -147,14 +45,11 @@ def cmd_triage(args):
 
     text = path.read_text(encoding='utf-8', errors='replace')
 
-    # Run secret scan first
     from secret_scanner import scan as scan_secrets
     secret_result = scan_secrets(text)
 
-    # Auto-detect domain
     detections = auto_detect(text)
 
-    # Determine evidence type
     input_type = 'unknown'
     if re.search(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}.*DEBUG', text):
         input_type = 'log_file'
@@ -167,7 +62,6 @@ def cmd_triage(args):
     else:
         input_type = 'natural_language'
 
-    # Build output
     primary = detections[0] if detections else {
         'domain': 'unknown_insufficient_evidence',
         'confidence': 0.0,
@@ -193,7 +87,7 @@ def cmd_triage(args):
         "recommended_next_command": (
             f"storageops analyze {primary['domain']} {args.file}"
             if primary['domain'] != 'unknown_insufficient_evidence'
-            else "Please provide more detailed evidence (debug logs, error messages, config)"
+            else "Provide more detailed evidence (debug logs, error messages, config)"
         ),
     }
     print(json.dumps(output, indent=2, ensure_ascii=False))
@@ -215,7 +109,6 @@ def cmd_analyze(args):
     text = path.read_text(encoding='utf-8', errors='replace')
     domain = args.domain
 
-    # Run secret scan
     from secret_scanner import scan as scan_secrets
     secret_result = scan_secrets(text)
     if secret_result['count'] > 0 and not args.no_redact:
@@ -226,11 +119,8 @@ def cmd_analyze(args):
     if domain in ('s3_protocol_compatibility', 'sigv4'):
         from parse_sigv4_error import parse_xml_error, diagnose as diagnose_sigv4
         from parse_awscli_debug import parse as parse_awscli
-
-        # Try as XML error first
         if '<Code>SignatureDoesNotMatch</Code>' in text:
-            error = parse_xml_error(text)
-            result = diagnose_sigv4(error)
+            result = diagnose_sigv4(parse_xml_error(text))
         else:
             result = parse_awscli(text)
 
@@ -246,13 +136,13 @@ def cmd_analyze(args):
             result = parse_awscli(text) if 'aws' in text.lower() else {"error": "Unknown CLI tool"}
 
     elif domain in ('performance_throughput', 'throttling'):
-        from parse_s5cmd_log import parse as parse_s5cmd
+        from parse_s5cmd_log import parse as parse_s5cmd_log
         from parse_awscli_debug import parse as parse_awscli
         from detect_throttling import detect as detect_throttling
         from analyze_throughput import analyze as analyze_throughput
 
         if 's5cmd' in text.lower():
-            parsed = parse_s5cmd(text)
+            parsed = parse_s5cmd_log(text)
         else:
             parsed = parse_awscli(text)
 
@@ -263,21 +153,17 @@ def cmd_analyze(args):
                 "object_size_mb": args.object_size or 100,
                 "rtt_ms": args.rtt or 50,
                 "bandwidth_mbps": args.bandwidth or 1000,
-                "observed_throughput_mbps": 50,  # placeholder
+                "observed_throughput_mbps": 50,
             })
 
-    elif domain in ('security_iam_policy',):
-        from analyze_policy import analyze as analyze_policy
-        from analyze_policy import analyze_inline_403
-        # Try to parse as JSON input
+    elif domain == 'security_iam_policy':
+        from analyze_policy import analyze as analyze_policy, analyze_inline_403
         try:
-            policy_data = json.loads(text)
-            result = analyze_policy(policy_data)
+            result = analyze_policy(json.loads(text))
         except json.JSONDecodeError:
-            # If not JSON, do inline 403 analysis from error text
             result = analyze_inline_403(text)
 
-    elif domain in ('lifecycle_cost',):
+    elif domain == 'lifecycle_cost':
         from analyze_cost import analyze as analyze_cost
         try:
             cost_data = json.loads(text)
@@ -285,11 +171,11 @@ def cmd_analyze(args):
             cost_data = {
                 "storage_price_per_gb": {"STANDARD": 0.023, "STANDARD_IA": 0.0125},
                 "prefixes": [],
-                "note": "Could not parse JSON. Provide inventory data JSON.",
+                "note": "Could not parse JSON. Provide inventory data as JSON.",
             }
         result = analyze_cost(cost_data)
 
-    elif domain in ('mount_filesystem_workspace',):
+    elif domain == 'mount_filesystem_workspace':
         from analyze_metadata_amplification import analyze as analyze_amp
         try:
             amp_data = json.loads(text)
@@ -302,21 +188,21 @@ def cmd_analyze(args):
             }
         result = analyze_amp(amp_data)
 
-    elif domain in ('network_endpoint_access',):
+    elif domain == 'network_endpoint_access':
         result = {
             "ok": True,
             "module": "network_diagnosis",
-            "note": "Network diagnosis requires live network tools (dig, curl, traceroute). "
-                    "Run these manually and collect output:\n"
-                    "  dig <endpoint-hostname>\n"
-                    "  curl -v --connect-timeout 5 https://<endpoint>\n"
-                    "  mtr -r -c 10 <endpoint-hostname>",
+            "note": (
+                "Network diagnosis requires live tools. Run manually:\n"
+                "  dig <endpoint-hostname>\n"
+                "  curl -v --connect-timeout 5 https://<endpoint>\n"
+                "  mtr -r -c 10 <endpoint-hostname>"
+            ),
             "recommendations": [
                 "Collect DNS resolution, TCP connectivity, TLS handshake, and RTT data.",
                 "Use storageops-network-endpoint-access Skill for manual diagnosis guidance.",
             ],
         }
-
     else:
         result = {"ok": False, "error": f"Unknown domain: {domain}"}
 
@@ -337,38 +223,51 @@ def cmd_report(args):
         sys.exit(1)
 
     data = json.loads(path.read_text())
+    domain = data.get('module', data.get('category', 'unknown')).replace('analyze_', '')
+    confidence = data.get('confidence', data.get('primary_confidence', 'N/A'))
+    conclusion = data.get('conclusion', data.get('note', 'See Key Evidence for analysis details.'))
 
-    report = f"""# 诊断报告 (Diagnosis Report)
+    report = f"""---
+category: {domain}
+root_cause_type: unknown
+confidence: {confidence}
+severity: medium
+---
 
-**生成时间:** Generated by StorageOps CLI v0.3
-**分类:** {data.get('domain', data.get('category', 'unknown'))}
-**置信度:** {data.get('confidence', data.get('primary_confidence', 'N/A'))}
+## Summary
 
-## 摘要
+{conclusion}
 
-{data.get('conclusion', data.get('note', 'Analysis results below.'))}
-
-## 诊断结论
+## Key Evidence
 
 ```json
 {json.dumps(data, indent=2, ensure_ascii=False, default=str)[:3000]}
 ```
 
-## 修复建议
+## Remediation
 
-{chr(10).join('- ' + r for r in data.get('recommendations', data.get('recommendation', ['See analysis for recommendations']))) if isinstance(data.get('recommendations', data.get('recommendation', [])), list) else '- ' + str(data.get('recommendations', data.get('recommendation', 'See analysis for recommendations')))}
+{_format_recommendations(data)}
 
-## 后续排查清单
+## Safety Notes
 
-- [ ] Review analysis results above
-- [ ] Collect additional evidence if confidence is low
-- [ ] Apply recommendations (manual-only: review before executing)
-- [ ] Validate fix and re-run analysis
+- Review all recommendations before executing.
+- Label any cloud-mutating command with `# manual-only:` before running.
 
 ---
-*This report was auto-generated by StorageOps CLI v0.3. All conclusions should be verified.*
+*Generated by StorageOps CLI. Verify all conclusions before acting.*
 """
     print(report)
+
+
+def _format_recommendations(data: dict) -> str:
+    recs = data.get('recommendations') or data.get('recommendation')
+    if isinstance(recs, list):
+        return '\n'.join(f'- {r}' for r in recs) or '- See Key Evidence section.'
+    if isinstance(recs, str) and recs:
+        return f'- {recs}'
+    if isinstance(recs, dict):
+        return '\n'.join(f'- {k}: {v}' for k, v in recs.items())
+    return '- See Key Evidence section.'
 
 
 def cmd_eval(args):
@@ -399,21 +298,18 @@ def cmd_eval(args):
     result["module"] = "eval"
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-    # Exit non-zero if any case failed
     if not result.get('passed', True):
         if isinstance(result.get('passed'), bool) and not result['passed']:
             sys.exit(1)
         elif isinstance(result.get('cases'), list):
-            failed = sum(1 for c in result['cases'] if not c.get('passed', True))
-            if failed > 0:
+            if sum(1 for c in result['cases'] if not c.get('passed', True)) > 0:
                 sys.exit(1)
 
 
 def _cmd_eval_regression(args):
-    """Compare latest two metric snapshots and report confidence regressions."""
+    """Compare latest two metric snapshots for confidence regressions."""
     metrics_file = Path(getattr(args, 'metrics_file', None) or
-                        Path(__file__).parent.parent.parent /
-                        "storageops-eval-metrics.json")
+                        Path(__file__).parent.parent.parent / "storageops-eval-metrics.json")
     threshold = getattr(args, 'threshold', 0.10)
 
     if not metrics_file.exists():
@@ -430,14 +326,12 @@ def _cmd_eval_regression(args):
         print(json.dumps({
             "ok": True,
             "regressions": [],
-            "message": "Need at least 2 metric snapshots to compare; only 1 found.",
+            "message": "Need at least 2 metric snapshots; only 1 found.",
         }))
         return
 
-    prev_snap = history[-2]
-    curr_snap = history[-1]
-    prev_conf: dict[str, float] = prev_snap.get("confidence", {})
-    curr_conf: dict[str, float] = curr_snap.get("confidence", {})
+    prev_conf: dict[str, float] = history[-2].get("confidence", {})
+    curr_conf: dict[str, float] = history[-1].get("confidence", {})
 
     regressions = []
     improvements = []
@@ -446,26 +340,18 @@ def _cmd_eval_regression(args):
         if prev is None or prev < 0 or curr < 0:
             continue
         delta = curr - prev
+        entry = {"case": case, "prev": round(prev, 4), "curr": round(curr, 4),
+                 "delta": round(delta, 4)}
         if delta < -threshold:
-            regressions.append({
-                "case": case,
-                "prev": round(prev, 4),
-                "curr": round(curr, 4),
-                "delta": round(delta, 4),
-            })
+            regressions.append(entry)
         elif delta > threshold:
-            improvements.append({
-                "case": case,
-                "prev": round(prev, 4),
-                "curr": round(curr, 4),
-                "delta": round(delta, 4),
-            })
+            improvements.append(entry)
 
     result = {
         "ok": True,
         "module": "eval_regression",
-        "prev_ts": prev_snap.get("ts", "?"),
-        "curr_ts": curr_snap.get("ts", "?"),
+        "prev_ts": history[-2].get("ts", "?"),
+        "curr_ts": history[-1].get("ts", "?"),
         "threshold": threshold,
         "regressions": regressions,
         "improvements": improvements,
@@ -484,10 +370,10 @@ def _cmd_eval_regression(args):
         sys.exit(1)
 
 
-# ── Main ──────────────────────────────────────────────────────────────
+# ── Sub-command handlers ──────────────────────────────────────────────
 
 def cmd_mcp(args):
-    """Start the StorageOps MCP server (for Claude Desktop / MCP clients)."""
+    """Start the StorageOps MCP server."""
     from storageops.mcp_server import run_mcp_server
     run_mcp_server()
 
@@ -505,14 +391,9 @@ def cmd_memory(args):
     if args.memory_action == "search":
         query = " ".join(args.query)
         results = search_cases(query, domain=getattr(args, 'domain', None), top_k=args.limit)
-        output = {
-            "query": query,
-            "count": len(results),
-            "results": results,
-        }
-        print(json.dumps(output, indent=2, ensure_ascii=False))
-
-    else:  # list
+        print(json.dumps({"query": query, "count": len(results), "results": results},
+                         indent=2, ensure_ascii=False))
+    else:
         results = list_cases(domain=getattr(args, 'domain', None), limit=args.limit)
         if not results:
             print("No past cases found. Run storageops agent after configuring Pi to build memory.")
@@ -532,8 +413,7 @@ def cmd_audit(args):
     from storageops.audit_reader import list_sessions, get_session, compute_stats
 
     if args.audit_action == "stats":
-        stats = compute_stats()
-        print(json.dumps(stats, indent=2, ensure_ascii=False))
+        print(json.dumps(compute_stats(), indent=2, ensure_ascii=False))
         return
 
     if args.audit_action == "show":
@@ -545,51 +425,48 @@ def cmd_audit(args):
             ts = ev.get("ts", "")[:19].replace("T", " ")
             event = ev.get("event", "?")
             extra = ""
-            if event == "llm_call":
-                extra = (f"  turn={ev.get('turn')} in={ev.get('input_tokens')} "
-                         f"out={ev.get('output_tokens')} stop={ev.get('stop_reason')}")
+            if event == "pi_result":
+                extra = (f"  ok={ev.get('ok')} redacted={ev.get('redaction_count')} "
+                         f"valid={ev.get('validation_ok')} events={ev.get('event_count')}")
             elif event == "tool_call":
                 extra = f"  turn={ev.get('turn')} tool={ev.get('tool')} keys={ev.get('input_keys')}"
             elif event == "tool_result":
                 status = "ok" if ev.get("ok") else f"err={ev.get('error')}"
                 extra = f"  turn={ev.get('turn')} tool={ev.get('tool')} {status}"
             elif event in ("session_start", "session_end"):
-                extra = (f"  domain={ev.get('domain')} outcome={ev.get('outcome')} "
-                         f"turns={ev.get('turns_used')}")
-            elif event == "critique_turn":
-                extra = f"  turn={ev.get('turn')} confirmed={ev.get('confirmed')}"
+                extra = f"  domain={ev.get('domain')} runtime={ev.get('runtime')} outcome={ev.get('outcome')}"
             elif event == "memory_save":
                 extra = f"  domain={ev.get('domain')} root_cause={ev.get('root_cause')}"
             print(f"  [{ts}] {event}{extra}")
         return
 
-    # default: list
     sessions = list_sessions(limit=args.limit)
     if not sessions:
-        print("No sessions found in audit log. Run storageops agent after configuring Pi first.")
+        print("No sessions found. Run storageops agent after configuring Pi first.")
         return
     for s in sessions:
         ts = s["ts"]
         sid = s["session_id"]
         domain = s["domain"]
         outcome = s["outcome"]
-        turns = s["turns_used"]
-        tokens = s["input_tokens"] + s["output_tokens"]
+        runtime = s.get("runtime", "pi")
         tools = ", ".join(sorted(set(s["tools"]))) or "-"
-        print(f"  [{ts}] {sid}  {domain:<30} {outcome:<20} turns={turns} tokens={tokens}")
+        print(f"  [{ts}] {sid}  {domain:<30} {outcome:<20} runtime={runtime}")
         if getattr(args, "verbose", False):
-            print(f"    provider={s['provider']}  tools={tools}")
-
+            print(f"    tools={tools}")
 
 
 def _result_has_streamed_output(result) -> bool:
-    """Return whether Pi already streamed report chunks to stdout."""
+    """Return True if Pi already streamed report chunks to stdout."""
     stream_event_types = {"delta", "content_delta", "message_delta", "token", "text"}
     for event in getattr(result, "raw_events", []):
         typ = str(event.get("type") or event.get("event") or "").lower()
-        if typ in stream_event_types and (event.get("text") or event.get("delta") or event.get("content")):
+        if typ in stream_event_types and (
+            event.get("text") or event.get("delta") or event.get("content")
+        ):
             return True
     return False
+
 
 def cmd_agent(args):
     """Run the Pi Coding Agent runtime for offline diagnostics."""
@@ -627,6 +504,8 @@ def cmd_agent(args):
     sys.exit(1)
 
 
+# ── Argument parser ───────────────────────────────────────────────────
+
 def main():
     parser = argparse.ArgumentParser(
         description='StorageOps CLI — object storage diagnostic toolkit',
@@ -641,11 +520,13 @@ def main():
 
     # analyze
     p_analyze = sub.add_parser('analyze', help='Run domain-specific parser + analyzer')
-    p_analyze.add_argument('domain', help='Domain: s3_protocol_compatibility, cli_sdk_behavior, '
-                            'performance_throughput, mount_filesystem_workspace, '
-                            'network_endpoint_access, security_iam_policy, lifecycle_cost')
+    p_analyze.add_argument('domain', help=(
+        'Domain: s3_protocol_compatibility, cli_sdk_behavior, '
+        'performance_throughput, mount_filesystem_workspace, '
+        'network_endpoint_access, security_iam_policy, lifecycle_cost'
+    ))
     p_analyze.add_argument('file', help='Evidence file')
-    p_analyze.add_argument('--subdomain', help='Specific subdomain', default=None)
+    p_analyze.add_argument('--subdomain', default=None, help='Specific subdomain (e.g. throttling)')
     p_analyze.add_argument('--no-redact', action='store_true', help='Skip secret redaction')
     p_analyze.add_argument('--object-size', type=float, help='Object size in MB (for throughput)')
     p_analyze.add_argument('--rtt', type=float, help='RTT in ms (for throughput)')
@@ -659,29 +540,27 @@ def main():
 
     # eval
     p_eval = sub.add_parser('eval', help='Run golden case evaluation')
-    p_eval.add_argument('--cases-dir', default='agents/skills/storageops-eval-golden-cases/cases',
+    p_eval.add_argument('--cases-dir',
+                        default='agents/skills/storageops-eval-golden-cases/cases',
                         help='Golden cases directory')
     p_eval.add_argument('--outputs-dir', default='.', help='Diagnosis outputs directory')
     p_eval.add_argument('--case', help='Single case name')
     p_eval.add_argument('--all', action='store_true', help='Evaluate all cases')
     p_eval.add_argument('--regression', action='store_true',
-                        help='Compare latest two metric snapshots; exit 1 if confidence dropped')
+                        help='Compare latest two snapshots; exit 1 if confidence dropped')
     p_eval.add_argument('--metrics-file', default=None,
-                        help='Path to storageops-eval-metrics.json (default: project root)')
+                        help='Path to storageops-eval-metrics.json')
     p_eval.add_argument('--threshold', type=float, default=0.10,
                         help='Regression threshold (default: 0.10)')
     p_eval.set_defaults(func=cmd_eval)
 
     # agent
-    p_agent = sub.add_parser(
-        'agent',
-        help='Run Pi Coding Agent diagnostic runtime',
-    )
+    p_agent = sub.add_parser('agent', help='Run Pi Coding Agent diagnostic runtime')
     p_agent.add_argument('file', help='Evidence file (log, error, config)')
     p_agent.add_argument('--runtime', choices=['pi'], default='pi',
                          help='Agent runtime (default: pi)')
     p_agent.add_argument('--pi-command', default='pi',
-                         help='Pi executable to run (default: pi)')
+                         help='Pi executable (default: pi)')
     p_agent.add_argument('--pi-model', help='Model name passed through to Pi')
     p_agent.add_argument('--pi-provider', help='Provider name passed through to Pi')
     p_agent.add_argument('--timeout-seconds', type=int, default=600,
@@ -692,18 +571,17 @@ def main():
                          help='Show runtime diagnostics')
     p_agent.add_argument('--stream', action='store_true',
                          help='Stream Pi output chunks to stdout')
-    # Removed StorageOps-owned LLM provider flags. They are accepted only so
-    # users get explicit migration guidance instead of argparse ambiguity.
-    p_agent.add_argument('--llm-provider', dest='llm_provider', nargs='?', const=True, default=None,
-                         help=argparse.SUPPRESS)
-    p_agent.add_argument('--llm-model', dest='llm_model', nargs='?', const=True, default=None,
-                         help=argparse.SUPPRESS)
-    p_agent.add_argument('--llm-base-url', dest='llm_base_url', nargs='?', const=True, default=None,
-                         help=argparse.SUPPRESS)
-    p_agent.add_argument('--llm-api-key', dest='llm_api_key', nargs='?', const=True, default=None,
-                         help=argparse.SUPPRESS)
-    p_agent.add_argument('--llm-key', dest='llm_key', nargs='?', const=True, default=None,
-                         help=argparse.SUPPRESS)
+    # Hidden legacy flags — accepted only to give explicit migration guidance.
+    p_agent.add_argument('--llm-provider', dest='llm_provider', nargs='?', const=True,
+                         default=None, help=argparse.SUPPRESS)
+    p_agent.add_argument('--llm-model', dest='llm_model', nargs='?', const=True,
+                         default=None, help=argparse.SUPPRESS)
+    p_agent.add_argument('--llm-base-url', dest='llm_base_url', nargs='?', const=True,
+                         default=None, help=argparse.SUPPRESS)
+    p_agent.add_argument('--llm-api-key', dest='llm_api_key', nargs='?', const=True,
+                         default=None, help=argparse.SUPPRESS)
+    p_agent.add_argument('--llm-key', dest='llm_key', nargs='?', const=True,
+                         default=None, help=argparse.SUPPRESS)
     p_agent.add_argument('--interactive', '-i', action='store_true', help=argparse.SUPPRESS)
     p_agent.add_argument('--supervisor', action='store_true', help=argparse.SUPPRESS)
     p_agent.set_defaults(func=cmd_agent)
@@ -715,12 +593,12 @@ def main():
     audit_list = audit_sub.add_parser('list', help='List recent agent sessions')
     audit_list.add_argument('--limit', type=int, default=20, help='Max sessions (default 20)')
     audit_list.add_argument('--verbose', '-v', action='store_true',
-                            help='Show provider and tools per session')
+                            help='Show tool usage per session')
 
     audit_show = audit_sub.add_parser('show', help='Show full timeline for one session')
     audit_show.add_argument('session_id', help='Session ID (from audit list output)')
 
-    audit_sub.add_parser('stats', help='Aggregate token usage, tool frequency, success rate')
+    audit_sub.add_parser('stats', help='Aggregate tool frequency and success rate')
 
     p_audit.set_defaults(func=cmd_audit, audit_action='list', limit=20, verbose=False)
 

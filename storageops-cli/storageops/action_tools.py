@@ -127,15 +127,7 @@ def generate_policy_fix(data: dict) -> dict:
     Input: same as analyze_policy() — principal, action, resource, iam_policy, bucket_policy.
     Output: suggested fix statement(s) to add to the relevant policy.
     """
-    import sys
-    from pathlib import Path
-    _CORE = Path(__file__).parent.parent.parent / "storageops-core"
-    for _sub in ("utils", "parsers", "analyzers"):
-        _p = str(_CORE / _sub)
-        if _p not in sys.path:
-            sys.path.insert(0, _p)
-
-    from analyze_policy import analyze  # noqa: E402
+    from analyze_policy import analyze
 
     analysis = analyze(data)
     denial_source = analysis.get("denial_source", "unknown")

@@ -21,15 +21,6 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
-
-# Ensure storageops-core is importable
-_CLI_DIR = Path(__file__).parent.parent
-_CORE_DIR = _CLI_DIR.parent / "storageops-core"
-for _sub in ("utils", "parsers", "analyzers"):
-    _p = str(_CORE_DIR / _sub)
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
 
 def run_mcp_server() -> None:
