@@ -632,7 +632,9 @@ def cmd_agent(args: argparse.Namespace) -> None:
         except Exception:
             pass  # if pre-flight fails, continue to actual agent run
 
+    import time as _time
     from storageops.config import get_pi_command as _get_pi_cmd
+    from storageops.repl import _LiveProgress
 
     verbose = getattr(args, "verbose", False)
     is_streaming = getattr(args, "stream", False)
@@ -641,19 +643,22 @@ def cmd_agent(args: argparse.Namespace) -> None:
     _pi_cmd_arg = getattr(args, "pi_command", None)
     _pi_cmd = _pi_cmd_arg if (_pi_cmd_arg and _pi_cmd_arg != "pi") else _get_pi_cmd()
 
-    # In verbose non-stream mode, print tool calls inline
+    _progress = _LiveProgress(verbose=verbose) if not is_streaming else None
+
     def _event_cb(event: dict) -> None:
-        if not verbose or is_streaming:
-            return
-        tool_name = (
-            event.get("tool_name") or event.get("name")
-            or (event.get("function") or {}).get("name")
-            or (event.get("tool") or {}).get("name")
-        )
-        typ = str(event.get("type") or event.get("event") or "").lower()
-        if tool_name or typ in ("tool_use", "tool_call", "function_call"):
-            sys.stdout.write(f"  {_dim('›')}  {tool_name or typ}\n")
-            sys.stdout.flush()
+        if _progress:
+            _progress.on_event(event)
+        elif verbose:
+            # streaming + verbose: print tool calls inline
+            tool_name = (
+                event.get("tool_name") or event.get("name")
+                or (event.get("function") or {}).get("name")
+                or (event.get("tool") or {}).get("name")
+            )
+            typ = str(event.get("type") or event.get("event") or "").lower()
+            if tool_name or typ in ("tool_use", "tool_call", "function_call"):
+                sys.stderr.write(f"  {_dim('›')}  {tool_name or typ}\n")
+                sys.stderr.flush()
 
     options = AgentRunOptions(
         runtime="pi",
@@ -666,12 +671,22 @@ def cmd_agent(args: argparse.Namespace) -> None:
         verbose=verbose,
         event_callback=_event_cb,
     )
-    result = PiRpcRuntime(options).run(file_arg)
+
+    _t0 = _time.monotonic()
+    if _progress:
+        _progress.__enter__()
+    try:
+        result = PiRpcRuntime(options).run(file_arg)
+    finally:
+        if _progress:
+            _progress.__exit__(None, None, None)
+    _elapsed = _time.monotonic() - _t0
 
     if result.ok:
-        if fmt == "human" and not getattr(args, "stream", False):
+        if fmt == "human" and not is_streaming:
             print()
             print(_hr(70))
+            print(f"  {_dim(f'{_elapsed:.0f}s')}")
             print()
 
         if not getattr(args, "stream", False) or not _result_has_streamed_output(result):
@@ -709,13 +724,12 @@ def cmd_resume(args: argparse.Namespace) -> None:
     from storageops.repl import run_repl
 
     session_id = getattr(args, "session_id", None)
+    show_list  = getattr(args, "list", False)
 
     if session_id:
-        # Resume specific session
         run_repl(resume_session=session_id)
         return
 
-    # No ID given — list recent sessions for selection
     sessions = DiagnosticSession.list_sessions(limit=20)
     if not sessions:
         print()
@@ -724,23 +738,26 @@ def cmd_resume(args: argparse.Namespace) -> None:
         print()
         return
 
+    # Default: resume most recent session immediately — same as `claude --continue`
+    if not show_list:
+        run_repl(resume_session=sessions[0]["session_id"])
+        return
+
+    # --list: show picker
     print()
     print(_bold("Recent sessions"))
     print(_hr(70))
     for i, s in enumerate(sessions, 1):
-        ts    = s["ts"][:16].replace("T", " ")
+        ts     = s["ts"][:16].replace("T", " ")
         domain = (s["domain"] or "unknown").replace("_", " ")
         preview = (s["preview"] or "")[:55].replace("\n", " ")
-        turns = s["turns"]
-        sid   = s["session_id"]
-        # Outcome marker from audit log (best-effort)
-        outcome = s.get("outcome", "")
-        mark = _green("✓") if outcome == "success" else (_red("✗") if outcome == "failed" else _dim("·"))
-        turns_str = f"{turns}t"
-        num = _dim(f"{i}.")
+        turns  = s["turns"]
+        sid    = s["session_id"]
+        has_assistant = s.get("has_assistant", False)
+        mark = _green("✓") if has_assistant else _dim("·")
         print(
-            f"  {num:<4} {mark}  {_bold(sid)}  {_dim(ts)}  {_cyan(domain)}"
-            f"  {_dim(turns_str)}"
+            f"  {_dim(f'{i}.'):<4} {mark}  {_bold(sid)}  {_dim(ts)}  "
+            f"{_cyan(domain)}  {_dim(f'{turns}t')}"
         )
         if preview:
             print(f"            {_dim(preview)}")
@@ -751,7 +768,7 @@ def cmd_resume(args: argparse.Namespace) -> None:
         return
 
     try:
-        choice_raw = input(f"  Resume session [1–{len(sessions)}] (Enter to cancel): ").strip()
+        choice_raw = input(f"  Resume [1–{len(sessions)}] or session ID (Enter to cancel): ").strip()
     except (EOFError, KeyboardInterrupt):
         print()
         return
@@ -766,7 +783,6 @@ def cmd_resume(args: argparse.Namespace) -> None:
         else:
             _err(f"Invalid choice: {choice_raw}")
     except ValueError:
-        # Treat as direct session ID
         run_repl(resume_session=choice_raw)
 
 
@@ -1440,7 +1456,9 @@ def main() -> None:
     # ── resume
     p_resume = sub.add_parser("resume", help="Resume a past diagnostic session")
     p_resume.add_argument("session_id", nargs="?", default=None,
-                          help="Session ID to resume (omit to pick from list)")
+                          help="Session ID to resume (omit to resume most recent)")
+    p_resume.add_argument("--list", action="store_true",
+                          help="Show a list of recent sessions to choose from")
     p_resume.set_defaults(func=cmd_resume)
 
     # ── diagnose (primary name for Pi agent)
