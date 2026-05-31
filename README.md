@@ -61,6 +61,27 @@ That's it. Skills load automatically when the agent starts — no manual configu
 
 ---
 
+## Commands
+
+| Command | Requires Pi | Description |
+|---|---|---|
+| `storageops` | ✓ | Start the interactive REPL |
+| `storageops resume [id]` | ✓ | Resume a previous REPL session by ID, or pick from a list |
+| `storageops diagnose <file>` | ✓ | Full AI diagnosis of a single evidence file |
+| `storageops setup` | — | First-time setup: download Pi, configure API key |
+| `storageops config <action>` | — | View or edit configuration (`list` / `get` / `set`) |
+| `storageops update [--check]` | — | Download latest Pi binary and reinstall skills |
+| `storageops doctor` | — | Check environment health: Pi, API key, skills |
+| `storageops triage <file>` | — | Instant rule-based domain classification (offline) |
+| `storageops analyze <domain> <file>` | — | Domain-specific parser + analyzer pipeline (offline) |
+| `storageops scan <files…>` | — | Triage multiple files and print a summary table |
+| `storageops report <json>` | — | Render a saved analysis JSON as Markdown |
+| `storageops memory <action>` | — | Manage past diagnosed cases (`list` / `search` / `save` / `export` / `import`) |
+| `storageops mcp` | — | Start MCP stdio server (for Claude Desktop and MCP clients) |
+| `storageops serve` | — | Start HTTP API server and web UI |
+
+---
+
 ## Usage
 
 ### Interactive REPL (recommended)
@@ -91,11 +112,11 @@ Describe your problem in plain language, paste log output, or both. Empty line s
 > and the IAM role: @role.json
 ```
 
-**REPL commands:**
+**REPL commands** (type inside the REPL at any time):
 
 | Command | What it does |
 |---|---|
-| `/help` | Print this command list |
+| `/help` | Print the list of REPL commands |
 | `/clear` | Discard the current session and start fresh |
 | `/verbose` | Toggle verbose mode — shows tool calls and pre-flight classification details |
 | `/doctor` | Run environment health check (Pi binary, API key, skills) without leaving the REPL |
@@ -185,6 +206,46 @@ storageops report analysis.json
 # Environment health check
 storageops doctor
 ```
+
+---
+
+## Case memory
+
+StorageOps saves every successful diagnosis to `~/.storageops/memory.jsonl` for future
+BM25 similarity search. Manage the memory store with:
+
+```bash
+storageops memory list                          # list recent cases (most recent first)
+storageops memory list --domain cli_sdk_behavior  # filter by domain
+storageops memory search "ETag mismatch rclone" # BM25 keyword search
+storageops memory export backup.jsonl           # export to file
+storageops memory import backup.jsonl           # import from file
+storageops memory save \
+  --domain performance_throughput \
+  --root-cause hot_prefix_throttling \
+  --summary "429 SlowDown on uploads to /data/ prefix"
+```
+
+---
+
+## Web UI / HTTP API
+
+```bash
+storageops serve
+# Open http://localhost:8080
+```
+
+Options: `--host 127.0.0.1` (default), `--port 8080` (default), `--reload` (dev mode).
+
+The HTTP API accepts the same inputs as the CLI:
+
+| Endpoint | Description |
+|---|---|
+| `POST /triage` | `{"text": "…"}` → domain classification |
+| `POST /analyze` | `{"text": "…", "domain": "…"}` → offline analysis |
+| `GET /memory` | List recent diagnosed cases |
+| `GET /memory/search?q=…` | BM25 search past cases |
+| `GET /health` | `{"status": "ok", "version": "…"}` |
 
 ---
 
