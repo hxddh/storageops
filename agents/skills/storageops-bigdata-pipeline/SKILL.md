@@ -10,6 +10,24 @@ description: >
   problems on S3, and query performance degradation from suboptimal file layouts.
   Use when Spark jobs fail with S3 I/O errors, Hive queries return incomplete
   results, or ETL pipelines exhibit intermittent failures on object storage.
+maturity: beta
+mode: light_heavy
+estimated_tokens: 3000
+trigger_keywords:
+  - Spark S3 error
+  - Hive partition
+  - ETL failed
+  - committer
+  - s3a
+  - FileNotFoundException
+  - MSCK REPAIR
+  - Iceberg
+  - Delta Lake
+recommended_tools:
+  - parse_hadoop_s3a
+  - detect_throttling
+  - scan_secrets
+  - search_memory
 ---
 
 # Big Data Pipeline Diagnosis on Object Storage
@@ -43,6 +61,15 @@ description: >
 - Do not recommend `rm -rf` on S3 paths without explicit backup and dry-run warning.
 - Committer changes can affect job correctness — always test in staging first.
 
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `parse_hadoop_s3a` | When Spark/Hive/S3A log or config is provided | `{"text": "<Spark or Hive log>"}` |
+| `detect_throttling` | When 503/429 SlowDown errors appear in job logs | `{"text": "<job error log>"}` |
+| `scan_secrets` | Before any output, redact fs.s3a.access.key/secret.key | `{"text": "<Spark config or log>"}` |
+| `search_memory` | At start, check for known Spark/S3A committer issues | `{"query": "Spark S3A committer <error>"}` |
+
 ## Required evidence
 
 1. **Job configuration** — Spark/Hive/Flink job config showing S3A filesystem settings.
@@ -75,6 +102,11 @@ yarn logs -applicationId <app-id> | grep -A 20 "Exception"
 Check Spark metrics for: `s3a_bytes_read`, `s3a_bytes_written`, `s3a_operation_duration`, `s3a_requests`.
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Classify the Failure Pattern
 
@@ -225,13 +257,30 @@ Fix:
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: bigdata_pipeline
 subcategory: committer | partition_discovery | small_files | connection_pool | table_format | s3guard
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 root_cause_type: committer_v1_race | committer_cleanup | partition_discovery | small_files | connection_pool | table_format_conflict | s3guard_stale
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 limitations: [<coverage gaps>, ...]
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 Plus:

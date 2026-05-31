@@ -46,6 +46,9 @@ See reference files:
 
 ## Diagnosis workflow
 
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
+
+
 ### Step 1: Validate Golden Case Format
 
 Check that the golden case follows the format in `references/golden-case-format.md`:

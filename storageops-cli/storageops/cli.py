@@ -673,8 +673,174 @@ def cmd_agent(args: argparse.Namespace) -> None:
     sys.exit(1)
 
 
-# cmd_diagnose is an alias for cmd_agent
+# cmd_diagnose is the primary name; cmd_agent kept as a hidden alias
 cmd_diagnose = cmd_agent
+
+
+# ── cmd_resume ────────────────────────────────────────────────────────
+
+def cmd_resume(args: argparse.Namespace) -> None:
+    """Resume a past diagnostic session."""
+    from storageops.session import DiagnosticSession
+    from storageops.repl import run_repl
+
+    session_id = getattr(args, "session_id", None)
+
+    if session_id:
+        # Resume specific session
+        run_repl(resume_session=session_id)
+        return
+
+    # No ID given — list recent sessions for selection
+    sessions = DiagnosticSession.list_sessions(limit=20)
+    if not sessions:
+        print()
+        print("  No past sessions found.")
+        print(_dim("  Start a new session with: storageops"))
+        print()
+        return
+
+    print()
+    print(_bold("Recent sessions"))
+    print(_hr(70))
+    for i, s in enumerate(sessions, 1):
+        ts = s["ts"][:16].replace("T", " ")
+        domain = s["domain"]
+        preview = s["preview"][:50] if s["preview"] else _dim("(no input)")
+        turns_str = f"{s['turns']} turn{'s' if s['turns'] != 1 else ''}"
+        sid = s["session_id"]
+        print(f"  {_dim(str(i) + '.'):<5} {_bold(sid)}  {_dim(ts)}  {_cyan(domain)}")
+        print(f"         {_dim(preview)}  {_dim(turns_str)}")
+        print()
+    print(_hr(70))
+
+    if not _IS_TTY:
+        return
+
+    try:
+        choice_raw = input(f"  Resume session [1–{len(sessions)}] (Enter to cancel): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return
+
+    if not choice_raw:
+        return
+
+    try:
+        idx = int(choice_raw) - 1
+        if 0 <= idx < len(sessions):
+            run_repl(resume_session=sessions[idx]["session_id"])
+        else:
+            _err(f"Invalid choice: {choice_raw}")
+    except ValueError:
+        # Treat as direct session ID
+        run_repl(resume_session=choice_raw)
+
+
+# ── cmd_config ────────────────────────────────────────────────────────
+
+def cmd_config(args: argparse.Namespace) -> None:
+    """View and modify StorageOps configuration."""
+    from storageops import config as cfg_mod
+
+    action = getattr(args, "config_action", "list") or "list"
+
+    if action == "list":
+        data = cfg_mod.load()
+        print()
+        print(_bold("StorageOps config"))
+        print(_hr(50))
+        if not data:
+            print(f"  {_dim('(empty — run: storageops setup)')}")
+        else:
+            for k, v in data.items():
+                v_display = "[REDACTED]" if "key" in k.lower() and v else str(v)
+                print(f"  {_bold(k):<22}  {_dim(v_display)}")
+        cfg_path = Path.home() / ".storageops" / "config.json"
+        print()
+        print(_dim(f"  File: {cfg_path}"))
+        print()
+
+    elif action == "get":
+        key = args.key
+        data = cfg_mod.load()
+        if key not in data:
+            _err(f"Key not found: {key}")
+            sys.exit(1)
+        v = data[key]
+        if "key" in key.lower():
+            print("[REDACTED]")
+        else:
+            print(v)
+
+    elif action == "set":
+        key = args.key
+        value = args.value
+        cfg_mod.update(**{key: value})
+        _ok(f"Set {key} = {value}")
+
+
+# ── cmd_update ────────────────────────────────────────────────────────
+
+def cmd_update(args: argparse.Namespace) -> None:
+    """Update Pi binary and reinstall StorageOps skills."""
+    import shutil
+    from storageops import pi_installer
+
+    check_only = getattr(args, "check", False)
+
+    print()
+    print(_bold("StorageOps Update"))
+    print(_hr(40))
+    print()
+
+    # Pi binary
+    current = pi_installer.pi_bin_path()
+    if current.exists():
+        print(f"  {_dim('Pi binary:')}  {_dim(str(current))}")
+    else:
+        print(f"  {_yellow('!')}  Pi binary not installed — run: storageops setup")
+
+    if not check_only:
+        print(f"  {_dim('Downloading latest Pi...')}", end="", flush=True)
+        try:
+            def _progress(done: int, total: int) -> None:
+                pct = int(done / total * 20)
+                bar = "━" * pct + "╌" * (20 - pct)
+                sys.stdout.write(f"\r  {_dim('Downloading')}  {bar}  {done // 1024}KB")
+                sys.stdout.flush()
+
+            dest = pi_installer.download_pi(progress_cb=_progress)
+            sys.stdout.write("\r\033[K")
+            _ok(f"Pi updated → {_dim(str(dest))}")
+        except RuntimeError as exc:
+            sys.stdout.write("\r\033[K")
+            print(f"  {_yellow('!')}  Pi update skipped: {exc}")
+
+        # Reinstall skills
+        bundled = _find_bundled_skills()
+        if bundled:
+            from storageops.config import get_workdir
+            skills_dst = get_workdir() / "skills"
+            if skills_dst.exists():
+                shutil.rmtree(str(skills_dst))
+            shutil.copytree(str(bundled), str(skills_dst))
+            count = sum(1 for d in skills_dst.iterdir() if d.is_dir())
+            _ok(f"{count} skills updated → {_dim(str(skills_dst))}")
+        else:
+            print(f"  {_dim('·')}  Skills: no bundled skills found, skipping")
+
+    print()
+    if check_only:
+        print("  Run without --check to apply updates.")
+    else:
+        print(f"  {_green('Done.')}  Run {_bold('storageops doctor')} to verify.")
+    print()
+
+
+# ── cmd_scan (batch alias) ────────────────────────────────────────────
+
+cmd_scan = cmd_batch
 
 
 # ── cmd_memory ────────────────────────────────────────────────────────
@@ -1138,134 +1304,174 @@ def cmd_doctor(args: argparse.Namespace) -> None:
 
 # ── Argument parser ───────────────────────────────────────────────────
 
+_HELP_EPILOG = """\
+Examples:
+  storageops                              Start interactive session
+  storageops resume                       Resume a past session
+  storageops @error.log                   Diagnose a log file
+  storageops "getting 403 on S3"          Describe your issue in plain language
+  storageops diagnose error.log           Pi agent deep diagnosis
+  storageops triage error.log             Fast rule-based triage (offline)
+  storageops config list                  Show configuration
+  storageops update                       Update Pi binary and skills
+  storageops doctor                       Health check
+"""
+
+
 def main() -> None:
-    # ── Intercept: no args or first arg looks like a file / natural-language →
-    #    launch the interactive REPL (like `claude` / `amp` with no subcommand).
-    import shlex
     _argv = sys.argv[1:]
     _known_subcmds = {
-        "triage", "analyze", "analyse", "diagnose", "agent", "batch",
+        "triage", "analyze", "analyse", "diagnose", "agent", "scan", "batch",
         "report", "eval", "memory", "audit", "mcp", "serve",
-        "setup", "doctor",
+        "setup", "doctor", "resume", "config", "update",
         "--help", "-h", "--version",
     }
     _first = _argv[0] if _argv else None
 
     if _first is None:
-        # `storageops` with no args → interactive REPL
         from storageops.repl import run_repl
         run_repl()
         return
 
+    # Handle --version early
+    if _first == "--version":
+        try:
+            from importlib.metadata import version as _pkg_ver
+            print(f"storageops {_pkg_ver('storageops')}")
+        except Exception:
+            print("storageops (version unknown)")
+        return
+
     if _first not in _known_subcmds and not _first.startswith("-"):
-        # Treat as a natural-language prompt or @file shorthand
-        # e.g.: storageops "I'm getting 403" @error.log
-        #        storageops @error.log
         from storageops.repl import run_repl
         run_repl(initial_text=" ".join(_argv))
         return
 
     parser = argparse.ArgumentParser(
-        description="StorageOps — S3 diagnostic agent",
+        description="StorageOps — AI-powered S3 diagnostic agent",
         prog="storageops",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Start the interactive agent:\n"
-            "  storageops\n\n"
-            "Or pass a file / description directly:\n"
-            "  storageops @error.log\n"
-            "  storageops 'getting 403 on S3' @rclone.log\n\n"
-            "Subcommands (advanced):\n"
-            "  storageops triage error.log\n"
-            "  storageops analyze cli_sdk_behavior rclone.log\n"
-            "  storageops diagnose error.log\n"
-        ),
+        epilog=_HELP_EPILOG,
     )
-    sub = parser.add_subparsers(dest="command", help="Commands")
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
+    sub = parser.add_subparsers(dest="command")
+
+    # ════════════════════════════════════════════════════
+    # Main commands
+    # ════════════════════════════════════════════════════
+
+    # ── resume
+    p_resume = sub.add_parser("resume", help="Resume a past diagnostic session")
+    p_resume.add_argument("session_id", nargs="?", default=None,
+                          help="Session ID to resume (omit to pick from list)")
+    p_resume.set_defaults(func=cmd_resume)
+
+    # ── diagnose (primary name for Pi agent)
+    def _add_diagnose_args(p: argparse.ArgumentParser) -> None:
+        p.add_argument("file", help="Evidence file (or '-' for stdin)")
+        p.add_argument("--format", choices=["human", "json"], default="human")
+        p.add_argument("--runtime", choices=["pi"], default="pi")
+        p.add_argument("--pi-command", default="pi", help="Pi executable (default: pi)")
+        p.add_argument("--pi-model", help="Model name passed to Pi")
+        p.add_argument("--pi-provider", help="Provider name passed to Pi")
+        p.add_argument("--timeout-seconds", type=int, default=600)
+        p.add_argument("--max-turns", type=int, default=8)
+        p.add_argument("--verbose", "-v", action="store_true")
+        p.add_argument("--stream", action="store_true", help="Stream Pi output")
+        p.add_argument("--exit-code", action="store_true",
+                       help="Exit 1 if severity is high/critical (CI mode)")
+
+    p_diagnose = sub.add_parser("diagnose",
+                                help="Deep AI diagnosis with Pi agent (requires setup)")
+    _add_diagnose_args(p_diagnose)
+    p_diagnose.set_defaults(func=cmd_diagnose)
+
+    # ── config
+    p_config = sub.add_parser("config", help="View and modify configuration")
+    cfg_sub = p_config.add_subparsers(dest="config_action")
+
+    cfg_sub.add_parser("list", help="Show all config keys")
+
+    cfg_get = cfg_sub.add_parser("get", help="Get a config value")
+    cfg_get.add_argument("key", help="Config key")
+
+    cfg_set = cfg_sub.add_parser("set", help="Set a config value")
+    cfg_set.add_argument("key", help="Config key")
+    cfg_set.add_argument("value", help="Config value")
+
+    p_config.set_defaults(func=cmd_config, config_action="list")
+
+    # ── update
+    p_update = sub.add_parser("update", help="Update Pi binary and skills to latest")
+    p_update.add_argument("--check", action="store_true",
+                          help="Check for updates without installing")
+    p_update.set_defaults(func=cmd_update)
+
+    # ── setup
+    p_setup = sub.add_parser("setup", help="One-time setup wizard")
+    p_setup.add_argument("--pi-command", default="pi", metavar="CMD",
+                         help="Pi executable name or path (default: pi)")
+    p_setup.set_defaults(func=cmd_setup)
+
+    # ── doctor
+    p_doctor = sub.add_parser("doctor", help="Check installation health")
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    # ════════════════════════════════════════════════════
+    # Offline commands (no Pi / API key required)
+    # ════════════════════════════════════════════════════
 
     # ── triage
-    p_triage = sub.add_parser("triage", help="Classify evidence and route to specialist skill")
+    p_triage = sub.add_parser("triage", help="Fast rule-based evidence classification (offline)")
     p_triage.add_argument("file", help="Evidence file (or '-' for stdin)")
-    p_triage.add_argument("--format", choices=["human", "json"], default="human",
-                          help="Output format (default: human)")
+    p_triage.add_argument("--format", choices=["human", "json"], default="human")
     p_triage.set_defaults(func=cmd_triage)
 
     # ── analyze
-    p_analyze = sub.add_parser("analyze", help="Run domain-specific parser + analyzer pipeline")
+    p_analyze = sub.add_parser("analyze",
+                               help="Domain-specific parser + analyzer pipeline (offline)")
     p_analyze.add_argument("domain", help=(
-        "Domain: s3_protocol_compatibility, cli_sdk_behavior, performance_throughput, "
+        "One of: s3_protocol_compatibility, cli_sdk_behavior, performance_throughput, "
         "mount_filesystem_workspace, network_endpoint_access, security_iam_policy, "
         "lifecycle_cost, cors_configuration, replication_versioning, bigdata_pipeline"
     ))
     p_analyze.add_argument("file", help="Evidence file (or '-' for stdin)")
-    p_analyze.add_argument("--format", choices=["human", "json"], default="human",
-                           help="Output format (default: human)")
-    p_analyze.add_argument("--subdomain", default=None,
-                           help="Specific subdomain (e.g. throttling)")
-    p_analyze.add_argument("--no-redact", action="store_true",
-                           help="Skip secret redaction (review before sharing)")
+    p_analyze.add_argument("--format", choices=["human", "json"], default="human")
+    p_analyze.add_argument("--subdomain", default=None)
+    p_analyze.add_argument("--no-redact", action="store_true")
     p_analyze.add_argument("--exit-code", action="store_true",
-                           help="Exit 1 if severity is high or critical (CI integration)")
-    p_analyze.add_argument("--object-size", type=float, dest="object_size",
-                           help="Object size in MB (for throughput analysis)")
-    p_analyze.add_argument("--rtt", type=float, help="RTT in ms (for throughput analysis)")
-    p_analyze.add_argument("--bandwidth", type=float, help="Bandwidth in Mbps")
+                           help="Exit 1 if severity is high/critical (CI mode)")
+    p_analyze.add_argument("--object-size", type=float, dest="object_size")
+    p_analyze.add_argument("--rtt", type=float)
+    p_analyze.add_argument("--bandwidth", type=float)
     p_analyze.set_defaults(func=cmd_analyze)
 
-    # ── diagnose / agent (same command, two names)
-    def _add_diagnose_args(p: argparse.ArgumentParser) -> None:
-        p.add_argument("file", help="Evidence file (or '-' for stdin)")
-        p.add_argument("--format", choices=["human", "json"], default="human",
-                       help="Output format (default: human)")
-        p.add_argument("--runtime", choices=["pi"], default="pi", help="Agent runtime")
-        p.add_argument("--pi-command", default="pi", help="Pi executable (default: pi)")
-        p.add_argument("--pi-model", help="Model name passed to Pi")
-        p.add_argument("--pi-provider", help="Provider name passed to Pi")
-        p.add_argument("--timeout-seconds", type=int, default=600,
-                       help="Pi RPC timeout in seconds (default: 600)")
-        p.add_argument("--max-turns", type=int, default=8,
-                       help="Max Pi agent turns (default: 8)")
-        p.add_argument("--verbose", "-v", action="store_true",
-                       help="Show runtime diagnostics")
-        p.add_argument("--stream", action="store_true",
-                       help="Stream Pi output to stdout")
-        p.add_argument("--exit-code", action="store_true",
-                       help="Exit 1 if severity is high/critical (CI mode)")
-
-    p_agent = sub.add_parser("agent", help="Run Pi Coding Agent diagnostic runtime")
-    _add_diagnose_args(p_agent)
-    p_agent.set_defaults(func=cmd_agent)
-
-    p_diagnose = sub.add_parser("diagnose", help="Diagnose evidence with Pi agent (alias: agent)")
-    _add_diagnose_args(p_diagnose)
-    p_diagnose.set_defaults(func=cmd_diagnose)
-
-    # ── batch
-    p_batch = sub.add_parser("batch", help="Triage multiple files at once")
-    p_batch.add_argument("files", nargs="+", help="Evidence files")
-    p_batch.add_argument("--format", choices=["human", "json"], default="human",
-                         help="Output format (default: human)")
-    p_batch.add_argument("--output", help="Save summary report to this markdown file")
-    p_batch.set_defaults(func=cmd_batch)
+    # ── scan (replaces batch)
+    p_scan = sub.add_parser("scan", help="Triage multiple files at once (offline)")
+    p_scan.add_argument("files", nargs="+", help="Evidence files")
+    p_scan.add_argument("--format", choices=["human", "json"], default="human")
+    p_scan.add_argument("--output", help="Save summary report to this markdown file")
+    p_scan.set_defaults(func=cmd_scan)
 
     # ── report
-    p_report = sub.add_parser("report", help="Generate markdown report from analysis JSON")
+    p_report = sub.add_parser("report", help="Render markdown report from analysis JSON")
     p_report.add_argument("file", help="Analysis JSON file")
     p_report.set_defaults(func=cmd_report)
 
-    # ── eval
-    p_eval = sub.add_parser("eval", help="Run golden case evaluation")
-    p_eval.add_argument("--cases-dir",
-                        default="agents/skills/storageops-eval-golden-cases/cases",
-                        help="Golden cases directory")
-    p_eval.add_argument("--outputs-dir", default=".", help="Diagnosis outputs directory")
-    p_eval.add_argument("--case", help="Single case name")
-    p_eval.add_argument("--all", action="store_true", help="Evaluate all cases")
-    p_eval.add_argument("--regression", action="store_true",
-                        help="Compare latest two snapshots; exit 1 on confidence drop")
-    p_eval.add_argument("--metrics-file", default=None)
-    p_eval.add_argument("--threshold", type=float, default=0.10)
-    p_eval.set_defaults(func=cmd_eval)
+    # ════════════════════════════════════════════════════
+    # Integration / platform commands
+    # ════════════════════════════════════════════════════
+
+    # ── mcp
+    p_mcp = sub.add_parser("mcp", help="Start MCP server (for Claude Desktop / MCP clients)")
+    p_mcp.set_defaults(func=cmd_mcp)
+
+    # ── serve
+    p_serve = sub.add_parser("serve", help="Start HTTP API server")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8080)
+    p_serve.add_argument("--reload", action="store_true")
+    p_serve.set_defaults(func=cmd_serve)
 
     # ── memory
     p_memory = sub.add_parser("memory", help="Manage past diagnosed cases")
@@ -1284,73 +1490,89 @@ def main() -> None:
     mem_search.add_argument("--format", choices=["human", "json"], default="human")
 
     mem_save = mem_sub.add_parser("save", help="Manually save a diagnosed case")
-    mem_save.add_argument("--domain", required=True, help="Diagnostic domain")
-    mem_save.add_argument("--root-cause", required=True, dest="root_cause",
-                          help="Root cause identifier (snake_case)")
-    mem_save.add_argument("--summary", required=True, help="Human-readable summary")
-    mem_save.add_argument("--keywords", help="Comma-separated keywords for search")
+    mem_save.add_argument("--domain", required=True)
+    mem_save.add_argument("--root-cause", required=True, dest="root_cause")
+    mem_save.add_argument("--summary", required=True)
+    mem_save.add_argument("--keywords", help="Comma-separated keywords")
 
-    mem_export = mem_sub.add_parser("export", help="Export memory to a JSONL file")
-    mem_export.add_argument("--output", help="Output file (default: storageops-memory-export.jsonl)")
-    mem_export.add_argument("--domain", help="Filter by domain")
+    mem_export = mem_sub.add_parser("export", help="Export memory to JSONL")
+    mem_export.add_argument("--output")
+    mem_export.add_argument("--domain")
 
-    mem_import = mem_sub.add_parser("import", help="Import cases from a JSONL file")
-    mem_import.add_argument("input_file", help="JSONL file to import")
-    mem_import.add_argument("--no-merge", dest="merge", action="store_false",
-                            help="Import all entries including duplicates")
+    mem_import = mem_sub.add_parser("import", help="Import cases from JSONL")
+    mem_import.add_argument("input_file")
+    mem_import.add_argument("--no-merge", dest="merge", action="store_false")
 
     p_memory.set_defaults(func=cmd_memory, memory_action="list",
                           domain=None, limit=20, verbose=False, format="human")
 
-    # ── audit
-    p_audit = sub.add_parser("audit", help="Inspect Pi session audit log")
-    audit_sub = p_audit.add_subparsers(dest="audit_action")
+    # ════════════════════════════════════════════════════
+    # Dev / CI commands (hidden from main help)
+    # ════════════════════════════════════════════════════
 
-    audit_list = audit_sub.add_parser("list", help="List recent sessions")
+    # ── eval
+    p_eval = sub.add_parser("eval", help=argparse.SUPPRESS)
+    p_eval.add_argument("--cases-dir",
+                        default="agents/skills/storageops-eval-golden-cases/cases")
+    p_eval.add_argument("--outputs-dir", default=".")
+    p_eval.add_argument("--case")
+    p_eval.add_argument("--all", action="store_true")
+    p_eval.add_argument("--regression", action="store_true")
+    p_eval.add_argument("--metrics-file", default=None)
+    p_eval.add_argument("--threshold", type=float, default=0.10)
+    p_eval.set_defaults(func=cmd_eval)
+
+    # ── audit
+    p_audit = sub.add_parser("audit", help=argparse.SUPPRESS)
+    audit_sub = p_audit.add_subparsers(dest="audit_action")
+    audit_list = audit_sub.add_parser("list")
     audit_list.add_argument("--limit", type=int, default=20)
     audit_list.add_argument("--verbose", "-v", action="store_true")
     audit_list.add_argument("--format", choices=["human", "json"], default="human")
-
-    audit_show = audit_sub.add_parser("show", help="Show session timeline")
+    audit_show = audit_sub.add_parser("show")
     audit_show.add_argument("session_id")
-
-    audit_sub.add_parser("stats", help="Aggregate stats")
-
+    audit_sub.add_parser("stats")
     p_audit.set_defaults(func=cmd_audit, audit_action="list", limit=20, verbose=False,
                          format="human")
 
-    # ── mcp
-    p_mcp = sub.add_parser("mcp", help="Start MCP server (for Claude Desktop / MCP clients)")
-    p_mcp.set_defaults(func=cmd_mcp)
+    # ── agent (hidden alias for diagnose, kept for backward compat)
+    p_agent = sub.add_parser("agent", help=argparse.SUPPRESS)
+    _add_diagnose_args(p_agent)
+    p_agent.set_defaults(func=cmd_agent)
 
-    # ── serve
-    p_serve = sub.add_parser("serve", help="Start HTTP API server")
-    p_serve.add_argument("--host", default="127.0.0.1")
-    p_serve.add_argument("--port", type=int, default=8080)
-    p_serve.add_argument("--reload", action="store_true")
-    p_serve.set_defaults(func=cmd_serve)
+    # ── batch (hidden alias for scan)
+    p_batch = sub.add_parser("batch", help=argparse.SUPPRESS)
+    p_batch.add_argument("files", nargs="+")
+    p_batch.add_argument("--format", choices=["human", "json"], default="human")
+    p_batch.add_argument("--output")
+    p_batch.set_defaults(func=cmd_batch)
 
-    # ── setup
-    p_setup = sub.add_parser(
-        "setup",
-        help="One-time setup: verify Pi, install skills, write config",
-    )
-    p_setup.add_argument(
-        "--pi-command", default="pi",
-        metavar="CMD",
-        help="Pi executable name or path (default: pi)",
-    )
-    p_setup.set_defaults(func=cmd_setup)
-
-    # ── doctor
-    p_doctor = sub.add_parser("doctor", help="Check installation health")
-    p_doctor.set_defaults(func=cmd_doctor)
+    # ── analyse (British spelling alias)
+    p_analyse = sub.add_parser("analyse", help=argparse.SUPPRESS)
+    p_analyse.add_argument("domain")
+    p_analyse.add_argument("file")
+    p_analyse.add_argument("--format", choices=["human", "json"], default="human")
+    p_analyse.add_argument("--subdomain", default=None)
+    p_analyse.add_argument("--no-redact", action="store_true")
+    p_analyse.add_argument("--exit-code", action="store_true")
+    p_analyse.add_argument("--object-size", type=float, dest="object_size")
+    p_analyse.add_argument("--rtt", type=float)
+    p_analyse.add_argument("--bandwidth", type=float)
+    p_analyse.set_defaults(func=cmd_analyze)
 
     args = parser.parse_args(_argv)
+
+    if getattr(args, "version", False):
+        try:
+            from importlib.metadata import version as _pkg_ver
+            print(f"storageops {_pkg_ver('storageops')}")
+        except Exception:
+            print("storageops (version unknown)")
+        return
+
     if hasattr(args, "func"):
         args.func(args)
     else:
-        # Unknown subcommand or bare --help already handled by argparse
         parser.print_help()
 
 

@@ -9,6 +9,25 @@ description: >
   after-transition penalties, small-object cost amplification, prefix-level
   cost attribution, and inventory-based cost analysis. Use when the user
   questions storage costs, lifecycle rule behavior, or storage class choices.
+maturity: mature
+mode: light_heavy
+estimated_tokens: 2500
+trigger_keywords:
+  - lifecycle
+  - cost
+  - storage class
+  - Standard-IA
+  - Glacier
+  - Archive
+  - Intelligent Tiering
+  - retrieval cost
+  - bill
+recommended_tools:
+  - parse_lifecycle_xml
+  - analyze_cost
+  - generate_lifecycle_fix
+  - scan_secrets
+  - search_memory
 ---
 
 # Lifecycle & Cost Analysis
@@ -41,6 +60,16 @@ description: >
 - **Do NOT recommend deleting lifecycle rules without understanding the cost impact.**
 - All lifecycle configuration changes must be tagged `manual-only`.
 - Cost estimates are ESTIMATES only — always note that actual costs depend on provider billing.
+
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `parse_lifecycle_xml` | When a lifecycle configuration XML is provided | `{"text": "<lifecycle XML>"}` |
+| `analyze_cost` | When object inventory or billing data is available | `{"text": "<inventory or cost data>"}` |
+| `generate_lifecycle_fix` | When a lifecycle misconfiguration is identified | `{"text": "<current lifecycle config>"}` |
+| `scan_secrets` | Before any output, redact AK/SK from billing or config data | `{"text": "<config or inventory content>"}` |
+| `search_memory` | At start, check for known cost patterns for this provider/class | `{"query": "lifecycle cost <provider> <storage class>"}` |
 
 ## How to collect evidence
 
@@ -81,6 +110,11 @@ See reference files:
 - `references/inventory-cost-analysis.md`
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Inventory the Storage
 
@@ -172,14 +206,31 @@ Before finalizing:
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: lifecycle_cost
 subcategory: lifecycle_config | storage_class | intelligent_tiering | request_cost | archive_retrieval | small_object_cost | cost_attribution
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 primary_cost_driver: storage | requests | data_transfer | retrieval | minimum_duration | intelligent_tiering_monitoring
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 estimated_monthly_savings: <CNY | null>  # If data is available, provide a cost-saving estimate
 limitations: [<coverage gaps>, ...]  # Diagnostic limitations
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 Plus:

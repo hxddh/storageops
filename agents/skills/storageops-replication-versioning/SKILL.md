@@ -7,6 +7,24 @@ description: >
   Object Lock / WORM policy conflicts. Use when objects are missing in a
   replication destination, replication metrics show lag, versioned objects behave
   unexpectedly, or Object Lock rejects operations.
+maturity: beta
+mode: light_heavy
+estimated_tokens: 2500
+trigger_keywords:
+  - replication failed
+  - cross-region replication
+  - CRR
+  - SRR
+  - replication lag
+  - versioning
+  - delete marker
+  - Object Lock
+  - WORM
+recommended_tools:
+  - parse_replication_status
+  - analyze_replication
+  - scan_secrets
+  - search_memory
 ---
 
 # Replication & Versioning Diagnosis
@@ -39,6 +57,15 @@ description: >
 - All configuration changes must be labeled `manual-only`.
 - Cross-account replication changes must note that both source and destination policies must be updated.
 
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `parse_replication_status` | When replication status metadata or CloudWatch metrics are available | `{"text": "<replication status output>"}` |
+| `analyze_replication` | After parsing, to classify the replication failure | `{"text": "<parsed replication evidence>"}` |
+| `scan_secrets` | Before any output, redact AK/SK/ARNs from policy documents | `{"text": "<policy or config content>"}` |
+| `search_memory` | At start, check for known CRR/SRR failure patterns | `{"query": "replication CRR failure <provider>"}` |
+
 ## Required evidence
 
 1. **Replication configuration** — Source bucket replication rules (XML or console description).
@@ -55,6 +82,11 @@ See reference files:
 - `references/object-lock.md` — Object Lock modes, WORM, legal hold
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Identify the Subsystem
 
@@ -138,12 +170,29 @@ Classify root cause and provide specific remediation.
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: s3_protocol_compatibility
 subcategory: replication | versioning | object_lock
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 root_cause_type: replication_iam_missing | destination_policy_missing | delete_marker_not_enabled | kms_cross_account | versioning_suspended | object_lock_compliance | object_lock_governance | noncurrent_version_accumulation
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 Plus:

@@ -227,15 +227,31 @@ def _print_result(result) -> None:
 
 # ── Main REPL loop ────────────────────────────────────────────────────
 
-def run_repl(initial_text: str | None = None) -> None:
+def run_repl(initial_text: str | None = None, resume_session: str | None = None) -> None:
     """Start the interactive diagnostic REPL."""
     from storageops.runtime import AgentRunOptions, PiRpcRuntime
 
     _init_readline()
-    if _IS_TTY:
-        print(_BANNER)
 
-    session = DiagnosticSession()
+    if resume_session:
+        session = DiagnosticSession.load(resume_session)
+        if session is None:
+            print(f"  {_red('✗')}  Session not found: {resume_session}")
+            session = DiagnosticSession()
+        else:
+            if _IS_TTY:
+                print(_BANNER)
+            print(f"  {_dim('Resumed session')}  {_bold(session.session_id)}  "
+                  f"{_dim(session.domain or 'unknown domain')}")
+            if session.turns:
+                last = next((t for t in reversed(session.turns) if t.role == "user"), None)
+                if last:
+                    print(f"  {_dim('Last:')}  {last.content[:80]}")
+            print()
+    else:
+        session = DiagnosticSession()
+        if _IS_TTY:
+            print(_BANNER)
 
     def _process(text: str) -> None:
         """Run one diagnostic turn."""
@@ -288,6 +304,10 @@ def run_repl(initial_text: str | None = None) -> None:
 
         session.add_turn("assistant", result.report_markdown or result.error or "")
         _print_result(result)
+        try:
+            session.save()
+        except OSError:
+            pass
 
     # One-shot mode (piped input or direct argument)
     if initial_text:

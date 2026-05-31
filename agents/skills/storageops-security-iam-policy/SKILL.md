@@ -8,6 +8,25 @@ description: >
   risks, public access configuration, and least privilege analysis. Use when
   the user encounters "Access Denied", "403 Forbidden", or needs to understand
   why a specific principal cannot perform a specific action on a resource.
+maturity: core
+mode: light_heavy
+estimated_tokens: 2500
+trigger_keywords:
+  - 403
+  - AccessDenied
+  - Access Denied
+  - Forbidden
+  - permission
+  - IAM
+  - bucket policy
+  - STS
+  - KMS
+  - SSE
+recommended_tools:
+  - scan_secrets
+  - analyze_policy
+  - generate_policy_fix
+  - search_memory
 ---
 
 # Security, IAM Policy, and Permission Diagnosis
@@ -43,6 +62,15 @@ description: >
   - Do NOT recommend using `--no-sign-request` in production.
 - All policy change recommendations must be tagged `manual-only`.
 - Always include a security impact warning with any permission change recommendation.
+
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `scan_secrets` | Before any output, scan all evidence for AK/SK/tokens | `{"text": "<policy document or log>"}` |
+| `analyze_policy` | When an IAM or bucket policy JSON is available | `{"policy": "<policy JSON>"}` |
+| `generate_policy_fix` | When a specific denial is identified and a fix is needed | `{"denial_type": "iam_policy_missing_allow", "action": "s3:GetObject"}` |
+| `search_memory` | At start, check for prior similar access-denied cases | `{"query": "403 AccessDenied <provider> <action>"}` |
 
 ## Required evidence
 
@@ -91,6 +119,11 @@ See reference files:
 - `references/secret-redaction.md`
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Determine the Denial Source
 
@@ -159,15 +192,32 @@ Classify:
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: security_iam_policy
 subcategory: access_denied | bucket_policy | iam_policy | acl | sts_token | kms_sse | public_access | secret_exposure | least_privilege
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 denial_source: iam_policy | bucket_policy | acl | kms | block_public_access | vpc_endpoint | condition_key | sts_expiry
 public_access_risk: none | low | medium | high | confirmed
 secret_exposure_detected: true | false
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 limitations: [<coverage gaps>, ...]
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 Plus:
