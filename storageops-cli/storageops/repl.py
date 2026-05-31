@@ -347,7 +347,7 @@ def _print_status(session: DiagnosticSession) -> None:
 
 # ── Response display ──────────────────────────────────────────────────
 
-def _print_result(result) -> None:
+def _print_result(result, *, elapsed: float | None = None, session_id: str | None = None) -> None:
     """Display a Pi diagnostic result (AgentRunResult)."""
     if not result.ok:
         print()
@@ -398,6 +398,16 @@ def _print_result(result) -> None:
     body = re.sub(r'^---\n.*?\n---\n?', '', report, flags=re.DOTALL).strip()
     print(body)
     print()
+
+    # Footer: timing + session ID (like Pi/Ampcode's response footer)
+    footer_parts: list[str] = []
+    if elapsed is not None:
+        footer_parts.append(f"{elapsed:.0f}s")
+    if session_id:
+        footer_parts.append(f"session {session_id}")
+    if footer_parts and _IS_TTY:
+        print(_dim("  " + "  ·  ".join(footer_parts)))
+        print()
 
 
 # ── Main REPL loop ────────────────────────────────────────────────────
@@ -451,10 +461,14 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         conf   = detections[0]["confidence"] if detections else 0.0
         session.domain = domain
 
+        user_turns = [t for t in session.turns if t.role == "user"]
+        turn_n = len(user_turns)
+
         if _IS_TTY:
+            turn_hint = f"  {_dim('·')}  Turn {turn_n}" if turn_n > 1 else ""
             print(
                 f"  {_dim('Domain:')}  {_bold(domain.replace('_', ' '))}  "
-                f"{_dim(f'({conf:.0%})')}"
+                f"{_dim(f'({conf:.0%})')}{turn_hint}"
             )
 
         if not session.has_log_content(session.accumulated_evidence) and not initial_text:
@@ -470,10 +484,11 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             tmp_path = tmp.name
 
         progress = _LiveProgress(verbose=session.verbose)
+        t_start = time.monotonic()
 
         options = AgentRunOptions(
             runtime="pi",
-            stream=_IS_TTY and not session.verbose,  # verbose shows events; stream for non-verbose
+            stream=False,  # REPL never streams: spinner/event display handles progress
             max_turns=10,
             timeout_seconds=600,
             verbose=session.verbose,
@@ -490,8 +505,9 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             except OSError:
                 pass
 
+        elapsed = time.monotonic() - t_start
         session.add_turn("assistant", result.report_markdown or result.error or "")
-        _print_result(result)
+        _print_result(result, elapsed=elapsed, session_id=session.session_id)
         try:
             session.save()
         except OSError:

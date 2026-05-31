@@ -632,15 +632,39 @@ def cmd_agent(args: argparse.Namespace) -> None:
         except Exception:
             pass  # if pre-flight fails, continue to actual agent run
 
+    from storageops.config import get_pi_command as _get_pi_cmd
+
+    verbose = getattr(args, "verbose", False)
+    is_streaming = getattr(args, "stream", False)
+
+    # Prefer explicit --pi-command; fall back to configured/bundled binary
+    _pi_cmd_arg = getattr(args, "pi_command", None)
+    _pi_cmd = _pi_cmd_arg if (_pi_cmd_arg and _pi_cmd_arg != "pi") else _get_pi_cmd()
+
+    # In verbose non-stream mode, print tool calls inline
+    def _event_cb(event: dict) -> None:
+        if not verbose or is_streaming:
+            return
+        tool_name = (
+            event.get("tool_name") or event.get("name")
+            or (event.get("function") or {}).get("name")
+            or (event.get("tool") or {}).get("name")
+        )
+        typ = str(event.get("type") or event.get("event") or "").lower()
+        if tool_name or typ in ("tool_use", "tool_call", "function_call"):
+            sys.stdout.write(f"  {_dim('›')}  {tool_name or typ}\n")
+            sys.stdout.flush()
+
     options = AgentRunOptions(
         runtime="pi",
-        stream=getattr(args, "stream", False),
+        stream=is_streaming,
         max_turns=getattr(args, "max_turns", 8),
         timeout_seconds=getattr(args, "timeout_seconds", 600),
-        pi_command=getattr(args, "pi_command", "pi"),
+        pi_command=_pi_cmd,
         pi_model=getattr(args, "pi_model", None),
         pi_provider=getattr(args, "pi_provider", None),
-        verbose=getattr(args, "verbose", False),
+        verbose=verbose,
+        event_callback=_event_cb,
     )
     result = PiRpcRuntime(options).run(file_arg)
 
@@ -704,14 +728,23 @@ def cmd_resume(args: argparse.Namespace) -> None:
     print(_bold("Recent sessions"))
     print(_hr(70))
     for i, s in enumerate(sessions, 1):
-        ts = s["ts"][:16].replace("T", " ")
-        domain = s["domain"]
-        preview = s["preview"][:50] if s["preview"] else _dim("(no input)")
-        turns_str = f"{s['turns']} turn{'s' if s['turns'] != 1 else ''}"
-        sid = s["session_id"]
-        print(f"  {_dim(str(i) + '.'):<5} {_bold(sid)}  {_dim(ts)}  {_cyan(domain)}")
-        print(f"         {_dim(preview)}  {_dim(turns_str)}")
-        print()
+        ts    = s["ts"][:16].replace("T", " ")
+        domain = (s["domain"] or "unknown").replace("_", " ")
+        preview = (s["preview"] or "")[:55].replace("\n", " ")
+        turns = s["turns"]
+        sid   = s["session_id"]
+        # Outcome marker from audit log (best-effort)
+        outcome = s.get("outcome", "")
+        mark = _green("✓") if outcome == "success" else (_red("✗") if outcome == "failed" else _dim("·"))
+        turns_str = f"{turns}t"
+        num = _dim(f"{i}.")
+        print(
+            f"  {num:<4} {mark}  {_bold(sid)}  {_dim(ts)}  {_cyan(domain)}"
+            f"  {_dim(turns_str)}"
+        )
+        if preview:
+            print(f"            {_dim(preview)}")
+    print()
     print(_hr(70))
 
     if not _IS_TTY:
@@ -805,9 +838,13 @@ def cmd_update(args: argparse.Namespace) -> None:
         print(f"  {_dim('Downloading latest Pi...')}", end="", flush=True)
         try:
             def _progress(done: int, total: int) -> None:
-                pct = int(done / total * 20)
-                bar = "━" * pct + "╌" * (20 - pct)
-                sys.stdout.write(f"\r  {_dim('Downloading')}  {bar}  {done // 1024}KB")
+                kb = done // 1024
+                if total:
+                    pct = int(done / total * 24)
+                    bar = "━" * pct + "╌" * (24 - pct)
+                    sys.stdout.write(f"\r  {_dim('Downloading')}  {bar}  {kb} KB")
+                else:
+                    sys.stdout.write(f"\r  {_dim('Downloading')}  {kb} KB")
                 sys.stdout.flush()
 
             dest = pi_installer.download_pi(progress_cb=_progress)
