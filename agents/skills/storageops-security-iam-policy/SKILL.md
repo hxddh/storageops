@@ -167,7 +167,7 @@ denial_source: iam_policy | bucket_policy | acl | kms | block_public_access | vp
 public_access_risk: none | low | medium | high | confirmed
 secret_exposure_detected: true | false
 evidence_quality: sufficient | partial | insufficient
-limitations: [<盲区>, ...]  # 新
+limitations: [<coverage gaps>, ...]
 ```
 
 Plus:
@@ -178,7 +178,7 @@ Plus:
 - **Recommendations** — Policy changes (manual-only) with security warnings
 - **Risk Notes** — Impact of proposed changes
 - **Next-Step Checklist**
-- **Limitations Notes** — 诊断的已知局限和数据盲区声明
+- **Limitations Notes** — Declaration of known diagnostic limitations and blind spots
 
 ## Safe validation commands
 
@@ -226,21 +226,21 @@ Before finalizing security diagnosis:
 7. **Not considering KMS key policy for SSE-KMS** — Access to KMS key is a separate permission.
 8. **Reading credential files for diagnosis** — Never `cat`/`read`/`grep` credential files. Use `source scripts/credential-loader.sh <profile>` or equivalent environment variable injection. Credential file content must never enter conversation context.
 
-## Degradation Diagnosis (边缘降级规范)
+## Degradation Diagnosis (Degradation handling)
 
-### 无完整 Policy 文档
-- 不要仅返回 `evidence_quality: insufficient`
-- 基于错误模式推断最可能的拒绝原因:
-  - 403 + `SignatureDoesNotMatch` → 可能只是签名问题, 先路由到 protocol-compatibility
-  - 403 仅特定 Object → 可能是 Object ACL 或 KMS key policy, 不是 Bucket policy
-  - 403 全部操作 → 可能是 IAM policy explicit deny 或 Block Public Access
-- 给出来自错误响应的线索 (request ID, error code, condition key hints)
+### No complete policy document
+- Do not simply return `evidence_quality: insufficient`
+- Infer the most likely denial reason from the error pattern:
+  - 403 + `SignatureDoesNotMatch` → may just be a signature issue; route to protocol-compatibility first
+  - 403 on a specific object only → may be Object ACL or KMS key policy, not Bucket policy
+  - 403 on all operations → may be IAM policy explicit deny or Block Public Access
+- Surface clues from the error response (request ID, error code, condition key hints)
 
-### 仅 error message 无 policy JSON
-- 从错误响应 XML/JSON 中提取: Error Code, Message, RequestId, HostId
-- 根据 Error Code 缩小范围: AccessDenied / AllAccessDisabled / InvalidAccessKeyId
-- 给出"需要获取 policy 文档才能精确诊断"的具体命令 (manual-only)
+### Only error message, no policy JSON
+- Extract from error response XML/JSON: Error Code, Message, RequestId, HostId
+- Narrow down by Error Code: AccessDenied / AllAccessDisabled / InvalidAccessKeyId
+- Provide specific commands (manual-only) to obtain the policy document for precise diagnosis
 
-### 跨账号场景无双方 Policy
-- 明确标注: "跨账号访问同时需要 Account A 的 Bucket Policy ALLOW + Account B 的 IAM Policy ALLOW"
-- 若只有一方 policy, 诊断置信度自动降到 0.5 以下
+### Cross-account scenario without both sides' policies
+- Clearly note: "Cross-account access requires BOTH Account A's Bucket Policy ALLOW AND Account B's IAM Policy ALLOW"
+- If only one side's policy is available, diagnostic confidence automatically drops below 0.5
