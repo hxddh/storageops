@@ -1,0 +1,25 @@
+{
+  "expected_category": "network_endpoint_access",
+  "expected_subcategory": "tls",
+  "expected_min_confidence": 0.85,
+  "expected_severity": "critical",
+  "expected_root_cause_types": ["tls_handshake"],
+  "must_include_evidence_keywords": [
+    "certificate",
+    "expired",
+    "notAfter",
+    "Dec 10 2024"
+  ],
+  "must_include_recommendation_keywords": [
+    "renew",
+    "certificate"
+  ],
+  "must_not_include": [
+    "no-verify-ssl",
+    "--insecure",
+    "delete bucket"
+  ],
+  "required_report_sections": [
+    "summary", "symptoms", "conclusion", "evidence", "recommendations"
+  ]
+}

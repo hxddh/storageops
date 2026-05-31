@@ -69,6 +69,13 @@ This section should be understandable by both technical and non-technical reader
 | Factors decreasing confidence | [List factors limiting certainty] |
 | Additional evidence needed | [What would increase confidence] |
 
+### 诊断局限与数据盲区 (Limitations & Blind Spots)
+
+[声明此诊断存在的已知局限和数据盲区。必须如实标注，不可为提升置信度而隐瞒。]
+- [局限 1: 例如 "未包含 CloudTrail 审计日志, 可能存在未被日志记录的 API 操作"]
+- [局限 2: 例如 "仅基于采样时段, 未反映日间/周间流量波动"]
+- [盲区 1: 例如 "从未被读取的冷数据不在此分析范围, 实际可降本空间可能更大"]
+
 ---
 
 ## 关键证据 (Key Evidence)
@@ -161,6 +168,12 @@ marked `manual-only`.
 ### 参考文献
 - [Provider documentation URLs]
 - [Related issues or previous reports]
+
+### 量化影响评估 (Quantified Impact)
+
+[如果适用，包含量化的影响评估。]\n- **影响范围:** [受影响的 object 数 / bucket 数 / 用户数]
+- **时间恢复预估:** [预估修复时间]
+- **成本影响 (估算):** [预估月/年财务影响, 注明假设价格]
 
 ### 脱敏声明 (Redaction Statement)
 All secrets, credentials, tokens, and Authorization headers in this report

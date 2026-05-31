@@ -1,0 +1,27 @@
+{
+  "expected_category": "replication_versioning",
+  "expected_subcategory": "delete_marker",
+  "expected_min_confidence": 0.80,
+  "expected_severity": "high",
+  "expected_root_cause_types": ["delete_marker_propagation"],
+  "must_include_evidence_keywords": [
+    "delete marker",
+    "version",
+    "VersionId",
+    "IsLatest",
+    "v2"
+  ],
+  "must_include_recommendation_keywords": [
+    "delete the delete marker",
+    "version-id",
+    "list-object-versions"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "delete all versions",
+    "permanently lost"
+  ],
+  "required_report_sections": [
+    "summary", "symptoms", "conclusion", "evidence", "recommendations"
+  ]
+}

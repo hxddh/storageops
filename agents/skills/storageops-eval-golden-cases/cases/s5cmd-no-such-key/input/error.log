@@ -1,0 +1,10 @@
+Error: NoSuchKey: The specified key does not exist.
+  Request: s5cmd cp s3://my-bucket/data/2024/sales.csv ./local/
+  Bucket: my-bucket
+  Key: data/2024/sales.csv
+  Endpoint: https://s3.cn-north-1.myhuaweicloud.com
+
+Debug output:
+2024/11/15 16:30:01 ERROR "cp s3://my-bucket/data/2024/sales.csv ./local/": NoSuchKey: The specified key does not exist. status code: 404
+2024/11/15 16:30:01 DEBUG Request URL: https://s3.cn-north-1.myhuaweicloud.com/my-bucket?prefix=data/2024/sales.csv
+2024/11/15 16:30:01 DEBUG The prefix query parameter was incorrectly appended by the endpoint URL construction.

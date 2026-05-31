@@ -1,0 +1,27 @@
+{
+  "expected_category": "performance_throughput",
+  "expected_subcategory": "prefix_hotspot",
+  "expected_min_confidence": 0.70,
+  "expected_severity": "high",
+  "expected_root_cause_types": ["configuration", "server_throttling"],
+  "must_include_evidence_keywords": [
+    "prefix",
+    "hot-data",
+    "429",
+    "SlowDown",
+    "concentrated"
+  ],
+  "must_include_recommendation_keywords": [
+    "distribute",
+    "hash",
+    "prefix"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "increase concurrency"
+  ],
+  "required_report_sections": [
+    "summary", "symptoms", "conclusion", "evidence", "recommendations"
+  ]
+}

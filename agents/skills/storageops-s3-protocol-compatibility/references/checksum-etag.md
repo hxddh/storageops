@@ -64,3 +64,48 @@ These errors typically indicate:
 3. Does the ETag format match expectations (hex-encoded MD5, or MD5-MD5-...-N)?
 4. Compare Content-MD5 in request vs actual file MD5.
 5. Check for proxy or middleware that may transform content.
+
+## Provider-Specific ETag Behavior
+
+### BOS
+- **Single PUT:** Returns MD5 of object content (32 hex, no suffix). ✅ Compatible
+- **Multipart:** Returns MD5 of concatenated part MD5s + `-N` suffix. ⚠️ May differ from AWS in edge cases (e.g., part boundaries)
+- **Server-side copy:** May internally use multipart → ETag changes from single-PUT format to multipart format (`-N` suffix) → triggers rclone `corrupted on transfer`
+- **Fix:** rclone `--s3-use-multipart-etag=false` or use native `bcebos` backend
+
+### OSS
+- **Single PUT:** Returns MD5 of object content. ✅ Compatible
+- **Multipart:** ❗ ETag is MD5 of **concatenated part ETags** (NOT MD5s), differs from AWS S3 which uses MD5 of concatenated part MD5s
+- **CRC64:** Supports `x-oss-hash-crc64ecma` as alternative integrity check
+- **Fix:** rclone native `alibaba` backend handles this; s5cmd/awscli may fail
+
+### COS
+- **Single PUT:** Returns MD5 of object content wrapped in quotes. ✅ Compatible
+- **Multipart:** ❗ ETag is MD5 of **first part MD5 + last part MD5** (not all parts!), fundamentally different from AWS S3
+- Every non-native tool will fail multipart ETag verification against COS
+- **Fix:** `--ignore-checksum` or use native `coscmd`/rclone `tencentcos` backend
+
+### MinIO
+- **Single PUT:** MD5 hash (32 hex) or SHA-256 depending on server config. Generally AWS-compatible
+- **Multipart:** MD5 of concatenated part MD5s + `-N` suffix. ✅ AWS-compatible
+- **Most compatible** non-AWS provider for ETag semantics
+
+## ETag Mismatch Decision Tree
+
+```
+ETag mismatch detected
+  ├── Source ETag is 32 hex (single PUT), Destination ETag is 32 hex + -N (multipart)?
+  │   └── Server-side copy used multipart internally. Not a corruption.
+  │       Fix: --ignore-checksum or disable_checksum for this copy
+  │
+  ├── Both are multipart ETags (-N suffix) but values differ?
+  │   ├── Check: is provider COS? → first+last MD5 algorithm
+  │   ├── Check: is provider OSS? → ETag-of-ETags algorithm
+  │   └── Otherwise → possible actual corruption / different part boundaries
+  │
+  ├── Source and destination sizes differ?
+  │   └── Truncated upload or incomplete multipart. NOT an ETag issue.
+  │
+  └── SSE involved?
+      └── ETag is NOT the file MD5. Cannot verify integrity by comparing to file MD5.
+```

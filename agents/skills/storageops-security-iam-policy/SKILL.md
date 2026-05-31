@@ -46,6 +46,35 @@ description: >
 
 ## Required evidence
 
+## How to collect evidence
+
+### Error response with request ID
+```bash
+# From awscli: capture the full 403 XML response
+# From debug log: grep "<?xml\|<Error\|<Code\|<Message" debug.log
+```
+### IAM/Bucket policy (redacted)
+```bash
+# manual-only: aws iam get-policy-version --policy-arn <arn> --version-id <vid>
+# manual-only: aws s3api get-bucket-policy --bucket <bucket>
+# WARNING: Redact account IDs and ARNs before sharing
+```
+### Principal identity
+```bash
+aws sts get-caller-identity  # Current identity
+# Check if using STS: echo $AWS_SESSION_TOKEN | wc -c (non-zero = STS)
+```
+### Action verification
+```bash
+# Test specific action with dry-run
+# manual-only: aws s3api head-object --bucket <bucket> --key <key> 2>&1
+```
+### Secret scanning
+```bash
+# Use scripts/credential-loader.sh for safe credential injection
+# Never: cat ~/.aws/credentials | ...
+
+
 1. **Error details** — Full 403 response (XML/JSON body, request ID).
 2. **Principal identity** — IAM user ARN, role ARN, or account ID.
 3. **Resource ARN** — Bucket ARN, object ARN.
@@ -138,6 +167,7 @@ denial_source: iam_policy | bucket_policy | acl | kms | block_public_access | vp
 public_access_risk: none | low | medium | high | confirmed
 secret_exposure_detected: true | false
 evidence_quality: sufficient | partial | insufficient
+limitations: [<盲区>, ...]  # 新
 ```
 
 Plus:
@@ -148,6 +178,7 @@ Plus:
 - **Recommendations** — Policy changes (manual-only) with security warnings
 - **Risk Notes** — Impact of proposed changes
 - **Next-Step Checklist**
+- **Limitations Notes** — 诊断的已知局限和数据盲区声明
 
 ## Safe validation commands
 
@@ -165,6 +196,25 @@ Plus:
 # manual-only: aws s3api head-object --bucket <bucket> --key <key>
 ```
 
+## Provider-Specific Considerations
+
+Permission models differ by provider:
+- **AWS S3:** IAM + Bucket Policy + ACL + KMS Key Policy + Block Public Access + VPC Endpoint Policy + SCP.
+  Evaluation: Explicit Deny > SCP > IAM Allow > Bucket Policy Allow > ACL Allow.
+- **BOS:** Uses BOS-specific IAM. Bucket policy syntax similar but may differ in condition keys. `x-bce-*` headers.
+- **OSS:** RAM (Resource Access Management) + Bucket Policy. ACL model similar to AWS. OSS-specific condition keys.
+- **COS:** CAM (Cloud Access Management) + Bucket Policy. COS-specific ACL and condition keys.
+
+KMS/SSE is provider-specific. AWS KMS key policies don't apply to BOS/OSS/COS.
+
+## Cross-Domain Verification
+
+Before finalizing security diagnosis:
+- 403 with SignatureDoesNotMatch → verify not a protocol issue first (storageops-s3-protocol-compatibility)
+- Access denied on specific operation → verify the endpoint/region is correct (storageops-cli-sdk-diagnosis)
+- KMS access denied → verify KMS key policy both source and destination sides
+- Public access concern → check bucket ACL AND bucket policy AND Block Public Access settings
+
 ## Common mistakes to avoid
 
 1. **Assuming an Allow overrides a Deny** — Deny always wins in AWS IAM evaluation.
@@ -174,3 +224,23 @@ Plus:
 5. **Recommending `"Principal": "*"` or `"Action": "s3:*"`** — This often violates least privilege and creates security risk.
 6. **Outputting unredacted policy documents** — IAM user ARNs may contain account IDs.
 7. **Not considering KMS key policy for SSE-KMS** — Access to KMS key is a separate permission.
+8. **Reading credential files for diagnosis** — Never `cat`/`read`/`grep` credential files. Use `source scripts/credential-loader.sh <profile>` or equivalent environment variable injection. Credential file content must never enter conversation context.
+
+## Degradation Diagnosis (边缘降级规范)
+
+### 无完整 Policy 文档
+- 不要仅返回 `evidence_quality: insufficient`
+- 基于错误模式推断最可能的拒绝原因:
+  - 403 + `SignatureDoesNotMatch` → 可能只是签名问题, 先路由到 protocol-compatibility
+  - 403 仅特定 Object → 可能是 Object ACL 或 KMS key policy, 不是 Bucket policy
+  - 403 全部操作 → 可能是 IAM policy explicit deny 或 Block Public Access
+- 给出来自错误响应的线索 (request ID, error code, condition key hints)
+
+### 仅 error message 无 policy JSON
+- 从错误响应 XML/JSON 中提取: Error Code, Message, RequestId, HostId
+- 根据 Error Code 缩小范围: AccessDenied / AllAccessDisabled / InvalidAccessKeyId
+- 给出"需要获取 policy 文档才能精确诊断"的具体命令 (manual-only)
+
+### 跨账号场景无双方 Policy
+- 明确标注: "跨账号访问同时需要 Account A 的 Bucket Policy ALLOW + Account B 的 IAM Policy ALLOW"
+- 若只有一方 policy, 诊断置信度自动降到 0.5 以下

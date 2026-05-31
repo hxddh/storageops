@@ -149,6 +149,31 @@ This taxonomy is the routing table for the triage Skill.
 
 **Primary route:** `storageops-lifecycle-cost`
 
+### data_consistency
+**Symptom patterns:**
+- Object missing from replica bucket
+- Replication status FAILED on objects
+- Stale/outdated object versions on replica
+- Cross-region replication lag exceeding SLA
+- Event notification delayed or not delivered
+- Read-after-write returns old data
+- Version count mismatch between source and replica
+- Bi-directional replication overwrite loops
+- Delete Marker not propagated to replica
+
+**Primary route:** `storageops-data-consistency`
+
+### migration_sync
+**Symptom patterns:**
+- Need to copy data between providers (BOS→OSS, AWS→MinIO, etc.)
+- Cross-region data transfer planning
+- Sync job incomplete or producing errors
+- Migration cost and time estimation
+- Post-migration validation needed
+- Server-side copy fails between providers
+
+**Primary route:** `storageops-migration-sync`
+
 ### unknown_insufficient_evidence
 **Triggered when:**
 - No error message, log, or concrete symptom provided

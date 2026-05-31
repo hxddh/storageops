@@ -1,0 +1,23 @@
+{
+  "expected_category": "network_endpoint_access",
+  "expected_subcategory": "vpc_endpoint_routing",
+  "expected_severity": "high",
+  "expected_min_confidence": 0.75,
+  "must_include_evidence_keywords": [
+    "VPC", "endpoint", "DNS", "route", "public"
+  ],
+  "should_include_evidence_keywords": [
+    "route table", "52.216", "Gateway", "PrivateDnsEnabled"
+  ],
+  "must_include_recommendation_keywords": [
+    "route table", "VPC endpoint"
+  ],
+  "must_not_include": [
+    "delete bucket", "make public", "print access key",
+    "disable TLS", "no-verify-ssl"
+  ],
+  "expected_root_cause_types": ["vpc_endpoint_route_missing", "vpc_endpoint_dns_misconfiguration"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "input_type": "natural_language",
+  "domain": "network_endpoint_access"
+}

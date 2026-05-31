@@ -1,0 +1,12 @@
+$ aws s3 ls --debug 2>&1 | head -20
+
+2025-01-15T10:30:00Z - MainThread - botocore.credentials - DEBUG - Looking for credentials via: env
+2025-01-15T10:30:00Z - MainThread - botocore.credentials - DEBUG - Found credentials in environment variables.
+2025-01-15T10:30:00Z - MainThread - botocore.credentials - DEBUG - Credentials: AccessKeyId=AKIAIOSFODNN7EXAMPLE, SecretAccessKey=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+2025-01-15T10:30:01Z - MainThread - botocore.endpoint - DEBUG - Making request for OperationModel(name=ListBuckets)
+2025-01-15T10:30:01Z - MainThread - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest>
+2025-01-15T10:30:01Z - MainThread - botocore.endpoint - DEBUG - Response: 403 AccessDenied
+2025-01-15T10:30:01Z - MainThread - botocore.endpoint - DEBUG - Response headers: {'x-amz-request-id': 'ABC123', 'content-type': 'application/xml'}
+2025-01-15T10:30:01Z - MainThread - botocore.endpoint - DEBUG - Response body: <?xml version="1.0"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>
+
+An error occurred (AccessDenied) when calling the ListBuckets operation: Access Denied

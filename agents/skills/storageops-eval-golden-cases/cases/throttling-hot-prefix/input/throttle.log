@@ -1,0 +1,14 @@
+2024/12/10 14:32:01 INFO : Starting sync prod:bucket/ to backup:bucket/
+2024/12/10 14:32:02 INFO : hot-data/report-00001.parquet: Copied (new)
+2024/12/10 14:32:03 INFO : hot-data/report-00002.parquet: Copied (new)
+2024/12/10 14:32:04 ERROR : hot-data/report-00003.parquet: HTTP 429 SlowDown: Please reduce your request rate.
+2024/12/10 14:32:04 ERROR : hot-data/report-00004.parquet: HTTP 429 SlowDown: Please reduce your request rate.
+2024/12/10 14:32:05 INFO : cold-archive/data-00001.parquet: Copied (new)
+2024/12/10 14:32:06 ERROR : hot-data/report-00005.parquet: HTTP 429 SlowDown: Please reduce your request rate.
+2024/12/10 14:32:06 ERROR : hot-data/report-00006.parquet: HTTP 429 SlowDown: Please reduce your request rate.
+2024/12/10 14:32:07 ERROR : hot-data/report-00007.parquet: HTTP 503 SlowDown: Reduce request rate.
+
+Error distribution by prefix:
+  /hot-data/: 89% of errors, 78% of requests, all 429/503
+  /cold-archive/: 3% of errors, 12% of requests, mostly 200
+  /metadata/: 8% of errors, 10% of requests, mixed 200/429

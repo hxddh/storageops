@@ -1,0 +1,30 @@
+User: "I accidentally deleted important objects from my bucket yesterday. When I try to
+download them, I get NoSuchKey. Are they permanently lost?"
+
+$ aws s3api head-object --bucket my-bucket --key important-data.csv
+An error occurred (404) when calling the HeadObject operation: Not Found
+
+$ aws s3api list-object-versions --bucket my-bucket --prefix important-data.csv
+{
+    "Versions": [
+        {
+            "Key": "important-data.csv",
+            "VersionId": "v2",
+            "IsLatest": true,
+            "LastModified": "2024-12-12T10:00:00.000Z",
+            "Size": 1048576
+        }
+    ],
+    "DeleteMarkers": [
+        {
+            "Key": "important-data.csv",
+            "VersionId": "v3",
+            "IsLatest": true,
+            "LastModified": "2024-12-12T14:00:00.000Z"
+        }
+    ]
+}
+
+Note: The response shows both a previous version (v2) and a delete marker (v3).
+The delete marker is the latest, so GetObject returns 404.
+The data still exists in version v2.

@@ -1,0 +1,15 @@
+User: "My Lambda function keeps getting 403 AccessDenied when reading from bucket 'my-app-data'. I added this bucket policy:
+
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::my-app-data/*"
+        }
+    ]
+}
+
+But it still doesn't work. What am I doing wrong? Should I also disable Block Public Access?"

@@ -63,7 +63,11 @@ agents/skills/
 ├── storageops-network-endpoint-access/ # Network, DNS, endpoint routing
 ├── storageops-security-iam-policy/     # 403, IAM, bucket policy, KMS, secrets
 ├── storageops-lifecycle-cost/          # Lifecycle, storage class, cost analysis
+├── storageops-data-consistency/        # Replication, versioning, event notification
 ├── storageops-evidence-reporting/      # Unified report templates
+├── storageops-replication-versioning/  # CRR/SRR, versioning, Object Lock
+├── storageops-migration-sync/         # Cross-provider migration & sync
+├── storageops-data-consistency/        # Data consistency & event notification
 └── storageops-eval-golden-cases/       # Regression evaluation framework
 ```
 
@@ -79,6 +83,9 @@ agents/skills/
 | `storageops-network-endpoint-access` | Endpoint unreachable, DNS issues, TLS errors | Network path and connectivity |
 | `storageops-security-iam-policy` | 403 errors, policy questions | Permission and security diagnosis |
 | `storageops-lifecycle-cost` | Storage cost questions, lifecycle config | Lifecycle and cost optimization |
+| `storageops-replication-versioning` | Replication errors, version conflicts, Object Lock | CRR/SRR, versioning, WORM compliance |
+| `storageops-migration-sync` | Cross-provider migration & sync planning | Data migration, sync, transfer |
+| `storageops-data-consistency` | Replication lag, stale data, event notification | Data consistency & integrity |
 | `storageops-evidence-reporting` | Report generation | Produce structured diagnostic reports |
 | `storageops-eval-golden-cases` | Evaluate diagnostic quality | Regression testing and quality gates |
 

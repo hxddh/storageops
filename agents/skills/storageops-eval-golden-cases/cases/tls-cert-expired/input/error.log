@@ -1,0 +1,13 @@
+$ curl -v https://s3.internal.example.com 2>&1
+* Trying 10.0.1.50:443...
+* Connected to s3.internal.example.com (10.0.1.50) port 443
+* SSL certificate problem: certificate has expired
+* Closing connection
+curl: (60) SSL certificate problem: certificate has expired
+
+$ openssl s_client -connect s3.internal.example.com:443 2>&1 | openssl x509 -noout -dates
+notBefore=Dec 10 00:00:00 2023 GMT
+notAfter=Dec 10 00:00:00 2024 GMT
+
+$ date -u
+Fri Dec 13 14:30:00 UTC 2024
