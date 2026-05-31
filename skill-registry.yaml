@@ -1,8 +1,9 @@
 # StorageOps Skill Registry v0.1
 
-# This file declares all available skills so coding agents can discover,
-# auto-select, and load them. Each entry maps a skill to its trigger
-# conditions and the domains it covers.
+# Metadata and validation inventory for StorageOps skills. Pi Coding Agent
+# discovers runtime skills from ./agents/skills; this registry is retained for
+# documentation, eval inventory, safety checklist, and consistency checks. Each
+# entry maps a skill to trigger conditions and diagnostic domains.
 
 version: "0.1"
 

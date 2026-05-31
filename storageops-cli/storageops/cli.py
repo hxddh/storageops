@@ -515,7 +515,7 @@ def cmd_memory(args):
     else:  # list
         results = list_cases(domain=getattr(args, 'domain', None), limit=args.limit)
         if not results:
-            print("No past cases found. Run storageops agent with --llm-provider to build memory.")
+            print("No past cases found. Run storageops agent after configuring Pi to build memory.")
             return
         for entry in results:
             ts = entry.get("ts", "")[:19].replace("T", " ")
@@ -566,7 +566,7 @@ def cmd_audit(args):
     # default: list
     sessions = list_sessions(limit=args.limit)
     if not sessions:
-        print("No sessions found in audit log. Run storageops agent with --llm-provider first.")
+        print("No sessions found in audit log. Run storageops agent after configuring Pi first.")
         return
     for s in sessions:
         ts = s["ts"]
@@ -582,29 +582,38 @@ def cmd_audit(args):
 
 
 def cmd_agent(args):
-    """Run the diagnostic agent (rule-based or LLM-powered)."""
-    from storageops.agent import agent_run
+    """Run the Pi Coding Agent runtime for offline diagnostics."""
+    from storageops.runtime import AgentRunOptions, PiRpcRuntime
+    from storageops.runtime.pi_rpc import _MIGRATION_ERROR
 
-    # Warn if --no-redact is combined with LLM provider
-    if getattr(args, 'no_redact', False):
-        print(
-            "WARNING: --no-redact is active. Output may contain raw credentials. "
-            "Do not share or store this output without manual review.",
-            file=sys.stderr,
-        )
+    old_flags = (
+        "llm_provider", "llm_model", "llm_base_url", "llm_api_key", "llm_key",
+        "supervisor", "interactive",
+    )
+    if any(getattr(args, flag, None) for flag in old_flags):
+        print(_MIGRATION_ERROR, file=sys.stderr)
+        sys.exit(2)
 
-    sys.exit(agent_run(
-        initial_file=args.file,
-        interactive=getattr(args, 'interactive', False),
-        llm_provider=getattr(args, 'llm_provider', None),
-        llm_model=getattr(args, 'llm_model', None),
-        llm_key=getattr(args, 'llm_key', None),
-        llm_base_url=getattr(args, 'llm_base_url', None),
-        max_turns=getattr(args, 'max_turns', 8),
-        verbose=getattr(args, 'verbose', False),
+    if getattr(args, 'runtime', 'pi') != 'pi':
+        print("Only the Pi Coding Agent runtime is supported. Use --runtime pi.", file=sys.stderr)
+        sys.exit(2)
+
+    options = AgentRunOptions(
+        runtime='pi',
         stream=getattr(args, 'stream', False),
-        supervisor=getattr(args, 'supervisor', False),
-    ))
+        max_turns=getattr(args, 'max_turns', 8),
+        timeout_seconds=getattr(args, 'timeout_seconds', 600),
+        pi_command=getattr(args, 'pi_command', 'pi'),
+        pi_model=getattr(args, 'pi_model', None),
+        pi_provider=getattr(args, 'pi_provider', None),
+        verbose=getattr(args, 'verbose', False),
+    )
+    result = PiRpcRuntime(options).run(args.file)
+    if result.ok:
+        print(result.report_markdown)
+        sys.exit(0)
+    print(result.error or "Pi runtime failed", file=sys.stderr)
+    sys.exit(1)
 
 
 def main():
@@ -655,36 +664,37 @@ def main():
     # agent
     p_agent = sub.add_parser(
         'agent',
-        help='Run LLM diagnostic agent (provider auto-detected from env var)',
+        help='Run Pi Coding Agent diagnostic runtime',
     )
-    p_agent.add_argument('file', nargs='?', help='Evidence file (log, error, config)')
-    p_agent.add_argument('--interactive', '-i', action='store_true',
-                         help='Follow-up REPL after initial diagnosis')
-    p_agent.add_argument(
-        '--llm-provider',
-        choices=[
-            'anthropic', 'openai', 'deepseek', 'moonshot', 'qwen',
-            'zhipu', 'groq', 'ollama', 'openai-compatible',
-        ],
-        default=None,
-        help=(
-            'LLM provider (default: auto-detected from env var). '
-            'anthropic=ANTHROPIC_API_KEY, openai=OPENAI_API_KEY, '
-            'deepseek=DEEPSEEK_API_KEY, moonshot=MOONSHOT_API_KEY, '
-            'qwen=DASHSCOPE_API_KEY, zhipu=ZHIPU_API_KEY, groq=GROQ_API_KEY'
-        ),
-    )
-    p_agent.add_argument('--llm-model', help='Model name override')
-    p_agent.add_argument('--llm-key', help='API key (prefer env var)')
-    p_agent.add_argument('--llm-base-url', help='Base URL (for ollama / openai-compatible)')
+    p_agent.add_argument('file', help='Evidence file (log, error, config)')
+    p_agent.add_argument('--runtime', choices=['pi'], default='pi',
+                         help='Agent runtime (default: pi)')
+    p_agent.add_argument('--pi-command', default='pi',
+                         help='Pi executable to run (default: pi)')
+    p_agent.add_argument('--pi-model', help='Model name passed through to Pi')
+    p_agent.add_argument('--pi-provider', help='Provider name passed through to Pi')
+    p_agent.add_argument('--timeout-seconds', type=int, default=600,
+                         help='Pi RPC timeout in seconds (default: 600)')
     p_agent.add_argument('--max-turns', type=int, default=8,
-                         help='Max agent turns (default: 8)')
+                         help='Max Pi agent turns (default: 8)')
     p_agent.add_argument('--verbose', '-v', action='store_true',
-                         help='Show tool calls and turn progress')
+                         help='Show runtime diagnostics')
     p_agent.add_argument('--stream', action='store_true',
-                         help='Stream LLM output to stdout')
-    p_agent.add_argument('--supervisor', action='store_true',
-                         help='Multi-agent mode: triage → route → specialists')
+                         help='Stream Pi output chunks to stdout')
+    # Removed StorageOps-owned LLM provider flags. They are accepted only so
+    # users get explicit migration guidance instead of argparse ambiguity.
+    p_agent.add_argument('--llm-provider', dest='llm_provider', nargs='?', const=True, default=None,
+                         help=argparse.SUPPRESS)
+    p_agent.add_argument('--llm-model', dest='llm_model', nargs='?', const=True, default=None,
+                         help=argparse.SUPPRESS)
+    p_agent.add_argument('--llm-base-url', dest='llm_base_url', nargs='?', const=True, default=None,
+                         help=argparse.SUPPRESS)
+    p_agent.add_argument('--llm-api-key', dest='llm_api_key', nargs='?', const=True, default=None,
+                         help=argparse.SUPPRESS)
+    p_agent.add_argument('--llm-key', dest='llm_key', nargs='?', const=True, default=None,
+                         help=argparse.SUPPRESS)
+    p_agent.add_argument('--interactive', '-i', action='store_true', help=argparse.SUPPRESS)
+    p_agent.add_argument('--supervisor', action='store_true', help=argparse.SUPPRESS)
     p_agent.set_defaults(func=cmd_agent)
 
     # audit

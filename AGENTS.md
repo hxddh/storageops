@@ -71,6 +71,18 @@ agents/skills/
 └── storageops-eval-golden-cases/       # Evaluation and regression
 ```
 
+## Agent Runtime Architecture
+
+StorageOps Agent Runtime is Pi Coding Agent. Pi owns the agent loop, interactive reasoning,
+tool orchestration, streaming events, LLM provider configuration, model selection, skill
+loading, and runtime skill selection. StorageOps does not manage LLM providers, API keys,
+base URLs, provider headers, model registries, or native ReAct/supervisor loops.
+
+`storageops-core` remains the deterministic offline diagnostic engine and must stay
+independent of Pi, LLM providers, model APIs, and real cloud credentials. Non-agent CLI
+commands (`triage`, `analyze`, `report`, `eval`, `audit`, `serve`, `mcp`, and `memory`)
+continue to work without Pi.
+
 ## storageops-core Development Principles (future)
 
 When development continues to storageops-core:
