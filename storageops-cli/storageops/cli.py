@@ -581,6 +581,16 @@ def cmd_audit(args):
             print(f"    provider={s['provider']}  tools={tools}")
 
 
+
+def _result_has_streamed_output(result) -> bool:
+    """Return whether Pi already streamed report chunks to stdout."""
+    stream_event_types = {"delta", "content_delta", "message_delta", "token", "text"}
+    for event in getattr(result, "raw_events", []):
+        typ = str(event.get("type") or event.get("event") or "").lower()
+        if typ in stream_event_types and (event.get("text") or event.get("delta") or event.get("content")):
+            return True
+    return False
+
 def cmd_agent(args):
     """Run the Pi Coding Agent runtime for offline diagnostics."""
     from storageops.runtime import AgentRunOptions, PiRpcRuntime
@@ -610,7 +620,8 @@ def cmd_agent(args):
     )
     result = PiRpcRuntime(options).run(args.file)
     if result.ok:
-        print(result.report_markdown)
+        if not getattr(args, 'stream', False) or not _result_has_streamed_output(result):
+            print(result.report_markdown)
         sys.exit(0)
     print(result.error or "Pi runtime failed", file=sys.stderr)
     sys.exit(1)

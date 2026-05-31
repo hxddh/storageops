@@ -50,14 +50,18 @@ The operation was denied.
 """
 
 
-def _fake_pi(tmp_path: Path, body: str, sleep: float = 0) -> Path:
+def _fake_pi(tmp_path: Path, body: str, sleep: float = 0, deltas: list[str] | None = None) -> Path:
     script = tmp_path / "fake-pi.py"
+    delta_lines = ""
+    for delta in deltas or []:
+        delta_lines += f"print(json.dumps({{'type':'delta','text':{delta!r}}}), flush=True)\n"
     script.write_text(
         "#!/usr/bin/env python3\n"
         "import json, sys, time\n"
         "req=json.loads(sys.stdin.readline())\n"
         f"time.sleep({sleep!r})\n"
         "print(json.dumps({'type':'request_seen','prompt':req.get('prompt','')}), flush=True)\n"
+        f"{delta_lines}"
         f"print(json.dumps({{'type':'final_report','markdown':{body!r}}}), flush=True)\n",
         encoding="utf-8",
     )
@@ -181,3 +185,73 @@ def test_old_llm_flags_fail_with_migration_guidance(tmp_path: Path):
     )
     assert proc.returncode == 2
     assert "StorageOps no longer manages LLM providers" in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "aws s3api delete-bucket --bucket prod",
+        "aws s3api delete-object --bucket prod --key important.txt",
+        "delete-bucket --bucket prod",
+        "delete-object --bucket prod --key important.txt",
+        "aws s3 rm s3://prod/important.txt",
+        "rm s3://prod/important.txt",
+        "rm --recursive s3://prod/prefix/",
+        "s3cmd del s3://prod/important.txt",
+        "s5cmd rm s3://prod/important.txt",
+        "mc rm alias/prod/important.txt",
+        "rclone purge s3:prod/prefix",
+    ],
+)
+def test_destructive_s3_delete_commands_require_manual_only(command: str):
+    text = VALID_REPORT.replace(
+        "## Remediation\n\n- Adjust policy only after human review; any mutation is manual-only.",
+        f"## Remediation\n\n- `{command}`",
+    )
+
+    result = validate_agent_report(text)
+
+    assert not result["valid"]
+    assert any("manual-only" in err for err in result["errors"])
+
+
+def test_destructive_s3_delete_commands_allowed_when_manual_only():
+    text = VALID_REPORT.replace(
+        "## Remediation\n\n- Adjust policy only after human review; any mutation is manual-only.",
+        "## Remediation\n\n- manual-only: `aws s3api delete-bucket --bucket prod`",
+    )
+
+    result = validate_agent_report(text)
+
+    assert result["valid"]
+
+
+def test_cli_stream_does_not_print_reconstructed_report_twice(tmp_path: Path):
+    evidence = tmp_path / "input.log"
+    evidence.write_text("AccessDenied\n")
+    midpoint = len(VALID_REPORT) // 2
+    fake_pi = _fake_pi(tmp_path, VALID_REPORT, deltas=[VALID_REPORT[:midpoint], VALID_REPORT[midpoint:]])
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "storageops.cli",
+            "agent",
+            str(evidence),
+            "--runtime",
+            "pi",
+            "--pi-command",
+            str(fake_pi),
+            "--stream",
+        ],
+        cwd=Path(__file__).resolve().parents[2],
+        text=True,
+        capture_output=True,
+        timeout=10,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])},
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout == VALID_REPORT
+    assert proc.stdout.count("## Key Evidence") == 1
