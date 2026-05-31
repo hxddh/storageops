@@ -38,24 +38,21 @@ jobs:
       - name: Validation (5 real-world cases)
         run: python tests/validation/run_validation.py
 
-      - name: Agent — rclone corrupted transfer
-        run: |
-          storageops agent agents/skills/storageops-eval-golden-cases/cases/rclone-corrupted-transfer/input/rclone-debug.log
-
-      - name: Agent — secrets in log (redaction test)
-        run: |
-          storageops agent tests/validation/inputs/secrets-in-log.log
-
       - name: Triage — classifies SignatureDoesNotMatch correctly
         run: |
           result=$(storageops triage agents/skills/storageops-eval-golden-cases/cases/signature-clock-skew/input/error-response.xml)
           echo "$result" | python -c "import sys,json; d=json.load(sys.stdin); assert d['primary_domain'] == 's3_protocol_compatibility', f'Expected s3_protocol_compatibility, got {d[\"primary_domain\"]}'"
           echo "✓ Triage correctly classified s3_protocol_compatibility"
 
-      - name: Eval — rclone-corrupted-transfer golden case
+      - name: Agent help — works without Pi
         run: |
-          storageops agent agents/skills/storageops-eval-golden-cases/cases/rclone-corrupted-transfer/input/rclone-debug.log > /tmp/rclone-corrupted-transfer.md 2>/dev/null || true
+          storageops agent --help
+
+      - name: Pi smoke test — rclone-corrupted-transfer (opt-in only)
+        if: env.RUN_REAL_PI_SMOKE == '1'
+        run: |
+          storageops agent agents/skills/storageops-eval-golden-cases/cases/rclone-corrupted-transfer/input/rclone-debug.log > /tmp/rclone-corrupted-transfer.md
           storageops eval \
             --cases-dir agents/skills/storageops-eval-golden-cases/cases \
             --outputs-dir /tmp \
-            --case rclone-corrupted-transfer || echo "Eval score noted (not blocking)"
+            --case rclone-corrupted-transfer

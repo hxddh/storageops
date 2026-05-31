@@ -33,7 +33,7 @@ Install and configure Pi Coding Agent separately. Pi is required only for `stora
 
 ## Pi Configuration
 
-The repository includes `.pi/settings.json` configured to load StorageOps skills from `./agents/skills` and enable skill commands. The path is relative to the repository root because Pi is started by StorageOps with the repository root as its working directory.
+The repository includes `.pi/settings.json` configured to load StorageOps skills and enable skill commands. Paths in `.pi/settings.json` are relative to the `.pi` directory, so `../agents/skills` resolves to `agents/skills` at the repository root.
 
 Configure providers and models in Pi, not StorageOps. You may pass Pi selection hints through the CLI:
 

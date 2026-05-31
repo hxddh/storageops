@@ -1,6 +1,4 @@
 {
-  "skills": {
-    "paths": ["./agents/skills"],
-    "commands_enabled": true
-  }
+  "skills": ["../agents/skills"],
+  "enableSkillCommands": true
 }
