@@ -24,3 +24,6 @@ credentials
 *.swp
 *.swo
 *~
+
+# Claude Code session metadata
+.claude/
