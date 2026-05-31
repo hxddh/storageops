@@ -348,6 +348,53 @@ TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
+        "name": "parse_cors_error",
+        "description": (
+            "Parse CORS error responses and preflight failures. "
+            "Use when evidence contains 'NoSuchCORSConfiguration', 'CORSForbidden', "
+            "'Access-Control-Allow-Origin missing', or OPTIONS preflight 403. "
+            "Extracts: missing CORS headers, blocked origins/methods, bucket name. "
+            "Call AFTER scan_secrets; then call analyze_cors to generate a fix configuration."
+        ),
+        "input_schema": {"type": "object", "properties": {"log_text": {"type": "string"}}, "required": ["log_text"]},
+    },
+    {
+        "name": "analyze_cors",
+        "description": (
+            "Generate a CORS configuration XML that fixes detected issues. "
+            "Call AFTER parse_cors_error. Outputs ready-to-apply S3 CORS config XML. "
+            "Output must be reviewed and applied manually — label as '# manual-only:'."
+        ),
+        "input_schema": {"type": "object", "properties": {"cors_data": {"type": "object", "description": "Output from parse_cors_error"}}},
+    },
+    {
+        "name": "parse_replication_status",
+        "description": (
+            "Parse CRR/SRR replication status data. "
+            "Use when evidence shows ReplicationStatus: FAILED/PENDING, or replication lag. "
+            "Extracts: per-object status, rule failures, failure rate."
+        ),
+        "input_schema": {"type": "object", "properties": {"log_text": {"type": "string"}}, "required": ["log_text"]},
+    },
+    {
+        "name": "analyze_replication",
+        "description": (
+            "Diagnose why replication is failing. "
+            "Call AFTER parse_replication_status. Returns likely cause (IAM/KMS/destination) "
+            "and verification commands."
+        ),
+        "input_schema": {"type": "object", "properties": {"replication_data": {"type": "object", "description": "Output from parse_replication_status"}}},
+    },
+    {
+        "name": "parse_hadoop_s3a",
+        "description": (
+            "Parse Hadoop/Spark/Hive S3A filesystem errors. "
+            "Use when evidence contains 'S3AFileSystem', 's3a://', staging/magic committer errors, "
+            "or HADOOP- issue references. Extracts: committer type, rename failures, credential issues."
+        ),
+        "input_schema": {"type": "object", "properties": {"log_text": {"type": "string"}}, "required": ["log_text"]},
+    },
+    {
         "name": "analyze_throughput",
         "description": (
             "Analyze upload/download throughput against theoretical limits given RTT and bandwidth. "
@@ -464,6 +511,26 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
         elif name == "analyze_throughput":
             from analyze_throughput import analyze  # noqa: E402
             return analyze(inputs)
+
+        elif name == "parse_cors_error":
+            from parse_cors_error import parse
+            return parse(inputs["log_text"])
+
+        elif name == "analyze_cors":
+            from analyze_cors import analyze
+            return analyze(inputs.get("cors_data", inputs))
+
+        elif name == "parse_replication_status":
+            from parse_replication_status import parse
+            return parse(inputs["log_text"])
+
+        elif name == "analyze_replication":
+            from analyze_replication import analyze
+            return analyze(inputs.get("replication_data", inputs))
+
+        elif name == "parse_hadoop_s3a":
+            from parse_hadoop_s3a import parse
+            return parse(inputs["log_text"])
 
         else:
             return {"error": f"Unknown tool: {name!r}"}

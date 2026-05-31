@@ -19,6 +19,18 @@ from signatures import auto_detect
 # ── Evidence Requirements per Domain ──────────────────────────────────
 
 EVIDENCE_CHECKLIST = {
+    'cors_configuration': {
+        'required': ['Error message (NoSuchCORSConfiguration, CORSForbidden, etc.)', 'Origin header value', 'HTTP method'],
+        'helpful': ['Full preflight request/response headers', 'Bucket name'],
+    },
+    'replication_versioning': {
+        'required': ['ReplicationStatus per object or rule', 'Source and destination bucket names'],
+        'helpful': ['IAM policy for replication role', 'KMS key ARN if encryption is used', 'aws s3api get-bucket-replication output'],
+    },
+    'bigdata_pipeline': {
+        'required': ['Full stack trace or error log', 'Hadoop/Spark version', 'Committer type (staging or magic)'],
+        'helpful': ['spark.hadoop.fs.s3a.committer.name config', 'IAM policy for EMR/Spark role', '_temporary/ path that failed'],
+    },
     's3_protocol_compatibility': {
         'required': [
             'Error code or message (SignatureDoesNotMatch, InvalidPart, etc.)',
@@ -198,7 +210,23 @@ def run_analysis(domain: str, text: str) -> dict:
 
     result: dict = {}
     try:
-        if domain == 's3_protocol_compatibility':
+        if domain == 'cors_configuration':
+            from parse_cors_error import parse as parse_cors
+            from analyze_cors import analyze as analyze_cors
+            parsed = parse_cors(text)
+            result = analyze_cors(parsed)
+
+        elif domain == 'replication_versioning':
+            from parse_replication_status import parse as parse_replication
+            from analyze_replication import analyze as analyze_replication
+            parsed = parse_replication(text)
+            result = analyze_replication(parsed)
+
+        elif domain == 'bigdata_pipeline':
+            from parse_hadoop_s3a import parse as parse_hadoop
+            result = parse_hadoop(text)
+
+        elif domain == 's3_protocol_compatibility':
             from parse_sigv4_error import parse_xml_error, diagnose as diagnose_sigv4
             if '<Code>' in text:
                 result = diagnose_sigv4(parse_xml_error(text))
@@ -261,6 +289,7 @@ def run_analysis(domain: str, text: str) -> dict:
                     "Use storageops-network-endpoint-access Skill for detailed guidance.",
                 ],
             }
+
     except Exception as exc:
         result = {"error": str(exc), "note": "Analysis failed. More evidence may be needed."}
 
@@ -346,6 +375,9 @@ def _extract_recommendations(analysis: dict, domain: str) -> str:
 def _default_rec(domain: str) -> str:
     defaults = {
         's3_protocol_compatibility': '- Check clock sync (NTP) and region configuration.',
+        'cors_configuration': '- Add or update CORS configuration on the bucket. Check allowed origins.',
+        'replication_versioning': '- Ensure versioning is enabled and the replication IAM role has required permissions.',
+        'bigdata_pipeline': '- Check S3A credentials, endpoint config, and committer type for the job engine.',
         'cli_sdk_behavior': '- Check tool version and configuration. Try a different tool to compare.',
         'performance_throughput': '- Tune concurrency and part size. Check for throttling (429).',
         'mount_filesystem_workspace': '- Use local SSD for hot workspace. Use object storage for persistence only.',

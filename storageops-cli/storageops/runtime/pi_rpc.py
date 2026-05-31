@@ -279,6 +279,21 @@ class PiRpcRuntime:
                     raw_events=events,
                     error="Report validation failed: " + "; ".join(validation["errors"]),
                 )
+            if report:
+                try:
+                    fm_cat = re.search(r"^category:\s*(\S+)", report, re.MULTILINE)
+                    fm_rc = re.search(r"^root_cause_type:\s*(\S+)", report, re.MULTILINE)
+                    if fm_cat and fm_rc:
+                        from storageops.memory_store import save_case
+                        save_case(
+                            session_id,
+                            fm_cat.group(1),
+                            fm_rc.group(1),
+                            report[:400],
+                            keywords=[],
+                        )
+                except Exception:
+                    pass
             return AgentRunResult(True, self.runtime_name, report_markdown=report, raw_events=events)
         finally:
             if proc.poll() is None:

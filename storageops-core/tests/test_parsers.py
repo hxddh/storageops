@@ -144,3 +144,137 @@ class TestParseS5cmdLog:
         log = 'ERROR "cp s3://b/k ./f": NoSuchKey: The specified key does not exist.'
         result = parse(log)
         assert isinstance(result, dict)
+
+
+# ── parse_cors_error ──────────────────────────────────────────────────
+
+class TestParseCorsError:
+    def test_returns_dict(self):
+        from parse_cors_error import parse
+        result = parse("NoSuchCORSConfiguration")
+        assert isinstance(result, dict)
+
+    def test_no_cors_config_detected(self):
+        from parse_cors_error import parse
+        result = parse("<Code>NoSuchCORSConfiguration</Code>")
+        assert "cors_errors" in result
+        assert "no_cors_config" in result
+        assert "preflight_failed" in result
+        assert "missing_headers" in result
+        assert "summary" in result
+        assert result["no_cors_config"] is True
+        assert result["summary"]["needs_cors_config"] is True
+
+    def test_preflight_failure_detected(self):
+        from parse_cors_error import parse
+        result = parse("OPTIONS request returned 403 preflight failed")
+        assert result["preflight_failed"] is True
+        assert result["summary"]["error_count"] >= 1
+
+    def test_cors_forbidden_detected(self):
+        from parse_cors_error import parse
+        result = parse("CORSForbidden: Origin not allowed")
+        assert any(e["type"] == "CORSForbidden" for e in result["cors_errors"])
+
+    def test_empty_input(self):
+        from parse_cors_error import parse
+        result = parse("")
+        assert isinstance(result, dict)
+        assert "cors_errors" in result
+        assert result["summary"]["error_count"] == 0
+
+    def test_origin_extracted(self):
+        from parse_cors_error import parse
+        result = parse("Origin: https://example.com\nCORSForbidden: not allowed")
+        assert result["summary"]["error_count"] >= 1
+
+
+# ── parse_replication_status ──────────────────────────────────────────
+
+class TestParseReplicationStatus:
+    def test_returns_dict(self):
+        from parse_replication_status import parse
+        result = parse("ReplicationStatus: FAILED")
+        assert isinstance(result, dict)
+
+    def test_expected_keys_present(self):
+        from parse_replication_status import parse
+        result = parse("ReplicationStatus: FAILED")
+        assert "objects" in result
+        assert "rules" in result
+        assert "status_counts" in result
+        assert "has_failures" in result
+        assert "failure_reasons" in result
+        assert "summary" in result
+
+    def test_failed_status_detected(self):
+        from parse_replication_status import parse
+        text = '"Key": "data/obj.parquet"\n"ReplicationStatus": "FAILED"'
+        result = parse(text)
+        assert result["has_failures"] is True
+        assert result["status_counts"]["FAILED"] >= 1
+
+    def test_completed_status(self):
+        from parse_replication_status import parse
+        text = '"Key": "data/obj.parquet"\n"ReplicationStatus": "COMPLETED"'
+        result = parse(text)
+        assert result["status_counts"]["COMPLETED"] >= 1
+
+    def test_empty_input(self):
+        from parse_replication_status import parse
+        result = parse("")
+        assert isinstance(result, dict)
+        assert result["summary"]["total_objects"] == 0
+
+
+# ── parse_hadoop_s3a ──────────────────────────────────────────────────
+
+class TestParseHadoopS3a:
+    def test_returns_dict(self):
+        from parse_hadoop_s3a import parse
+        result = parse("S3AFileSystem: error")
+        assert isinstance(result, dict)
+
+    def test_expected_keys_present(self):
+        from parse_hadoop_s3a import parse
+        result = parse("S3AFileSystem: error")
+        assert "errors" in result
+        assert "committer_type" in result
+        assert "has_rename_error" in result
+        assert "has_credential_error" in result
+        assert "spark_version" in result
+        assert "hadoop_version" in result
+        assert "affected_paths" in result
+        assert "summary" in result
+
+    def test_rename_failure_detected(self):
+        from parse_hadoop_s3a import parse
+        result = parse("HADOOP-13345 Cannot rename s3a://bucket/src to s3a://bucket/dst")
+        assert result["has_rename_error"] is True
+        assert result["summary"]["error_count"] >= 1
+
+    def test_magic_committer_detected(self):
+        from parse_hadoop_s3a import parse
+        result = parse("spark.hadoop.fs.s3a.committer.name=magic MagicS3GuardCommitter")
+        assert result["committer_type"] == "magic"
+
+    def test_staging_committer_detected(self):
+        from parse_hadoop_s3a import parse
+        result = parse("Using StagingCommitter for output path s3a://bucket/output")
+        assert result["committer_type"] == "staging"
+
+    def test_credential_error_detected(self):
+        from parse_hadoop_s3a import parse
+        result = parse("ExpiredToken: The provided token has expired")
+        assert result["has_credential_error"] is True
+
+    def test_spark_version_extracted(self):
+        from parse_hadoop_s3a import parse
+        result = parse("Spark/3.4.1 S3AFileSystem error")
+        assert result["spark_version"] == "3.4.1"
+
+    def test_empty_input(self):
+        from parse_hadoop_s3a import parse
+        result = parse("")
+        assert isinstance(result, dict)
+        assert result["summary"]["error_count"] == 0
