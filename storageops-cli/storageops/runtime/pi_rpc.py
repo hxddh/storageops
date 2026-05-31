@@ -13,12 +13,44 @@ from pathlib import Path
 from typing import Any
 
 from storageops.audit_logger import log_session_start, log_pi_result, log_session_end
+from storageops.config import get_pi_command as _cfg_pi_command
+from storageops.config import get_workdir as _cfg_workdir
+from storageops.config import get_skills_dir as _cfg_skills_dir
 from storageops.report_validator import validate_agent_report
 from storageops.runtime.base import AgentRunOptions, AgentRunResult
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
 from secret_scanner import scan as _scan_secrets
+
+
+def _pi_workdir() -> Path:
+    """Return the directory Pi should run in (contains .pi/settings.json)."""
+    d = _cfg_workdir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _skills_path() -> str:
+    """Return skills path for the Pi RPC request."""
+    d = _cfg_skills_dir()
+    if d and d.exists():
+        return str(d)
+    # Fallback: repo layout for editable installs
+    repo = Path(__file__).resolve().parents[3] / "agents" / "skills"
+    if repo.exists():
+        return str(repo)
+    return "./agents/skills"
+
+
+_PI_NOT_FOUND_MSG = """\
+Pi Agent not found on PATH.
+
+  Pi Agent is required for `storageops diagnose`.
+  Install Pi Agent, then run: storageops setup
+
+  Offline commands (no Pi required):
+    storageops triage <log>
+    storageops analyze <domain> <log>\
+"""
 
 _MIGRATION_ERROR = (
     "StorageOps no longer manages LLM providers. Configure providers and models "
@@ -159,7 +191,7 @@ class PiRpcRuntime:
                 "runtime": "storageops",
                 "prompt": prompt,
                 "evidence_file": str(evidence_path),
-                "skills_path": "./agents/skills",
+                "skills_path": _skills_path(),
                 "max_turns": self.options.max_turns,
                 "stream": self.options.stream,
             }
@@ -197,18 +229,10 @@ class PiRpcRuntime:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                cwd=str(_PROJECT_ROOT),
+                cwd=str(_pi_workdir()),
             )
         except FileNotFoundError:
-            return AgentRunResult(
-                False,
-                self.runtime_name,
-                error=(
-                    "Pi Coding Agent is required for storageops agent. Install and configure "
-                    "Pi first, or use non-agent commands such as storageops triage and "
-                    "storageops analyze."
-                ),
-            )
+            return AgentRunResult(False, self.runtime_name, error=_PI_NOT_FOUND_MSG)
         except OSError as exc:
             return AgentRunResult(False, self.runtime_name, error=f"Failed to start Pi: {exc}")
 
