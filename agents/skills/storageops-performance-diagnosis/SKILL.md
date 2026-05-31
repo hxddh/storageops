@@ -221,6 +221,8 @@ observed_throughput_mbps: <number>
 expected_throughput_mbps: <number>
 efficiency_ratio: <observed/expected>
 peak_in_flight_estimated: <number | null>  # Estimated peak in-flight concurrency
+evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 limitations: [<coverage gap statements>, ...]
 next_actions:
   - type: request_evidence | invoke_skill | ask_user

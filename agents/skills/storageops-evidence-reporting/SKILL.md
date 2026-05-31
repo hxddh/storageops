@@ -216,6 +216,7 @@ confidence_factors:
     note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 evidence_count: <number of evidence items>
+evidence_quality_score: <0.0–1.0>
 unsafe_recommendations: <count of manual-only items>
 secret_scan_passed: true | false
 next_actions:
