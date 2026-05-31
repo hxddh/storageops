@@ -17,11 +17,11 @@ Start the interactive session with no arguments:
 storageops
 ```
 
-Describe your problem in plain language or paste log output. Empty line submits.
+Describe your problem in plain language or paste log output. Press Enter to submit.
 
 ```
-StorageOps  S3 Diagnostic Agent
-Describe your issue or paste error logs.
+StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit
+  Session  a3f2b1c8
 
 > Got 403 from boto3, here's the trace: ...
 ```
@@ -31,15 +31,16 @@ Describe your issue or paste error logs.
 > analyze this log @/var/log/s3-error.log
 ```
 
-**Slash commands (inside the REPL):**
+**Slash commands** (type `/` to see the full list):
 
 | Command | Action |
 |---------|--------|
 | `/help` | Show available commands |
 | `/clear` | Start a fresh session |
+| `/status` | Show session ID, Pi and API key status |
 | `/doctor` | Check environment health |
 | `/setup` | Re-run setup wizard |
-| `/verbose` | Toggle verbose output |
+| `/verbose` | Toggle verbose output (shows tool calls) |
 | `/exit` | Quit |
 
 **One-shot (pipe):**
