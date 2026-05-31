@@ -476,6 +476,40 @@ TOOL_DEFINITIONS: list[dict] = [
             "required": ["parsed"],
         },
     },
+    {
+        "name": "parse_httpmon_log",
+        "description": (
+            "Parse httpmon (https-traffic-inspector) output into StorageOps diagnostic signals. "
+            "httpmon wraps CLI commands (aws, rclone, python scripts) and captures actual "
+            "HTTP/HTTPS traffic to/from S3-compatible storage. "
+            "Handles two input formats: "
+            "(1) NDJSON — from `httpmon --format json <command>`, "
+            "(2) HAR — from `httpmon --har output.har <command>`. "
+            "Extracts S3-relevant signals: error codes (AccessDenied, SignatureDoesNotMatch, "
+            "SlowDown, etc.), HTTP status distribution, auth type (sigv4/presigned/anonymous), "
+            "CORS response headers, per-request timing. "
+            "Auth header values are NEVER exposed — only classified (sigv4/presigned/other). "
+            "Returns: format, s3_request_count, entries (per-request details), "
+            "error_summary, status_distribution, auth_types, has_cors_traffic, "
+            "timing_stats, and signals (list of domain hints like "
+            "'access_denied_detected → security_iam_policy'). "
+            "Usage: `httpmon --format json aws s3 ls s3://bucket 2>&1 | storageops` "
+            "or `httpmon --har capture.har rclone copy ... && storageops @capture.har`."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "log_text": {
+                    "type": "string",
+                    "description": (
+                        "Raw httpmon output: NDJSON from --format json, "
+                        "or HAR file content from --har flag"
+                    ),
+                },
+            },
+            "required": ["log_text"],
+        },
+    },
 ]
 
 
@@ -585,6 +619,10 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
         elif name == "analyze_network":
             from analyze_network import analyze  # noqa: E402
             return analyze(inputs["parsed"])
+
+        elif name == "parse_httpmon_log":
+            from parse_httpmon_log import parse  # noqa: E402
+            return parse(inputs["log_text"])
 
         else:
             return {"error": f"Unknown tool: {name!r}"}

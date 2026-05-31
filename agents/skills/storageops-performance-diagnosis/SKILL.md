@@ -64,6 +64,7 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `parse_httpmon_log` | When user captures traffic with httpmon — reveals per-request TTFB and total timing, SlowDown 503 responses, and throttling patterns not visible in tool logs | `{"log_text": "<httpmon --format json or .har>"}` |
 | `detect_throttling` | When 429/SlowDown errors are present in logs | `{"text": "<debug log content>"}` |
 | `analyze_throughput` | When throughput measurements are available | `{"text": "<performance log or metrics>"}` |
 | `parse_awscli_debug` | When awscli --debug output is provided | `{"text": "<awscli debug log>"}` |
@@ -71,6 +72,8 @@ recommended_tools:
 | `parse_s5cmd_log` | When s5cmd log is provided | `{"text": "<s5cmd log>"}` |
 | `scan_secrets` | Before any output, redact credentials from logs | `{"text": "<log content>"}` |
 | `search_memory` | At start, check for prior performance cases | `{"query": "performance throughput <tool> <provider>"}` |
+
+> **httpmon tip**: `httpmon --har perf.har rclone copy ...` generates per-request timing HAR that `parse_httpmon_log` can analyze for throttling patterns (SlowDown 503 bursts) and TTFB spikes invisible in rclone's aggregate stats.
 
 ## Required evidence
 

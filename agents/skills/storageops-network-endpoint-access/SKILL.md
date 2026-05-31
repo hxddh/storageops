@@ -61,10 +61,13 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
-| `parse_network_diagnostics` | When dig/ping/traceroute/curl output is provided | `{"text": "<network diagnostic output>"}` |
-| `analyze_network` | After parsing, to classify the connectivity failure | `{"text": "<parsed network evidence>"}` |
+| `parse_httpmon_log` | When user wraps their storage command with httpmon — captures TLS errors, actual response timing, redirect chains, and HTTP status at the wire level | `{"log_text": "<httpmon --format json or .har>"}` |
+| `parse_network_diagnostics` | When dig/ping/traceroute/curl -v output is provided | `{"diagnostic_text": "<network diagnostic output>"}` |
+| `analyze_network` | After parse_network_diagnostics, to classify the connectivity failure | `{"parsed": "<parse_network_diagnostics result>"}` |
 | `scan_secrets` | Before any output, redact any credentials found in logs | `{"text": "<log or config content>"}` |
 | `search_memory` | At start, check for known endpoint or DNS patterns | `{"query": "network endpoint <provider> <error>"}` |
+
+> **httpmon tip**: `httpmon --format json curl https://s3.endpoint.example.com/ 2>&1` captures the full TLS handshake failure message and timing — more precise than `curl -v` for diagnosing certificate errors and connection resets in S3 VPC endpoint scenarios.
 
 ## Required evidence
 
