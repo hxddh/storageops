@@ -55,24 +55,16 @@ pip install storageops
 storageops setup
 ```
 
-`setup` does three things:
-1. Downloads [Pi Coding Agent](https://pi.ai/agent) (the AI backend)
-2. Asks for your LLM provider (Anthropic or OpenAI) and API key
-3. Configures Pi to auto-load StorageOps diagnostic skills
+`setup` downloads [Pi Coding Agent](https://pi.ai/agent), asks for your API key, and configures Pi to load StorageOps skills automatically. That's it.
 
 ---
 
 ## Usage
 
-### Interactive session
+Run `storageops` to start a session. Everything is available via `/` inside:
 
 ```bash
 storageops
-```
-
-Type your question or paste log output and press Enter. Type `/` to see all commands.
-
-```bash
 storageops "getting 429 SlowDown on S3 uploads"   # start with a description
 storageops @error.log                              # start with a file reference
 storageops < error.log                             # pipe via stdin
@@ -96,92 +88,18 @@ Type `/` inside the session to see the full list:
 | Command | What it does |
 |---|---|
 | `/help` | Show the command list |
-| `/resume` | Pick a past session to continue from a numbered list |
+| `/resume` | Pick a past session to continue |
 | `/clear` | Start a fresh session |
 | `/status` | Show session ID, turn count, Pi and API key status |
-| `/verbose` | Toggle verbose mode — shows each tool call and result as Pi works |
-| `/doctor` | Run environment health check without leaving the session |
-| `/setup` | Re-run the setup wizard without restarting |
+| `/config` | View or change configuration (`/config set <key> <value>`) |
+| `/memory` | Browse past diagnosed cases (`/memory search <query>`) |
+| `/update` | Download latest Pi binary and reinstall skills |
+| `/verbose` | Toggle verbose mode — shows each tool call and result |
+| `/doctor` | Run environment health check |
+| `/setup` | Re-run the setup wizard |
 | `/exit` | Quit (`Ctrl+C` also works) |
 
 Sessions are saved automatically to `~/.storageops/sessions/`.
-
----
-
-## Commands
-
-```
-storageops                       Start interactive session
-storageops [message|@file]       Describe your issue or pass a log file
-storageops <command> [options]   Run a specific command
-```
-
-| Command | Description |
-|---|---|
-| `storageops setup` | First-time setup: download Pi, configure LLM provider and API key |
-| `storageops config` | View or edit configuration (`list` / `get <key>` / `set <key> <val>`) |
-| `storageops update` | Download latest Pi binary and reinstall skills (`--check` to preview) |
-| `storageops doctor` | Check environment health: Python, Pi binary, API key, skills, config |
-| `storageops memory` | Manage past diagnosed cases (`list` / `search` / `save` / `export` / `import`) |
-| `storageops mcp` | Start MCP stdio server (for Claude Desktop and other MCP clients) |
-| `storageops serve` | Start HTTP API server and web UI |
-
-### CI / scripting commands
-
-These are hidden from the main help but fully supported for automation:
-
-| Command | Description |
-|---|---|
-| `storageops diagnose <file\|->` | Full Pi AI diagnosis of a single evidence file |
-| `storageops triage <file\|->` | Instant rule-based domain classification (no Pi required) |
-| `storageops analyze <domain> <file\|->` | Domain-specific parser + analyzer pipeline (no Pi required) |
-| `storageops scan <files…>` | Triage multiple files, print a summary table |
-| `storageops report <json>` | Render a saved analysis JSON as Markdown |
-
----
-
-## Configuration
-
-```bash
-storageops config list                  # show all config (api_key is redacted)
-storageops config get provider          # get one key
-storageops config set provider openai   # set LLM provider
-storageops config set api_key sk-...    # set API key
-```
-
-Config is stored at `~/.storageops/config.json`.
-
----
-
-## Case memory
-
-Every successful diagnosis is saved to `~/.storageops/memory.jsonl` for BM25 similarity search.
-
-```bash
-storageops memory list                             # list recent cases
-storageops memory list --domain cli_sdk_behavior   # filter by domain
-storageops memory search "ETag mismatch rclone"    # BM25 keyword search
-storageops memory export backup.jsonl              # export to file
-storageops memory import backup.jsonl              # import from file
-storageops memory save \
-  --domain performance_throughput \
-  --root-cause hot_prefix_throttling \
-  --summary "429 SlowDown on uploads to /data/ prefix"
-```
-
----
-
-## Offline commands (no Pi, no API key)
-
-```bash
-storageops triage error.log                           # instant domain classification
-storageops analyze security_iam_policy error.log      # parser + analyzer pipeline
-storageops analyze performance_throughput s3-access.log
-storageops analyze cli_sdk_behavior rclone-debug.log
-storageops scan *.log --output report.md              # triage multiple files
-storageops report analysis.json                       # render analysis JSON as Markdown
-storageops doctor                                     # environment health check
-```
 
 ---
 
@@ -202,9 +120,6 @@ httpmon --format json aws s3 cp s3://bucket/key . 2>&1 | storageops
 # Save as HAR, then reference
 httpmon --har capture.har rclone copy remote:bucket/ ./local/
 storageops @capture.har
-
-# Or run direct Pi diagnosis
-storageops diagnose capture.har
 ```
 
 | Diagnostic need | What httpmon captures |
@@ -299,15 +214,19 @@ severity: high
 - manual-only: aws iam put-role-policy ...
 ```
 
-**Programmatic use:**
+---
 
-```python
-from storageops.runtime import PiRpcRuntime, AgentRunOptions
+## CI / scripting
 
-result = PiRpcRuntime(AgentRunOptions()).run("error.log")
-print(result.ok)
-print(result.report_markdown)
-```
+These commands are hidden from `--help` but fully supported for automation:
+
+| Command | Description |
+|---|---|
+| `storageops diagnose <file\|->` | Full Pi AI diagnosis of a single evidence file |
+| `storageops triage <file\|->` | Instant rule-based domain classification (no Pi required) |
+| `storageops analyze <domain> <file\|->` | Domain-specific parser + analyzer pipeline (no Pi required) |
+| `storageops scan <files…>` | Triage multiple files, print a summary table |
+| `storageops report <json>` | Render a saved analysis JSON as Markdown |
 
 ---
 
@@ -363,7 +282,7 @@ diagnosis workflows.
 git clone https://github.com/hxddh/storageops
 cd storageops
 pip install -e storageops-cli/
-make test        # 107 tests — no network or LLM required
+make test        # no network or LLM required
 make lint        # ruff
 make eval        # golden-case regression
 ```
