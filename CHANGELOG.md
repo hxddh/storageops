@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## 2026-05-31 — Pi Coding Agent-style REPL rewrite
+
+- **`repl.py` complete rewrite**: interactive session now matches Pi Coding Agent / Ampcode UX
+- **Single-Enter submit**: removed double-Enter (empty-line) submission model; press Enter once to send. Paste detection via `select` collects multi-line clipboard content as one message.
+- **Minimal banner**: `StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit`
+- **Session ID on startup**: `  Session  a3f2b1c8` shown immediately after banner (like Pi/Ampcode)
+- **Removed UX noise**: domain classification (`Domain: security_iam_policy 91%`), evidence block counts, `has_log_content` gate, and `_first_turn` hint hack are all gone — the interface is a clean conversation
+- **Tool call display**: verbose mode shows `⏺ tool_name · result_summary` per tool invocation
+- **New `/status` command**: shows session ID, turn count, Pi status, API key status, verbose toggle
+- **Code reduction**: 758 lines → 340 lines (−55%)
+- **Docs**: README, cli-reference, getting-started, ARCHITECTURE, CHANGELOG updated to reflect new UX
+
 ## 2026-05-31 — httpmon integration + full documentation rewrite
 
 - **httpmon integration**: `parse_httpmon_log` parser captures wire-level S3 signals from

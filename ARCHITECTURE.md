@@ -82,7 +82,7 @@ adds the relevant `storageops-core` subdirectories to `sys.path` at import time.
 | Module | Responsibility |
 |--------|---------------|
 | `cli.py` | All CLI commands: resume, diagnose, config, update, setup, doctor, triage, analyze, scan, report, memory, mcp, serve, eval |
-| `repl.py` | Interactive multi-turn REPL; accumulates evidence across turns |
+| `repl.py` | Interactive session (Pi Coding Agent-style); single-Enter input, slash commands, session persistence |
 | `session.py` | Session persistence: save/load/list sessions in `~/.storageops/sessions/` |
 | `agent.py` | Domain classification, evidence assessment, analysis routing, report generation |
 | `config.py` | Read/write `~/.storageops/config.json` (api_key, provider) |

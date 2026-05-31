@@ -87,12 +87,11 @@ Recommended: storageops analyze performance_throughput <file>
 storageops
 ```
 
-Describe your issue in plain language. Empty line submits. The agent accumulates evidence
-across multiple turns before running analysis.
+Describe your issue in plain language. Press Enter to submit. Context accumulates across turns.
 
 ```
-StorageOps  S3 Diagnostic Agent
-Describe your issue or paste error logs.
+StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit
+  Session  a3f2b1c8
 
 > Got 403 from boto3 on GetObject, but my IAM role has s3:GetObject
 ```
@@ -108,9 +107,10 @@ Describe your issue or paste error logs.
 |---------|--------|
 | `/help` | Show available commands |
 | `/clear` | Start a fresh session |
+| `/status` | Show session ID, Pi and API key status |
 | `/doctor` | Check environment health |
 | `/setup` | Re-run setup wizard |
-| `/verbose` | Toggle verbose output |
+| `/verbose` | Toggle verbose output (shows tool calls) |
 | `/exit` | Quit |
 
 ---

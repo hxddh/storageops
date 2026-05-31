@@ -6,14 +6,15 @@ Paste an error log. Get a structured root-cause analysis with remediation steps 
 
 ```
 $ storageops
-StorageOps  S3 Diagnostic Agent
-Describe your issue or paste error logs. Use @file.log to reference a file.
+StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit
+  Session  a3f2b1c8
 
 > s3://my-bucket/data/file.csv — AccessDenied, but my IAM role has s3:GetObject
 
-  Domain:  security iam policy  (91%)
+  ⠹  Analyzing…  3s
+
   ────────────────────────────────────────────────────────
-  MISSING RESOURCE QUALIFIER  HIGH  91%
+  missing resource qualifier  HIGH  91%
   ────────────────────────────────────────────────────────
 
   Root cause: Your policy grants s3:GetObject on arn:aws:s3:::my-bucket
@@ -24,6 +25,8 @@ Describe your issue or paste error logs. Use @file.log to reference a file.
       "arn:aws:s3:::my-bucket",
       "arn:aws:s3:::my-bucket/*"    ← add this line
     ]
+
+  8s  ·  session a3f2b1c8
 ```
 
 ---
@@ -95,7 +98,7 @@ The following commands are available for CI pipelines and scripting but hidden f
 storageops
 ```
 
-Describe your problem in plain language, paste log output, or both. Empty line submits.
+Describe your problem in plain language or paste log output. Press Enter to submit.
 
 ```
 > Got 403 from boto3, here's the trace:
@@ -109,7 +112,7 @@ Describe your problem in plain language, paste log output, or both. Empty line s
 > analyze this log @/var/log/s3-error.log
 ```
 
-**Multiple turns** — StorageOps accumulates evidence across turns before running analysis:
+**Multiple turns** — continue the conversation naturally; context accumulates across turns:
 
 ```
 > access denied on GetObject
@@ -117,16 +120,17 @@ Describe your problem in plain language, paste log output, or both. Empty line s
 > and the IAM role: @role.json
 ```
 
-**REPL commands** (type inside the REPL at any time):
+**Slash commands** (type `/` to see the full list):
 
 | Command | What it does |
 |---|---|
-| `/help` | Print the list of REPL commands |
-| `/clear` | Discard the current session and start fresh |
-| `/verbose` | Toggle verbose mode — shows tool calls and pre-flight classification details |
-| `/doctor` | Run environment health check (Pi binary, API key, skills) without leaving the REPL |
-| `/setup` | Re-run the setup wizard — re-download Pi or update API key without restarting |
-| `/exit` | Quit (Ctrl+C also works) |
+| `/help` | Show the command list |
+| `/clear` | Start a fresh session |
+| `/status` | Show session ID, turn count, Pi and API key status |
+| `/verbose` | Toggle verbose mode — shows tool calls and results as Pi works |
+| `/doctor` | Run environment health check without leaving the session |
+| `/setup` | Re-run the setup wizard without restarting |
+| `/exit` | Quit (`Ctrl+C` also works) |
 
 ### Resume a past session
 
@@ -135,8 +139,8 @@ storageops resume            # show a numbered list of recent sessions to pick f
 storageops resume abc12345   # resume a specific session by its 8-character ID
 ```
 
-Sessions are saved automatically to `~/.storageops/sessions/`. All evidence blocks and
-conversation turns are preserved and reloaded exactly as they were.
+Sessions are saved automatically to `~/.storageops/sessions/`. All context and conversation
+turns are preserved and reloaded exactly as they were.
 
 ### One-shot (pipe / script)
 
