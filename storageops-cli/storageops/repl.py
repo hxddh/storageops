@@ -175,68 +175,96 @@ class _LiveProgress:
             i += 1
 
 
-# ── Setup detection ───────────────────────────────────────────────────
+# ── First-run inline configure ────────────────────────────────────────
 
-def _check_pi_ready() -> tuple[bool, bool]:
-    """Return (pi_installed, api_key_configured)."""
+def _find_bundled_skills() -> Path | None:
+    pkg = Path(__file__).parent / "_skills"
+    if pkg.exists():
+        return pkg
+    repo = Path(__file__).resolve().parents[3] / "agents" / "skills"
+    if repo.exists():
+        return repo
+    return None
+
+
+def _install_prerequisites_silently() -> None:
+    """Install Pi and skills silently if missing. Called before asking for API key."""
+    import json
     import shutil
-    pi_ok = key_ok = False
+    from storageops import pi_installer
+    from storageops.config import get_workdir, update as _cfg_update
+
+    # Pi: install if not found
     try:
-        from storageops.config import get_pi_command, get_api_key
-        pi_ok = bool(shutil.which(get_pi_command()))
-        key_ok = bool(get_api_key())
+        from storageops.config import get_pi_command
+        pi_found = bool(shutil.which(get_pi_command())) or pi_installer.pi_bin_path().exists()
+    except Exception:
+        pi_found = False
+
+    if not pi_found:
+        sys.stdout.write(f"  {_dim('·')}  Pi Coding Agent  installing…")
+        sys.stdout.flush()
+        try:
+            dest = pi_installer.download_pi()
+            pi_installer.ensure_path_entry()
+            sys.stdout.write(f"\r\033[K  {_green('✓')}  Pi Coding Agent  {_dim(str(dest))}\n")
+            _cfg_update(pi_command=str(dest))
+        except RuntimeError as exc:
+            sys.stdout.write(f"\r\033[K  {_yellow('!')}  Pi Coding Agent  {_dim(str(exc))}\n")
+        sys.stdout.flush()
+
+    # Skills: copy if missing (silent)
+    try:
+        workdir = get_workdir()
+        workdir.mkdir(parents=True, exist_ok=True)
+        skills_dst = workdir / "skills"
+        if not skills_dst.exists():
+            bundled = _find_bundled_skills()
+            if bundled:
+                shutil.copytree(str(bundled), str(skills_dst))
+                _cfg_update(skills_dir=str(skills_dst))
+        # Pi settings.json
+        pi_settings = workdir / ".pi" / "settings.json"
+        if not pi_settings.exists():
+            pi_settings.parent.mkdir(parents=True, exist_ok=True)
+            pi_settings.write_text(
+                json.dumps({"skills": ["../skills"], "enableSkillCommands": True}, indent=2) + "\n",
+                encoding="utf-8",
+            )
     except Exception:
         pass
-    return pi_ok, key_ok
 
 
-def _run_first_time_setup() -> None:
+def _first_run_configure() -> None:
+    """
+    Inline first-run: install Pi silently, then ask for API key once.
+    No wizard, no provider picker, no confirmation prompts.
+    """
+    import getpass
+    from storageops.config import detect_provider_from_key, update as _cfg_update
+
     print()
-    print(f"  {_yellow('!')}  Pi Agent is not configured.")
-    print(f"  {_dim('AI diagnosis requires Pi. Run setup to get started.')}")
+    _install_prerequisites_silently()
     print()
-    try:
-        ans = input("  Run setup now? [Y/n] ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return
-    if ans in ("", "y", "yes"):
-        print()
-        import argparse as _ap
-        from storageops.cli import cmd_setup
-        cmd_setup(_ap.Namespace(pi_command="pi"))
-        if _IS_TTY:
-            print()
-            print(_make_banner())
-    else:
-        print()
-        print(f"  {_dim('Continuing without Pi — AI diagnosis unavailable.')}")
-        print(f"  {_dim('Run')} {_bold('storageops setup')} {_dim('when ready.')}")
-        print()
-
-
-def _run_api_key_setup() -> None:
-    print()
-    print(f"  {_yellow('!')}  No API key configured.")
-    print(f"  {_dim('An Anthropic or OpenAI key is required for AI diagnosis.')}")
+    print(f"  {_bold('Paste your API key to get started.')}")
+    print(f"  {_dim('Anthropic:  console.anthropic.com/settings/api-keys')}")
+    print(f"  {_dim('OpenAI:     platform.openai.com/api-keys')}")
     print()
     try:
-        ans = input("  Configure API key now? [Y/n] ").strip().lower()
+        key = getpass.getpass(f"  {_dim('API key:')} ").strip()
     except (EOFError, KeyboardInterrupt):
         print()
+        print(f"  {_dim('Set ANTHROPIC_API_KEY or OPENAI_API_KEY to continue.')}")
+        print()
         return
-    if ans in ("", "y", "yes"):
-        print()
-        import argparse as _ap
-        from storageops.cli import cmd_setup
-        cmd_setup(_ap.Namespace(pi_command="pi"))
-        if _IS_TTY:
-            print()
-            print(_make_banner())
+    if key:
+        provider = detect_provider_from_key(key)
+        _cfg_update(provider=provider, api_key=key)
+        print(f"  {_green('✓')}  {_dim(provider + '  ·  configured')}")
     else:
-        print()
-        print(f"  {_dim('Run')} {_bold('storageops setup')} {_dim('to configure your API key.')}")
-        print()
+        print(f"  {_dim('No key entered.')}")
+        print(f"  {_dim('Set ANTHROPIC_API_KEY or OPENAI_API_KEY to continue.')}")
+    print()
 
 
 # ── Readline tab completion ───────────────────────────────────────────
@@ -515,13 +543,11 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             print(f"  {_dim('Session')}  {_bold(session.session_id)}")
             print()
 
-    # First-run guard
+    # First-run: if no API key, configure inline (like Claude Code / Pi)
     if _IS_TTY and _IS_INPUT_TTY and not initial_text:
-        pi_ok, key_ok = _check_pi_ready()
-        if not pi_ok:
-            _run_first_time_setup()
-        elif not key_ok:
-            _run_api_key_setup()
+        from storageops.config import get_api_key
+        if not get_api_key():
+            _first_run_configure()
 
     # One-shot mode (pipe or direct argument)
     if initial_text:
@@ -586,10 +612,6 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             import argparse
             from storageops.cli import cmd_setup
             cmd_setup(argparse.Namespace(pi_command="pi"))
-            if _IS_TTY:
-                print()
-                print(_make_banner())
-                print()
 
         elif first == "/verbose":
             session.verbose = not session.verbose

@@ -84,19 +84,24 @@ class TestSetupCommand(unittest.TestCase):
             except SystemExit as e:
                 return int(e.code) if e.code is not None else 1
 
-    def test_setup_fails_when_pi_missing(self):
+    def test_setup_continues_when_pi_download_fails(self):
+        """Pi download failure shows a warning but does not abort setup."""
         import argparse, tempfile
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
+            home = tmp / "home"
+            home.mkdir()
             args = argparse.Namespace(pi_command="pi")
             with patch("shutil.which", return_value=None), \
                  patch("storageops.pi_installer.pi_bin_path", return_value=Path("/nonexistent/pi")), \
                  patch("storageops.pi_installer.download_pi", side_effect=RuntimeError("no network")), \
-                 patch.object(Path, "home", return_value=tmp):
-                with self.assertRaises(SystemExit) as ctx:
-                    from storageops.cli import cmd_setup
-                    cmd_setup(args)
-                self.assertEqual(ctx.exception.code, 1)
+                 patch("storageops.pi_installer.ensure_path_entry", return_value=False), \
+                 patch("getpass.getpass", return_value="sk-ant-test123"), \
+                 patch("storageops.config._DIR", home / ".storageops"), \
+                 patch("storageops.config._FILE", home / ".storageops" / "config.json"), \
+                 patch.object(Path, "home", return_value=home):
+                from storageops.cli import cmd_setup
+                cmd_setup(args)  # should not raise
 
     def test_setup_creates_expected_files(self):
         import argparse, tempfile
