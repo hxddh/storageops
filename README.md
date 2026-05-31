@@ -67,18 +67,23 @@ That's it. Skills load automatically when the agent starts — no manual configu
 |---|---|---|
 | `storageops` | ✓ | Start the interactive REPL |
 | `storageops resume [id]` | ✓ | Resume a previous REPL session by ID, or pick from a list |
-| `storageops diagnose <file>` | ✓ | Full AI diagnosis of a single evidence file |
 | `storageops setup` | — | First-time setup: download Pi, configure API key |
 | `storageops config <action>` | — | View or edit configuration (`list` / `get` / `set`) |
 | `storageops update [--check]` | — | Download latest Pi binary and reinstall skills |
 | `storageops doctor` | — | Check environment health: Pi, API key, skills |
-| `storageops triage <file>` | — | Instant rule-based domain classification (offline) |
-| `storageops analyze <domain> <file>` | — | Domain-specific parser + analyzer pipeline (offline) |
-| `storageops scan <files…>` | — | Triage multiple files and print a summary table |
-| `storageops report <json>` | — | Render a saved analysis JSON as Markdown |
 | `storageops memory <action>` | — | Manage past diagnosed cases (`list` / `search` / `save` / `export` / `import`) |
 | `storageops mcp` | — | Start MCP stdio server (for Claude Desktop and MCP clients) |
 | `storageops serve` | — | Start HTTP API server and web UI |
+
+The following commands are available for CI pipelines and scripting but hidden from the main help (the REPL runs them automatically during interactive sessions):
+
+| Command | Description |
+|---|---|
+| `storageops diagnose <file>` | Full AI diagnosis of a single evidence file |
+| `storageops triage <file>` | Instant rule-based domain classification (offline) |
+| `storageops analyze <domain> <file>` | Domain-specific parser + analyzer pipeline (offline) |
+| `storageops scan <files…>` | Triage multiple files and print a summary table |
+| `storageops report <json>` | Render a saved analysis JSON as Markdown |
 
 ---
 
