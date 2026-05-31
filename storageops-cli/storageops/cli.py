@@ -6,7 +6,7 @@ Usage:
     storageops analyze <domain> <evidence-file>
     storageops report <analysis-json>
     storageops eval --cases-dir <dir> [--outputs-dir <dir>]
-    storageops agent <evidence-file> [--interactive]
+    storageops agent <evidence-file> [--runtime pi] [--stream]
 
 All commands operate on offline artifacts only. No cloud connections.
 """

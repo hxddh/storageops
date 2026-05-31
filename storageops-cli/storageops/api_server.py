@@ -9,7 +9,7 @@ Endpoints:
     GET  /                 — Web UI (single-page diagnostic interface)
     POST /triage          — classify evidence text into a diagnostic domain
     POST /analyze         — run domain-specific rule-based analysis
-    POST /agent           — run LLM-powered diagnostic agent
+    POST /agent           — deprecated; use storageops agent CLI (requires Pi)
     GET  /memory          — list recent 20 diagnosed cases
     GET  /memory/search   — search memory by keyword (?q=...)
     GET  /health          — liveness check
@@ -61,16 +61,6 @@ if _FASTAPI_AVAILABLE:
 
         domain: str
         text: str
-
-    class AgentRequest(BaseModel):
-        model_config = ConfigDict(extra="forbid")
-
-        text: str
-        provider: str = "anthropic"
-        api_key: str | None = None
-        model: str | None = None
-        base_url: str | None = None
-        max_turns: int = 8
 
 
 # ── App factory ───────────────────────────────────────────────────────
@@ -162,43 +152,18 @@ def _make_app() -> "FastAPI":
     # ── /agent ────────────────────────────────────────────────────────
 
     @app.post("/agent")
-    async def agent(req: AgentRequest):
-        try:
-            from storageops.llm_agent import run_llm_agent
-        except ImportError as exc:
-            return JSONResponse(
-                status_code=501,
-                content={
-                    "ok": False,
-                    "error": (
-                        f"LLM agent unavailable: {exc}. "
-                        "Install with: pip install 'storageops[llm]'"
-                    ),
-                },
-            )
-
-        try:
-            # Pre-classify domain for the agent
-            from storageops.agent import classify_evidence
-            classification = classify_evidence(req.text)
-            domain = classification["primary_domain"]
-
-            result = run_llm_agent(
-                evidence_text=req.text,
-                domain=domain,
-                provider_name=req.provider,
-                api_key=req.api_key,
-                model=req.model,
-                base_url=req.base_url,
-                max_turns=req.max_turns,
-                verbose=False,
-            )
-            return result
-        except Exception as exc:
-            return JSONResponse(
-                status_code=500,
-                content={"ok": False, "error": str(exc)},
-            )
+    async def agent():
+        return JSONResponse(
+            status_code=501,
+            content={
+                "ok": False,
+                "error": (
+                    "The /agent HTTP endpoint has been removed. "
+                    "StorageOps Agent Runtime is now Pi Coding Agent. "
+                    "Use the CLI: storageops agent <file>"
+                ),
+            },
+        )
 
     # ── /memory ───────────────────────────────────────────────────────
 
