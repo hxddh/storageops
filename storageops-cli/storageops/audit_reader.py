@@ -1,5 +1,5 @@
 """
-Audit log reader for StorageOps sessions.
+Audit log reader for StorageOps Pi sessions.
 
 Reads ~/.storageops/audit.jsonl and provides structured access to session history.
 Security: Only reads structural metadata — never logs raw evidence text or tool I/O.
@@ -31,35 +31,35 @@ def _load_records(path: Path | None = None) -> list[dict]:
 
 
 def list_sessions(limit: int = 20, path: Path | None = None) -> list[dict]:
-    """Return the most recent sessions with per-session token and tool stats."""
+    """Return the most recent sessions with per-session tool and Pi result stats."""
     records = _load_records(path)
     starts = [r for r in records if r.get("event") == "session_start"]
 
     ends: dict[str, dict] = {
         r["session"]: r for r in records if r.get("event") == "session_end"
     }
-    llm_by_session: dict[str, list[dict]] = defaultdict(list)
+    pi_results: dict[str, dict] = {
+        r["session"]: r for r in records if r.get("event") == "pi_result"
+    }
     tools_by_session: dict[str, list[str]] = defaultdict(list)
     for r in records:
-        if r.get("event") == "llm_call":
-            llm_by_session[r["session"]].append(r)
-        elif r.get("event") == "tool_call":
+        if r.get("event") == "tool_call":
             tools_by_session[r["session"]].append(r.get("tool", ""))
 
     sessions = []
     for s in starts[-limit:]:
         sid = s["session"]
         end = ends.get(sid, {})
-        calls = llm_by_session[sid]
+        pi = pi_results.get(sid, {})
         sessions.append({
             "session_id": sid,
             "ts": s.get("ts", "")[:19].replace("T", " "),
             "domain": s.get("domain", "unknown"),
-            "provider": s.get("provider", ""),
+            "runtime": s.get("runtime", "pi"),
             "outcome": end.get("outcome", "in_progress"),
-            "turns_used": end.get("turns_used", len(calls)),
-            "input_tokens": sum(c.get("input_tokens", 0) for c in calls),
-            "output_tokens": sum(c.get("output_tokens", 0) for c in calls),
+            "pi_ok": pi.get("ok"),
+            "redaction_count": pi.get("redaction_count", 0),
+            "event_count": pi.get("event_count", 0),
             "tools": tools_by_session[sid],
         })
     return list(reversed(sessions))
@@ -75,31 +75,26 @@ def compute_stats(path: Path | None = None) -> dict:
     """Aggregate statistics across all sessions in the audit log."""
     records = _load_records(path)
     if not records:
-        return {"sessions": 0, "total_tokens": 0}
+        return {"sessions": 0}
 
     starts = [r for r in records if r.get("event") == "session_start"]
     ends = [r for r in records if r.get("event") == "session_end"]
-    llm_calls = [r for r in records if r.get("event") == "llm_call"]
+    pi_results = [r for r in records if r.get("event") == "pi_result"]
     tool_calls = [r for r in records if r.get("event") == "tool_call"]
-    critiques = [r for r in records if r.get("event") == "critique_turn"]
 
-    total_in = sum(r.get("input_tokens", 0) for r in llm_calls)
-    total_out = sum(r.get("output_tokens", 0) for r in llm_calls)
-    total_turns = sum(r.get("turns_used", 0) for r in ends)
+    total_redactions = sum(r.get("redaction_count", 0) for r in pi_results)
+    total_events = sum(r.get("event_count", 0) for r in pi_results)
 
     return {
         "sessions": len(starts),
         "outcomes": dict(Counter(r.get("outcome", "unknown") for r in ends)),
         "domains": dict(Counter(r.get("domain", "unknown") for r in starts)),
-        "providers": dict(Counter(r.get("provider", "") for r in llm_calls)),
-        "total_input_tokens": total_in,
-        "total_output_tokens": total_out,
-        "total_tokens": total_in + total_out,
-        "tool_frequency": dict(Counter(r.get("tool", "") for r in tool_calls).most_common()),
-        "avg_turns": round(total_turns / max(len(ends), 1), 1),
-        "critique_confirmation_rate": (
-            round(
-                sum(1 for r in critiques if r.get("confirmed")) / len(critiques), 2
-            ) if critiques else None
+        "runtimes": dict(Counter(r.get("runtime", "pi") for r in starts)),
+        "pi_success_rate": (
+            round(sum(1 for r in pi_results if r.get("ok")) / len(pi_results), 2)
+            if pi_results else None
         ),
+        "total_redactions": total_redactions,
+        "total_pi_events": total_events,
+        "tool_frequency": dict(Counter(r.get("tool", "") for r in tool_calls).most_common()),
     }

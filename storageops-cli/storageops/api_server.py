@@ -9,7 +9,6 @@ Endpoints:
     GET  /                 — Web UI (single-page diagnostic interface)
     POST /triage          — classify evidence text into a diagnostic domain
     POST /analyze         — run domain-specific rule-based analysis
-    POST /agent           — deprecated; use storageops agent CLI (requires Pi)
     GET  /memory          — list recent 20 diagnosed cases
     GET  /memory/search   — search memory by keyword (?q=...)
     GET  /health          — liveness check
@@ -20,14 +19,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-
-# Ensure storageops-core is importable
-_CLI_DIR = Path(__file__).parent.parent
-_CORE_DIR = _CLI_DIR.parent / "storageops-core"
-for _sub in ("utils", "parsers", "analyzers"):
-    _p = str(_CORE_DIR / _sub)
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
 _VERSION = "0.3.0"
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -148,22 +139,6 @@ def _make_app() -> "FastAPI":
                 status_code=500,
                 content={"ok": False, "error": str(exc)},
             )
-
-    # ── /agent ────────────────────────────────────────────────────────
-
-    @app.post("/agent")
-    async def agent():
-        return JSONResponse(
-            status_code=501,
-            content={
-                "ok": False,
-                "error": (
-                    "The /agent HTTP endpoint has been removed. "
-                    "StorageOps Agent Runtime is now Pi Coding Agent. "
-                    "Use the CLI: storageops agent <file>"
-                ),
-            },
-        )
 
     # ── /memory ───────────────────────────────────────────────────────
 

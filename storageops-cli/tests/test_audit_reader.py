@@ -45,14 +45,13 @@ class TestListSessions(unittest.TestCase):
         p = _tmp()
         _write(p, [
             {"ts": _ts(), "session": "s1", "event": "session_start",
-             "domain": "cli_sdk_behavior", "provider": "anthropic/claude-opus-4-8"},
-            {"ts": _ts(), "session": "s1", "event": "llm_call", "turn": 1,
-             "provider": "anthropic", "model": "claude-opus-4-8",
-             "input_tokens": 800, "output_tokens": 150, "stop_reason": "end_turn"},
+             "domain": "cli_sdk_behavior", "runtime": "pi"},
+            {"ts": _ts(), "session": "s1", "event": "pi_result",
+             "ok": True, "redaction_count": 2, "validation_ok": True, "event_count": 5},
             {"ts": _ts(), "session": "s1", "event": "tool_call",
              "turn": 1, "tool": "scan_secrets"},
             {"ts": _ts(), "session": "s1", "event": "session_end",
-             "turns_used": 2, "outcome": "success"},
+             "outcome": "success"},
         ])
         sessions = list_sessions(path=p)
         p.unlink()
@@ -60,9 +59,11 @@ class TestListSessions(unittest.TestCase):
         s = sessions[0]
         self.assertEqual(s["session_id"], "s1")
         self.assertEqual(s["domain"], "cli_sdk_behavior")
+        self.assertEqual(s["runtime"], "pi")
         self.assertEqual(s["outcome"], "success")
-        self.assertEqual(s["input_tokens"], 800)
-        self.assertEqual(s["output_tokens"], 150)
+        self.assertEqual(s["pi_ok"], True)
+        self.assertEqual(s["redaction_count"], 2)
+        self.assertEqual(s["event_count"], 5)
         self.assertIn("scan_secrets", s["tools"])
 
     def test_limit_respected(self):
@@ -71,9 +72,9 @@ class TestListSessions(unittest.TestCase):
         for i in range(8):
             rows += [
                 {"ts": _ts(), "session": f"s{i}", "event": "session_start",
-                 "domain": "test", "provider": "mock"},
+                 "domain": "test", "runtime": "pi"},
                 {"ts": _ts(), "session": f"s{i}", "event": "session_end",
-                 "turns_used": 1, "outcome": "success"},
+                 "outcome": "success"},
             ]
         _write(p, rows)
         sessions = list_sessions(limit=3, path=p)
@@ -84,7 +85,7 @@ class TestListSessions(unittest.TestCase):
         p = _tmp()
         _write(p, [
             {"ts": _ts(), "session": "open", "event": "session_start",
-             "domain": "test", "provider": "mock"},
+             "domain": "test", "runtime": "pi"},
         ])
         sessions = list_sessions(path=p)
         p.unlink()
@@ -122,42 +123,37 @@ class TestComputeStats(unittest.TestCase):
         stats = compute_stats(path=p)
         p.unlink()
         self.assertEqual(stats["sessions"], 0)
-        self.assertEqual(stats["total_tokens"], 0)
 
-    def test_token_counts(self):
+    def test_pi_result_counts(self):
         p = _tmp()
         _write(p, [
             {"ts": _ts(), "session": "s1", "event": "session_start",
-             "domain": "cli_sdk_behavior", "provider": "mock"},
-            {"ts": _ts(), "session": "s1", "event": "llm_call", "turn": 1,
-             "provider": "anthropic", "model": "m",
-             "input_tokens": 500, "output_tokens": 100, "stop_reason": "end_turn"},
+             "domain": "cli_sdk_behavior", "runtime": "pi"},
+            {"ts": _ts(), "session": "s1", "event": "pi_result",
+             "ok": True, "redaction_count": 3, "validation_ok": True, "event_count": 7},
             {"ts": _ts(), "session": "s1", "event": "tool_call", "turn": 1, "tool": "scan_secrets"},
             {"ts": _ts(), "session": "s1", "event": "tool_call", "turn": 1, "tool": "scan_secrets"},
-            {"ts": _ts(), "session": "s1", "event": "critique_turn", "turn": 2, "confirmed": True},
-            {"ts": _ts(), "session": "s1", "event": "session_end",
-             "turns_used": 2, "outcome": "success"},
+            {"ts": _ts(), "session": "s1", "event": "session_end", "outcome": "success"},
         ])
         stats = compute_stats(path=p)
         p.unlink()
         self.assertEqual(stats["sessions"], 1)
-        self.assertEqual(stats["total_input_tokens"], 500)
-        self.assertEqual(stats["total_output_tokens"], 100)
-        self.assertEqual(stats["total_tokens"], 600)
+        self.assertEqual(stats["total_redactions"], 3)
+        self.assertEqual(stats["total_pi_events"], 7)
+        self.assertEqual(stats["pi_success_rate"], 1.0)
         self.assertEqual(stats["tool_frequency"].get("scan_secrets"), 2)
-        self.assertEqual(stats["critique_confirmation_rate"], 1.0)
         self.assertEqual(stats["outcomes"].get("success"), 1)
         self.assertEqual(stats["domains"].get("cli_sdk_behavior"), 1)
 
-    def test_critique_confirmation_rate_none_when_no_critiques(self):
+    def test_pi_success_rate_none_when_no_pi_results(self):
         p = _tmp()
         _write(p, [
             {"ts": _ts(), "session": "s1", "event": "session_start",
-             "domain": "x", "provider": "mock"},
+             "domain": "x", "runtime": "pi"},
         ])
         stats = compute_stats(path=p)
         p.unlink()
-        self.assertIsNone(stats["critique_confirmation_rate"])
+        self.assertIsNone(stats["pi_success_rate"])
 
 
 if __name__ == "__main__":
