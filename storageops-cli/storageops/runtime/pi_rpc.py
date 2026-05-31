@@ -290,6 +290,11 @@ class PiRpcRuntime:
                     event = {"type": "stderr", "text": line.strip()}
                 safe = _safe_event(event)
                 events.append(safe)
+                if self.options.event_callback:
+                    try:
+                        self.options.event_callback(safe)
+                    except Exception:
+                        pass
                 if self.options.stream:
                     chunk = _extract_text(safe)
                     typ = str(safe.get("type") or safe.get("event") or "").lower()

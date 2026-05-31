@@ -6,6 +6,7 @@ implemented by external runtimes; v0.3 supports Pi Coding Agent only.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any, Callable
 
 
 @dataclass
@@ -20,6 +21,8 @@ class AgentRunOptions:
     pi_model: str | None = None
     pi_provider: str | None = None
     verbose: bool = False
+    # Called with each raw Pi event as it arrives; used for live progress display.
+    event_callback: Callable[[dict[str, Any]], None] | None = None
 
 
 @dataclass

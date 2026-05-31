@@ -8,26 +8,23 @@ import tempfile
 import time
 import threading
 from pathlib import Path
+from typing import Any
 
 from storageops.session import DiagnosticSession
 
-_BANNER = """\
-\033[1mStorageOps\033[0m  S3 Diagnostic Agent
-Describe your issue or paste error logs. Use \033[2m@file.log\033[0m to reference a file.
-\033[2mType / for commands · Ctrl+C or /exit to quit\033[0m
-"""
-
-_TIPS = """
-Tips:
-  • Paste log output directly — StorageOps detects it automatically
-  • Reference a file:  @/path/to/error.log
-  • Type / then Tab to see all commands
-  • Empty line submits a multi-line block
-"""
-
 _IS_TTY = sys.stdout.isatty()
 
-_SLASH_CMDS = ["/help", "/clear", "/doctor", "/setup", "/verbose", "/exit"]
+_SLASH_CMDS = ["/help", "/clear", "/status", "/doctor", "/setup", "/verbose", "/exit"]
+
+_SLASH_CMD_HELP = {
+    "/help":    "Show this command list",
+    "/clear":   "Clear session and start fresh",
+    "/status":  "Show current session info",
+    "/doctor":  "Environment health check",
+    "/setup":   "Re-run setup wizard",
+    "/verbose": "Toggle verbose mode (show tool calls)",
+    "/exit":    "Exit",
+}
 
 
 # ── ANSI helpers (safe for non-TTY) ──────────────────────────────────
@@ -46,18 +43,50 @@ def _hr(w: int = 60) -> str:
     return _dim("─" * w)
 
 
-# ── Spinner ───────────────────────────────────────────────────────────
+# ── Banner (dynamic — shows provider when configured) ─────────────────
 
-class _Spinner:
+def _make_banner() -> str:
+    provider_hint = ""
+    try:
+        from storageops.config import get_provider, get_api_key
+        if get_api_key():
+            provider_hint = f"{get_provider()}  ·  "
+    except Exception:
+        pass
+    hint = f"\033[2m{provider_hint}Type / for commands  ·  Ctrl+C or /exit to quit\033[0m"
+    return (
+        f"\033[1mStorageOps\033[0m  S3 Diagnostic Agent\n"
+        f"Describe your issue or paste error logs. "
+        f"Use \033[2m@file.log\033[0m to reference a file.\n"
+        f"{hint}\n"
+    )
+
+
+_TIPS = """
+Tips:
+  • Paste log output directly — StorageOps detects it automatically
+  • Reference a file:  @/path/to/error.log
+  • Type / then Tab to see all commands
+  • Empty line submits a multi-line block
+"""
+
+
+# ── Live progress display ─────────────────────────────────────────────
+
+class _LiveProgress:
+    """Replaces _Spinner. Shows spinner + elapsed time; in verbose mode shows tool calls."""
+
     _FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 
-    def __init__(self, label: str = "Analyzing"):
-        self._label = label
+    def __init__(self, verbose: bool = False):
+        self._verbose = verbose
         self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._start = time.monotonic()
         self._thread = threading.Thread(target=self._spin, daemon=True)
 
     def __enter__(self):
-        if _IS_TTY:
+        if _IS_TTY and not self._verbose:
             self._thread.start()
         return self
 
@@ -65,53 +94,59 @@ class _Spinner:
         self._stop.set()
         if _IS_TTY and self._thread.is_alive():
             self._thread.join(timeout=1)
+        if _IS_TTY:
             sys.stdout.write("\r\033[K")
             sys.stdout.flush()
+
+    def on_event(self, event: dict[str, Any]) -> None:
+        """Display tool call events (verbose mode) or suppress (spinner mode)."""
+        if not _IS_TTY:
+            return
+        # Detect tool call events — Pi may use various field names
+        tool_name = (
+            event.get("tool_name")
+            or event.get("name")
+            or (event.get("function") or {}).get("name")
+            or (event.get("tool") or {}).get("name")
+        )
+        typ = str(event.get("type") or event.get("event") or "").lower()
+        if tool_name or typ in ("tool_use", "tool_call", "function_call", "tool_result"):
+            name = str(tool_name or typ)
+            if self._verbose:
+                with self._lock:
+                    sys.stdout.write(f"\r\033[K  {_dim('›')}  {_cyan(name)}\n")
+                    sys.stdout.flush()
 
     def _spin(self) -> None:
         i = 0
         while not self._stop.is_set():
+            elapsed = time.monotonic() - self._start
             frame = self._FRAMES[i % len(self._FRAMES)]
-            sys.stdout.write(f"\r  {_cyan(frame)}  {_dim(self._label + '...')}")
+            sys.stdout.write(
+                f"\r  {_cyan(frame)}  {_dim(f'Analyzing…  {elapsed:.0f}s')}"
+            )
             sys.stdout.flush()
             time.sleep(0.08)
             i += 1
 
 
-# ── Input reading ─────────────────────────────────────────────────────
+# ── Setup detection & inline prompts ─────────────────────────────────
 
-_SLASH_CMD_HELP = {
-    "/help":    "Show this command list",
-    "/clear":   "Clear session and start fresh",
-    "/doctor":  "Environment health check",
-    "/setup":   "Re-run setup wizard",
-    "/verbose": "Toggle verbose mode",
-    "/exit":    "Exit",
-}
-
-
-def _print_slash_menu() -> None:
-    """Print a formatted slash command list (shown on '/' or '/help')."""
-    print()
-    print(f"  {_bold('Commands')}")
-    for cmd, desc in _SLASH_CMD_HELP.items():
-        print(f"  {_cyan(cmd):<20}  {_dim(desc)}")
-    print()
-
-
-def _check_pi_ready() -> bool:
-    """Return True if Pi binary is installed and on PATH."""
+def _check_pi_ready() -> tuple[bool, bool]:
+    """Return (pi_installed, api_key_configured)."""
     import shutil
+    pi_ok = key_ok = False
     try:
-        from storageops.config import get_pi_command
-        pi_cmd = get_pi_command()
-        return bool(shutil.which(pi_cmd))
+        from storageops.config import get_pi_command, get_api_key
+        pi_ok = bool(shutil.which(get_pi_command()))
+        key_ok = bool(get_api_key())
     except Exception:
-        return False
+        pass
+    return pi_ok, key_ok
 
 
-def _run_first_time_setup() -> bool:
-    """Prompt the user to run setup inline. Returns True if setup ran."""
+def _run_first_time_setup() -> None:
+    """Full inline setup prompt when Pi is not installed."""
     print()
     print(f"  {_yellow('!')}  Pi Agent is not configured.")
     print(f"  {_dim('AI diagnosis requires Pi. Run setup to get started.')}")
@@ -120,20 +155,42 @@ def _run_first_time_setup() -> bool:
         ans = input("  Run setup now? [Y/n] ").strip().lower()
     except (EOFError, KeyboardInterrupt):
         print()
-        return False
+        return
     if ans in ("", "y", "yes"):
         print()
         import argparse as _ap
         from storageops.cli import cmd_setup
         cmd_setup(_ap.Namespace(pi_command="pi"))
-        return True
     else:
         print()
         print(f"  {_dim('Continuing without Pi — AI diagnosis unavailable.')}")
         print(f"  {_dim('Run')} {_bold('storageops setup')} {_dim('when ready.')}")
         print()
-        return False
 
+
+def _run_api_key_setup() -> None:
+    """Inline prompt when Pi is installed but no API key is configured."""
+    print()
+    print(f"  {_yellow('!')}  No API key configured.")
+    print(f"  {_dim('An Anthropic or OpenAI key is required for AI diagnosis.')}")
+    print()
+    try:
+        ans = input("  Configure API key now? [Y/n] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return
+    if ans in ("", "y", "yes"):
+        print()
+        import argparse as _ap
+        from storageops.cli import cmd_setup
+        cmd_setup(_ap.Namespace(pi_command="pi"))
+    else:
+        print()
+        print(f"  {_dim('Run')} {_bold('storageops setup')} {_dim('to configure your API key.')}")
+        print()
+
+
+# ── Readline tab completion ───────────────────────────────────────────
 
 def _init_readline() -> None:
     try:
@@ -150,26 +207,22 @@ def _init_readline() -> None:
             for m in matches:
                 cmd = m.strip()
                 desc = _SLASH_CMD_HELP.get(cmd, "")
-                print(f"  {_cyan(cmd):<20}  {_dim(desc)}")
+                print(f"  {_cyan(cmd):<22}  {_dim(desc)}")
             print()
-            # Reprint the current prompt + partial input
             readline.redisplay()
 
         readline.set_completer(_completer)
         readline.set_completion_display_matches_hook(_display_matches)
         readline.parse_and_bind("tab: complete")
-        # Complete on first Tab, not second
         readline.set_completer_delims(" \t\n")
     except ImportError:
         pass
 
 
-def _read_block() -> list[str]:
-    """Read one block of input from the user.
+# ── Input reading ─────────────────────────────────────────────────────
 
-    In TTY mode: collect lines until an empty line (double-Enter) or Ctrl+D.
-    In pipe mode: read all of stdin at once.
-    """
+def _read_block() -> list[str]:
+    """Collect lines until empty line (double-Enter) or Ctrl+D. Pipe: read all stdin."""
     if not _IS_TTY:
         return sys.stdin.read().splitlines()
 
@@ -256,6 +309,42 @@ def _evidence_hint(domain: str) -> str:
     )
 
 
+# ── Slash command helpers ─────────────────────────────────────────────
+
+def _print_slash_menu() -> None:
+    print()
+    print(f"  {_bold('Commands')}")
+    for cmd, desc in _SLASH_CMD_HELP.items():
+        print(f"  {_cyan(cmd):<22}  {_dim(desc)}")
+    print()
+
+
+def _print_status(session: DiagnosticSession) -> None:
+    import shutil
+    print()
+    print(f"  {_bold('Session')}   {_dim(session.session_id)}")
+    domain = session.domain or "not classified yet"
+    print(f"  {_bold('Domain')}    {domain.replace('_', ' ')}")
+    turns = len([t for t in session.turns if t.role == "user"])
+    print(f"  {_bold('Turns')}     {turns}")
+    try:
+        from storageops.config import get_provider, get_pi_command, get_api_key
+        provider = get_provider()
+        pi_cmd = get_pi_command()
+        pi_ok = bool(shutil.which(pi_cmd))
+        key_ok = bool(get_api_key())
+        pi_str = _green("ready") if pi_ok else _red("not found  — run storageops setup")
+        key_str = _green("configured") if key_ok else _yellow("missing  — run storageops setup")
+        print(f"  {_bold('Provider')}  {provider}")
+        print(f"  {_bold('Pi')}        {pi_str}")
+        print(f"  {_bold('API key')}   {key_str}")
+    except Exception:
+        pass
+    verbose_str = _green("on") if session.verbose else _dim("off")
+    print(f"  {_bold('Verbose')}   {verbose_str}  {_dim('(/verbose to toggle)')}")
+    print()
+
+
 # ── Response display ──────────────────────────────────────────────────
 
 def _print_result(result) -> None:
@@ -269,7 +358,10 @@ def _print_result(result) -> None:
         ))
         if _pi_missing:
             print(f"  {_red('Pi Agent not found.')}")
-            print(f"  {_dim('Run')} {_bold('storageops setup')} {_dim('to install Pi, or type')} {_bold('/setup')} {_dim('here.')}")
+            print(
+                f"  {_dim('Run')} {_bold('storageops setup')} "
+                f"{_dim('to install Pi, or type')} {_bold('/setup')} {_dim('here.')}"
+            )
         else:
             print(f"  {_red('Diagnosis failed')}")
             print(f"  {_dim(err)}")
@@ -281,8 +373,7 @@ def _print_result(result) -> None:
         print(f"  {_yellow('No report generated.')}")
         return
 
-    # Extract frontmatter for summary line
-    fm_cat  = re.search(r'^category:\s*(\S+)',       report, re.MULTILINE)
+    fm_cat  = re.search(r'^category:\s*(\S+)',        report, re.MULTILINE)
     fm_rc   = re.search(r'^root_cause_type:\s*(\S+)', report, re.MULTILINE)
     fm_conf = re.search(r'^confidence:\s*([\d.]+)',   report, re.MULTILINE)
     fm_sev  = re.search(r'^severity:\s*(\S+)',        report, re.MULTILINE)
@@ -290,9 +381,13 @@ def _print_result(result) -> None:
     print()
     print(_hr(56))
     if fm_cat and fm_rc:
-        sev_str = fm_sev.group(1).upper() if fm_sev else ""
+        sev_str  = fm_sev.group(1).upper() if fm_sev else ""
         conf_str = f"{float(fm_conf.group(1)):.0%}" if fm_conf else ""
-        sev_color = _red if sev_str in ("HIGH", "CRITICAL") else _yellow if sev_str == "MEDIUM" else _dim
+        sev_color = (
+            _red    if sev_str in ("HIGH", "CRITICAL") else
+            _yellow if sev_str == "MEDIUM" else
+            _dim
+        )
         print(
             f"  {_bold(fm_rc.group(1).replace('_', ' '))}  "
             f"{sev_color(sev_str)}  {_dim(conf_str)}"
@@ -300,7 +395,6 @@ def _print_result(result) -> None:
     print(_hr(56))
     print()
 
-    # Strip YAML frontmatter before printing body
     body = re.sub(r'^---\n.*?\n---\n?', '', report, flags=re.DOTALL).strip()
     print(body)
     print()
@@ -311,6 +405,7 @@ def _print_result(result) -> None:
 def run_repl(initial_text: str | None = None, resume_session: str | None = None) -> None:
     """Start the interactive diagnostic REPL."""
     from storageops.runtime import AgentRunOptions, PiRpcRuntime
+    from storageops.config import get_pi_command
 
     _init_readline()
 
@@ -321,32 +416,35 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             session = DiagnosticSession()
         else:
             if _IS_TTY:
-                print(_BANNER)
-            print(f"  {_dim('Resumed session')}  {_bold(session.session_id)}  "
-                  f"{_dim(session.domain or 'unknown domain')}")
+                print(_make_banner())
+            print(
+                f"  {_dim('Resumed')}  {_bold(session.session_id)}  "
+                f"{_dim(session.domain or 'unknown domain')}"
+            )
             if session.turns:
                 last = next((t for t in reversed(session.turns) if t.role == "user"), None)
                 if last:
-                    print(f"  {_dim('Last:')}  {last.content[:80]}")
+                    preview = last.content[:80].replace("\n", " ")
+                    print(f"  {_dim('Last:')}  {preview}")
             print()
     else:
         session = DiagnosticSession()
         if _IS_TTY:
-            print(_BANNER)
+            print(_make_banner())
 
-    # First-run guard: Pi not installed → offer inline setup (TTY only)
-    _pi_ok = _check_pi_ready()
-    if not _pi_ok and _IS_TTY and not initial_text:
-        _run_first_time_setup()
-        # Re-check after potential setup
-        _pi_ok = _check_pi_ready()
+    # ── First-run guard (TTY interactive only) ────────────────────────
+    if _IS_TTY and not initial_text:
+        pi_ok, key_ok = _check_pi_ready()
+        if not pi_ok:
+            _run_first_time_setup()
+        elif not key_ok:
+            _run_api_key_setup()
 
     def _process(text: str) -> None:
-        """Run one diagnostic turn."""
+        """Run one diagnostic turn against Pi."""
         session.add_evidence(text)
         session.add_turn("user", text)
 
-        # Domain detection
         from signatures import auto_detect
         detections = auto_detect(session.accumulated_evidence)
         domain = detections[0]["domain"] if detections else "unknown"
@@ -359,30 +457,32 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
                 f"{_dim(f'({conf:.0%})')}"
             )
 
-        # If no real log content yet, ask for evidence
         if not session.has_log_content(session.accumulated_evidence) and not initial_text:
             hint = _evidence_hint(domain)
             print(f"\n  {_dim('Paste your error log or command output below.')}{hint}")
             return
 
-        # Write accumulated evidence to temp file and run Pi
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".txt", prefix="storageops-session-",
-            delete=False, encoding="utf-8"
+            delete=False, encoding="utf-8",
         ) as tmp:
             tmp.write(session.accumulated_evidence)
             tmp_path = tmp.name
 
+        progress = _LiveProgress(verbose=session.verbose)
+
         options = AgentRunOptions(
             runtime="pi",
-            stream=_IS_TTY,
+            stream=_IS_TTY and not session.verbose,  # verbose shows events; stream for non-verbose
             max_turns=10,
             timeout_seconds=600,
             verbose=session.verbose,
+            pi_command=get_pi_command(),
+            event_callback=progress.on_event,
         )
 
         try:
-            with _Spinner("Analyzing"):
+            with progress:
                 result = PiRpcRuntime(options).run(tmp_path)
         finally:
             try:
@@ -397,7 +497,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         except OSError:
             pass
 
-    # One-shot mode (piped input or direct argument)
+    # ── One-shot mode (pipe / direct argument) ────────────────────────
     if initial_text:
         expanded, errs = _expand_file_refs(initial_text)
         for e in errs:
@@ -405,7 +505,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         _process(expanded)
         return
 
-    # Interactive loop
+    # ── Interactive loop ──────────────────────────────────────────────
     while True:
         try:
             lines = _read_block()
@@ -420,40 +520,57 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         if not text:
             continue
 
-        # Slash commands
         first = text.split()[0].lower()
+
+        # /exit
         if first in ("/exit", "/quit") or text.lower() in ("exit", "quit"):
+            if session.turns:
+                try:
+                    session.save()
+                    print(f"  {_dim('Session')} {_bold(session.session_id)} {_dim('saved.')}")
+                except OSError:
+                    pass
             print("Goodbye.")
             break
+
+        # /help  or bare /
         elif first in ("/help", "/"):
             _print_slash_menu()
             print(_TIPS)
-            continue
+
+        # /status
+        elif first == "/status":
+            _print_status(session)
+
+        # /clear
         elif first == "/clear":
             session.reset()
             print(_dim("  Session cleared.\n"))
-            continue
+
+        # /doctor
         elif first == "/doctor":
             import argparse
             from storageops.cli import cmd_doctor
             cmd_doctor(argparse.Namespace())
-            continue
+
+        # /setup
         elif first == "/setup":
             import argparse
             from storageops.cli import cmd_setup
             cmd_setup(argparse.Namespace(pi_command="pi"))
-            continue
+
+        # /verbose
         elif first == "/verbose":
             session.verbose = not session.verbose
-            print(_dim(f"  Verbose: {'on' if session.verbose else 'off'}\n"))
-            continue
+            state = _green("on  — tool calls will be shown") if session.verbose else _dim("off")
+            print(f"\n  Verbose: {state}\n")
 
-        # Expand @file references
-        text, file_errors = _expand_file_refs(text)
-        for err in file_errors:
-            print(err)
-
-        try:
-            _process(text)
-        except KeyboardInterrupt:
-            print(f"\n  {_dim('Interrupted. Type /exit to quit or continue.')}\n")
+        else:
+            # Regular input — expand file refs and diagnose
+            text, file_errors = _expand_file_refs(text)
+            for err in file_errors:
+                print(err)
+            try:
+                _process(text)
+            except KeyboardInterrupt:
+                print(f"\n  {_dim('Interrupted. Type /exit to quit or continue.')}\n")
