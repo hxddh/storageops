@@ -21,15 +21,28 @@ StorageOps Agent Runtime is **Pi Coding Agent**. StorageOps no longer owns an LL
 ## Install
 
 ```bash
-git clone https://github.com/hxddh/storageops.git
-cd storageops
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e storageops-cli/
-storageops --help
+# Recommended: isolated install via pipx
+pipx install git+https://github.com/hxddh/storageops.git#subdirectory=storageops-cli
+
+# Or with pip
+pip install git+https://github.com/hxddh/storageops.git#subdirectory=storageops-cli
 ```
 
-Install and configure Pi Coding Agent separately. Pi is required only for `storageops agent`; non-agent commands work without Pi.
+## Setup (one-time)
+
+Install Pi Coding Agent separately, then run:
+
+```bash
+storageops setup        # verifies Pi, installs skills to ~/.storageops/, writes config
+storageops doctor       # verify everything is ready
+```
+
+`setup` writes:
+- `~/.storageops/skills/` — StorageOps skill pack (copied from the installed package)
+- `~/.storageops/.pi/settings.json` — Pi settings pointing to the installed skills
+- `~/.storageops/config.json` — StorageOps config (Pi command, workdir, skills path)
+
+After setup, `storageops diagnose` works from **any directory** — no repo clone needed.
 
 ## Pi Configuration
 

@@ -901,6 +901,186 @@ def cmd_serve(args: argparse.Namespace) -> None:
     run(host=args.host, port=args.port, reload=args.reload)
 
 
+# ── Setup / Doctor helpers ────────────────────────────────────────────
+
+def _find_bundled_skills() -> Path | None:
+    """Locate skills: installed package first, then repo layout fallback."""
+    pkg = Path(__file__).parent / "_skills"
+    if pkg.exists() and pkg.is_dir():
+        return pkg
+    repo = Path(__file__).resolve().parents[3] / "agents" / "skills"
+    if repo.exists() and repo.is_dir():
+        return repo
+    return None
+
+
+def cmd_setup(args: argparse.Namespace) -> None:
+    """One-time setup: verify Pi, install skills, write Pi + StorageOps config."""
+    import json
+    import shutil
+    import subprocess
+
+    pi_cmd = getattr(args, "pi_command", "pi")
+
+    print()
+    print(_bold("StorageOps Setup"))
+    print(_hr(40))
+    print()
+
+    # 1. Verify Pi is on PATH
+    pi_path = shutil.which(pi_cmd)
+    if not pi_path:
+        print(f"  {_red('✗')}  {pi_cmd}: not found on PATH")
+        print()
+        print("  Install Pi Agent first, then re-run:  storageops setup")
+        print()
+        sys.exit(1)
+
+    try:
+        ver_out = subprocess.check_output(
+            [pi_cmd, "--version"], text=True, stderr=subprocess.STDOUT, timeout=5
+        ).strip()
+    except Exception:
+        ver_out = "(version unknown)"
+    print(f"  {_green('✓')}  {pi_cmd} {_dim(ver_out)}  {_dim(pi_path)}")
+
+    # 2. Install skills to ~/.storageops/skills/
+    storageops_dir = Path.home() / ".storageops"
+    storageops_dir.mkdir(parents=True, exist_ok=True)
+    skills_dst = storageops_dir / "skills"
+
+    bundled = _find_bundled_skills()
+    if not bundled:
+        print(f"  {_red('✗')}  skills: bundled skills not found — re-install storageops")
+        sys.exit(1)
+
+    if skills_dst.exists():
+        shutil.rmtree(str(skills_dst))
+    shutil.copytree(str(bundled), str(skills_dst))
+    count = sum(1 for d in skills_dst.iterdir() if d.is_dir())
+    print(f"  {_green('✓')}  {count} skills → {_dim(str(skills_dst))}")
+
+    # 3. Write ~/.storageops/.pi/settings.json for Pi
+    pi_settings_dir = storageops_dir / ".pi"
+    pi_settings_dir.mkdir(exist_ok=True)
+    pi_settings = {"skills": ["../skills"], "enableSkillCommands": True}
+    (pi_settings_dir / "settings.json").write_text(
+        json.dumps(pi_settings, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"  {_green('✓')}  pi settings → {_dim(str(pi_settings_dir / 'settings.json'))}")
+
+    # 4. Write ~/.storageops/config.json
+    from storageops.config import save as _save_config
+    _save_config({
+        "pi_command": pi_cmd,
+        "workdir": str(storageops_dir),
+        "skills_dir": str(skills_dst),
+    })
+    print(f"  {_green('✓')}  config → {_dim(str(storageops_dir / 'config.json'))}")
+
+    print()
+    print(f"  Setup complete.  Run: {_bold('storageops diagnose <log-file>')}")
+    print()
+
+
+def cmd_doctor(args: argparse.Namespace) -> None:
+    """Check installation health: Python, storageops, Pi, skills, config."""
+    import shutil
+    import subprocess
+
+    ok = 0
+    fail = 0
+
+    def _chk_ok(label: str, detail: str = "") -> None:
+        nonlocal ok
+        ok += 1
+        suffix = f"  {_dim(detail)}" if detail else ""
+        print(f"  {_green('✓')}  {label}{suffix}")
+
+    def _chk_fail(label: str, hint: str = "") -> None:
+        nonlocal fail
+        fail += 1
+        print(f"  {_red('✗')}  {label}")
+        if hint:
+            print(f"       {_dim(hint)}")
+
+    print()
+    print(_bold("storageops doctor"))
+    print(_hr(40))
+    print()
+
+    # Python version
+    _chk_ok(f"Python {sys.version.split()[0]}")
+
+    # storageops version
+    try:
+        from importlib.metadata import version as _pkg_ver
+        _chk_ok(f"storageops {_pkg_ver('storageops')}")
+    except Exception:
+        _chk_ok("storageops (version unknown)")
+
+    # Core parser count
+    try:
+        from signatures import auto_detect  # noqa: F401
+        _parsers_dir = Path(__file__).resolve().parents[2] / "storageops-core" / "parsers"
+        if not _parsers_dir.exists():
+            import storageops._parsers as _sp
+            _parsers_dir = Path(_sp.__file__).parent
+        n = sum(1 for f in _parsers_dir.glob("parse_*.py"))
+        _chk_ok(f"storageops-core  {n} parsers")
+    except Exception as exc:
+        _chk_fail("storageops-core", f"error: {exc}")
+
+    # Pi binary
+    from storageops.config import get_pi_command
+    pi_cmd = get_pi_command()
+    pi_path = shutil.which(pi_cmd)
+    if pi_path:
+        try:
+            ver_out = subprocess.check_output(
+                [pi_cmd, "--version"], text=True, stderr=subprocess.STDOUT, timeout=5
+            ).strip()
+            _chk_ok(f"{pi_cmd} {ver_out}", pi_path)
+        except Exception:
+            _chk_ok(pi_cmd, pi_path)
+    else:
+        _chk_fail(f"{pi_cmd}: not found", "Install Pi Agent, then run: storageops setup")
+
+    # Skills
+    from storageops.config import get_skills_dir
+    skills = get_skills_dir()
+    if skills and skills.exists():
+        count = sum(1 for d in skills.iterdir() if d.is_dir())
+        _chk_ok(f"skills  {count} directories", str(skills))
+    else:
+        bundled = _find_bundled_skills()
+        if bundled:
+            _chk_fail("skills: not installed", "run: storageops setup")
+        else:
+            _chk_fail("skills: not found", "re-install storageops")
+
+    # Config file
+    cfg_file = Path.home() / ".storageops" / "config.json"
+    if cfg_file.exists():
+        _chk_ok("config", str(cfg_file))
+    else:
+        _chk_fail("config: not found", "run: storageops setup")
+
+    # Pi settings.json
+    pi_cfg = Path.home() / ".storageops" / ".pi" / "settings.json"
+    if pi_cfg.exists():
+        _chk_ok("pi settings", str(pi_cfg))
+    else:
+        _chk_fail("pi settings: not found", "run: storageops setup")
+
+    print()
+    if fail == 0:
+        print(f"  {_green('All checks passed.')}  Ready to diagnose.")
+    else:
+        print(f"  {_yellow(str(fail) + ' issue(s) found.')}  Run {_bold('storageops setup')} to fix.")
+    print()
+
+
 # ── Argument parser ───────────────────────────────────────────────────
 
 def main() -> None:
@@ -1066,6 +1246,22 @@ def main() -> None:
     p_serve.add_argument("--port", type=int, default=8080)
     p_serve.add_argument("--reload", action="store_true")
     p_serve.set_defaults(func=cmd_serve)
+
+    # ── setup
+    p_setup = sub.add_parser(
+        "setup",
+        help="One-time setup: verify Pi, install skills, write config",
+    )
+    p_setup.add_argument(
+        "--pi-command", default="pi",
+        metavar="CMD",
+        help="Pi executable name or path (default: pi)",
+    )
+    p_setup.set_defaults(func=cmd_setup)
+
+    # ── doctor
+    p_doctor = sub.add_parser("doctor", help="Check installation health")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     args = parser.parse_args()
     if hasattr(args, "func"):

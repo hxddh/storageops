@@ -119,7 +119,7 @@ def test_missing_pi_binary_returns_helpful_error(tmp_path: Path):
     evidence.write_text("AccessDenied\n")
     result = PiRpcRuntime(AgentRunOptions(pi_command="definitely-missing-pi-binary")).run(evidence)
     assert not result.ok
-    assert "Pi Coding Agent is required" in result.error
+    assert "Pi Agent" in result.error
 
 
 def test_pi_timeout_returns_structured_failure(tmp_path: Path):
