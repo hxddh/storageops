@@ -11,19 +11,10 @@ These tests run fully offline in CI (no LLM API key needed).
 from __future__ import annotations
 
 import json
-import sys
 import unittest
 from pathlib import Path
 
-_CLI_DIR = Path(__file__).parent.parent
-_PROJECT_ROOT = _CLI_DIR.parent
-_CORE_DIR = _PROJECT_ROOT / "storageops-core"
-
-for _sub in ("utils", "parsers", "analyzers"):
-    _p = str(_CORE_DIR / _sub)
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
-
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
 _CASES_DIR = _PROJECT_ROOT / "agents" / "skills" / "storageops-eval-golden-cases" / "cases"
 
 

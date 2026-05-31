@@ -1,7 +1,7 @@
-name: LLM Smoke Test
+name: Pipeline Smoke Test
 
-# Run only on manual trigger or when a PR has the 'llm-test' label.
-# Requires ANTHROPIC_API_KEY to be set in repository secrets.
+# Runs rule-based triage → analyze → report validation on a golden case.
+# No LLM or Pi required. Triggers on manual dispatch or 'smoke-test' PR label.
 on:
   workflow_dispatch:
     inputs:
@@ -13,10 +13,10 @@ on:
     types: [labeled]
 
 jobs:
-  llm-smoke:
+  smoke:
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.label.name == 'llm-test')
+      (github.event_name == 'pull_request' && github.event.label.name == 'smoke-test')
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -31,10 +31,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e storageops-core
-          pip install -e "storageops-cli[llm]"
+          pip install -e storageops-cli
 
-      - name: Run LLM smoke test
+      - name: Run pipeline smoke test
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           STORAGEOPS_SMOKE_CASE: ${{ github.event.inputs.case || 'rclone-corrupted-transfer' }}
-        run: python .github/scripts/llm_smoke_test.py
+        run: python .github/scripts/pi_smoke_test.py

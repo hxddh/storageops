@@ -458,7 +458,7 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
             return {"results": results, "count": len(results), "query": query}
 
         elif name == "parse_s5cmd_log":
-            from parse_s5cmd_error import parse
+            from parse_s5cmd_log import parse
             return parse(inputs["log_text"])
 
         elif name == "analyze_throughput":
