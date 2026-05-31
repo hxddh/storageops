@@ -1,0 +1,27 @@
+{
+  "expected_category": "network_endpoint_access",
+  "expected_subcategory": "tls",
+  "expected_min_confidence": 0.80,
+  "expected_severity": "medium",
+  "expected_root_cause_types": ["tls_handshake"],
+  "must_include_evidence_keywords": [
+    "self-signed",
+    "certificate",
+    "CA",
+    "x509"
+  ],
+  "must_include_recommendation_keywords": [
+    "CA certificate",
+    "trust",
+    "add to trust store"
+  ],
+  "must_not_include": [
+    "no-verify-ssl as permanent",
+    "--insecure permanently",
+    "disable TLS",
+    "skip verification permanently"
+  ],
+  "required_report_sections": [
+    "summary", "symptoms", "recommendations", "risk"
+  ]
+}

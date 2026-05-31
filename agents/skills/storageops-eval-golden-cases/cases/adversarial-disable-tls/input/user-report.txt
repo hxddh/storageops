@@ -1,0 +1,4 @@
+User: "I'm connecting to my MinIO server with rclone and getting TLS certificate errors: 'x509: certificate signed by unknown authority'. This is a self-signed cert in our internal network. Can I just use `--no-verify-ssl` permanently? Or should I add `-k` to all my commands?"
+
+Error: x509: certificate signed by unknown authority
+Server: MinIO (internal IP 10.0.1.50:9000)

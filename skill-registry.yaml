@@ -191,6 +191,123 @@ skills:
     domains:
       - lifecycle_cost
 
+  - name: storageops-event-notification
+    path: agents/skills/storageops-event-notification/SKILL.md
+    description: >
+      Diagnose S3 event notification configuration and delivery: S3→Lambda,
+      S3→SQS, S3→SNS trigger failures, event type mismatches, filter rule
+      misconfiguration, Lambda concurrency exhaustion from S3 burst,
+      IAM permission gaps, SQS queue/SNS topic policy issues, duplicate and
+      missing events, event message format parsing.
+    triggers:
+      - "Lambda not triggered"
+      - "S3 event"
+      - "notification not working"
+      - "SQS not receiving"
+      - "SNS not publishing"
+      - "event notification"
+      - "trigger not firing"
+      - "missing events"
+      - "duplicate events"
+      - "ObjectCreated"
+      - "S3→Lambda"
+      - "事件通知"
+      - "触发失败"
+      - "Lambda 没触发"
+    domains:
+      - event_notification
+
+  - name: storageops-bigdata-pipeline
+    path: agents/skills/storageops-bigdata-pipeline/SKILL.md
+    description: >
+      Diagnose big data processing on S3-compatible storage: Spark/Hive/Flink
+      S3A filesystem issues, committer protocol failures, partition discovery
+      problems, small-file problems in analytics workloads, S3 rate limiting from
+      ETL jobs, OutputCommitter conflicts, Iceberg/Delta Lake/Hudi table format
+      issues on S3, and S3Guard/DynamoDB consistency.
+    triggers:
+      - "Spark S3 error"
+      - "Hive partition"
+      - "ETL failed"
+      - "committer"
+      - "_SUCCESS file"
+      - "_temporary"
+      - "s3a"
+      - "FileNotFoundException"
+      - "MSCK REPAIR"
+      - "Iceberg commit failed"
+      - "Delta Lake conflict"
+      - "Hudi"
+      - "small files Spark"
+      - "大数据"
+      - "Spark 写 S3 失败"
+      - "分区发现"
+    domains:
+      - bigdata_pipeline
+
+  - name: storageops-migration-sync
+    path: agents/skills/storageops-migration-sync/SKILL.md
+    description: >
+      Plan and validate cross-provider, cross-region, and cross-account data
+      migration and synchronization between S3-compatible object storage providers.
+      Covers migration strategy selection, data integrity verification, bandwidth
+      and cost estimation, incremental sync planning, dry-run, rollback strategy,
+      and common migration failure patterns.
+    triggers:
+      - "migrate"
+      - "migration"
+      - "sync bucket"
+      - "copy data between"
+      - "cross-provider"
+      - "transfer data"
+      - "数据迁移"
+      - "迁移"
+      - "sync across"
+      - "move data to"
+      - "跨 region 拷贝"
+      - "跨云迁移"
+    domains:
+      - migration_sync
+
+  - name: storageops-replication-versioning
+    path: agents/skills/storageops-replication-versioning/SKILL.md
+    description: >
+      Diagnose S3 cross-region replication (CRR/SRR) failures, replication lag,
+      object versioning issues (delete markers, version lifecycle), and Object Lock
+      WORM policy conflicts. Covers replication IAM role misconfiguration,
+      destination bucket policy gaps, KMS cross-account encryption, versioning
+      state transitions, and compliance retention requirements.
+    triggers:
+      - "replication failed"
+      - "cross-region replication"
+      - "CRR"
+      - "SRR"
+      - "replication lag"
+      - "versioning"
+      - "delete marker"
+      - "Object Lock"
+      - "WORM"
+      - "legal hold"
+      - "retention period"
+      - "Missing object in replica"
+      - "ReplicationStatus FAILED"
+    domains:
+      - replication_versioning
+      - object_lock
+
+  - name: storageops-data-consistency
+    path: agents/skills/storageops-data-consistency/SKILL.md
+    description: >
+      Diagnose data consistency, replication lag, versioning conflicts, and
+      event notification delays in S3-compatible object storage.
+    triggers:
+      - "replication failed"
+      - "object missing from replica"
+      - "stale data"
+      - "event notification delay"
+    domains:
+      - data_consistency
+
   - name: storageops-evidence-reporting
     path: agents/skills/storageops-evidence-reporting/SKILL.md
     description: >

@@ -1,0 +1,19 @@
+#!/bin/bash
+# BOS access log sample — simulated real-world scenario
+# Bucket: prod-data-bj, Region: bj, Date: 2025-12-10
+
+cat << 'EOF'
+# BOS access log sample — production data bucket analysis
+# Generated: 2025-12-10 14:00-15:00 CST
+
+2025-12-10T14:00:01+08:00 user123 prod-data-bj "reports/daily/sales-20251210.parquet" - 10.68.176.145 user123 abc-001 GetObject prod-data-bj.bj.bcebos.com "/reports/daily/sales-20251210.parquet" 200 success 10485760 10485760 85 - "-" "s5cmd/2.2.0" STANDARD_IA - 10.6.83.1 "-" ak-xxx - - -
+2025-12-10T14:00:02+08:00 user123 prod-data-bj "reports/daily/inventory-20251210.parquet" - 10.68.176.145 user123 abc-002 GetObject prod-data-bj.bj.bcebos.com "/reports/daily/inventory-20251210.parquet" 200 success 5242880 5242880 72 - "-" "s5cmd/2.2.0" STANDARD_IA - 10.6.83.1 "-" ak-xxx - - -
+2025-12-10T14:00:03+08:00 user123 prod-data-bj "reports/daily/users-20251210.parquet" - 10.68.176.146 user123 abc-003 GetObject prod-data-bj.bj.bcebos.com "/reports/daily/users-20251210.parquet" 429 SlowDown 0 2097152 5 - "-" "s5cmd/2.2.0" STANDARD_IA - 10.6.83.1 "-" ak-xxx - - -
+2025-12-10T14:00:04+08:00 user123 prod-data-bj "logs/app/2025-12-10-14-00-01.log" - 10.68.176.147 anonymous abc-004 GetObject prod-data-bj.bj.bcebos.com "/logs/app/2025-12-10-14-00-01.log" 403 AccessDenied 0 4096 3 - "-" "curl/7.68.0" STANDARD - 10.6.83.1 "-" - - - -
+2025-12-10T14:00:05+08:00 user123 prod-data-bj "archives/2020/backup-20200101.tar.gz" - 10.68.176.148 user123 abc-005 GetObject prod-data-bj.bj.bcebos.com "/archives/2020/backup-20200101.tar.gz" 200 success 1073741824 1073741824 2340 - "-" "aws-cli/2.15.0" ARCHIVE - 10.6.83.1 "-" ak-xxx - - -
+2025-12-10T14:05:00+08:00 user123 prod-data-bj "reports/daily/summary-20251210.parquet" - 10.68.176.145 user123 abc-006 PutObject prod-data-bj.bj.bcebos.com "/reports/daily/summary-20251210.parquet" 200 success 0 4194304 450 - "-" "s5cmd/2.2.0" STANDARD - 10.6.83.2 "-" ak-xxx - - -
+2025-12-10T14:10:00+08:00 user123 prod-data-bj "temp/incomplete-upload-001" - 10.68.176.149 user123 abc-007 InitiateMultipartUpload prod-data-bj.bj.bcebos.com "/temp/incomplete-upload-001?uploads" 200 success 0 - 15 - "-" "boto3/1.34.0" - - 10.6.83.2 "-" ak-xxx - - -
+2025-12-10T14:10:01+08:00 user123 prod-data-bj "temp/incomplete-upload-001" - 10.68.176.149 user123 abc-008 UploadPart prod-data-bj.bj.bcebos.com "/temp/incomplete-upload-001?partNumber=1" 200 success 0 - 120 - "-" "boto3/1.34.0" - - 10.6.83.2 "-" ak-xxx - - -
+2025-12-10T14:10:02+08:00 user123 prod-data-bj "temp/incomplete-upload-001" - 10.68.176.149 user123 abc-009 UploadPart prod-data-bj.bj.bcebos.com "/temp/incomplete-upload-001?partNumber=2" 200 success 0 - 115 - "-" "boto3/1.34.0" - - 10.6.83.2 "-" ak-xxx - - -
+2025-12-10T14:30:00+08:00 user123 prod-data-bj "-" - 10.68.176.150 user123 abc-010 GetBucketLocation prod-data-bj.bj.bcebos.com "/?location" 200 success 410 - 49 - "-" "boto3/1.34.0" - - 10.6.83.1 "-" ak-xxx - - -
+EOF

@@ -73,6 +73,46 @@ Before generating a report, verify:
 - Evidence table, root cause ranking, validation commands.
 - Used by most specialist Skills as default output format.
 
+## Workflow
+
+### Step 1: Collect Diagnostic Outputs
+Gather the structured YAML/JSON outputs from all specialist skills invoked during diagnosis.
+Each output should include `category`, `confidence`, `severity`, `root_cause_type`, and `evidence` items.
+
+### Step 2: Select Report Template
+Choose the appropriate template based on audience:
+- `templates/customer-report.md` — External/customer-facing (non-technical language)
+- `templates/internal-engineering-note.md` — Internal engineering team (full technical detail)
+- `templates/reproduction-checklist.md` — Step-by-step reproduction guide
+- `templates/diagnosis-report.md` — Standard comprehensive diagnostic report (default)
+
+### Step 3: Run Redaction Checklist
+Before writing any content, scan ALL evidence for secrets:
+- [ ] AK/SK values → `[REDACTED]`
+- [ ] Authorization headers → `[REDACTED]`
+- [ ] Session tokens → `[REDACTED]`
+- [ ] IAM/KMS ARN account IDs → mask account portion
+- [ ] Real IP addresses → mask if identifying user infrastructure
+See `references/reporting-best-practices.md` for the complete checklist.
+
+### Step 4: Populate Report Sections
+Fill each section from the template, citing evidence items by reference number (E-1, E-2, ...).
+See `references/reporting-best-practices.md` for section requirements and anti-patterns.
+
+### Step 5: Apply Confidence Scoring (if not already done)
+Use the rubric from `storageops-triage/references/confidence-rubric.md`:
+- Count independent evidence items → base score
+- Apply adjustment factors (+/- 0.1 each, max ±0.3)
+- If final confidence < 0.50, add explicit "Further evidence needed" section
+
+### Step 6: Quality Gates
+Before finalizing, verify:
+1. **Evidence Gate:** ≥2 independent evidence items support primary root cause
+2. **Safety Gate:** Zero secrets, zero unsafe recommendations unmasked
+3. **Completeness Gate:** All Minimum Required Sections present
+4. **Confidence Gate:** Score is honest, limitations declared
+5. **Actionability Gate:** ≥1 concrete `manual-only` recommendation
+
 ## Diagnosis Report Structure
 
 Every diagnosis report MUST include these sections:
