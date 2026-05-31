@@ -68,9 +68,12 @@ recommended_tools:
 | Tool | When to call | Example input |
 |---|---|---|
 | `scan_secrets` | Before any output, scan all evidence for AK/SK/tokens | `{"text": "<policy document or log>"}` |
+| `parse_httpmon_log` | When user can capture traffic with httpmon — extracts full 403 XML error, auth type, request-id without exposing credentials | `{"log_text": "<httpmon --format json output or .har file>"}` |
 | `analyze_policy` | When an IAM or bucket policy JSON is available | `{"policy": "<policy JSON>"}` |
 | `generate_policy_fix` | When a specific denial is identified and a fix is needed | `{"denial_type": "iam_policy_missing_allow", "action": "s3:GetObject"}` |
 | `search_memory` | At start, check for prior similar access-denied cases | `{"query": "403 AccessDenied <provider> <action>"}` |
+
+> **httpmon tip**: `httpmon --format json aws s3 cp ... 2>&1` captures the complete 403 XML response body and `x-amz-request-id` header — far more diagnostic than just the awscli error message.
 
 ## Required evidence
 

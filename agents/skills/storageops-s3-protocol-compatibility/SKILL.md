@@ -63,11 +63,14 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
-| `parse_sigv4_error` | When SigV4 / SignatureDoesNotMatch error is present | `{"text": "<error XML or debug log>"}` |
+| `parse_httpmon_log` | When user can capture wire-level traffic — reveals actual Authorization header format, SigV4 vs SigV2, canonical request sent | `{"log_text": "<httpmon --format json or .har>"}` |
+| `parse_sigv4_error` | When SigV4 / SignatureDoesNotMatch error XML is available | `{"text": "<error XML or debug log>"}` |
 | `parse_cors_error` | When a CORS preflight error is reported | `{"text": "<CORS error message or response headers>"}` |
 | `analyze_cors` | After parsing CORS error, to classify and recommend fix | `{"text": "<CORS config or error>"}` |
 | `scan_secrets` | Before any output, redact Authorization headers from debug logs | `{"text": "<log content>"}` |
 | `search_memory` | At start, check for known provider-specific protocol quirks | `{"query": "S3 protocol <provider> <error code>"}` |
+
+> **httpmon tip**: `httpmon --format json <storage-command>` captures the exact Authorization header format and error response XML — essential for diagnosing SigV4 vs SigV2 issues and clock skew (check `x-amz-date` in captured request vs server `Date` response header).
 
 ## Required evidence
 

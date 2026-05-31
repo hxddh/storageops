@@ -107,6 +107,7 @@ class TestToolRegistryConsistency(unittest.TestCase):
                                             "hops": [],
                                             "summary": {"error_count": 0,
                                                         "root_cause_hint": "unknown"}}},
+            "parse_httpmon_log":         {"log_text": '{"type":"request","method":"GET","url":"https://s3.amazonaws.com/bucket/key","headers":{}}\n{"type":"response","status":403,"headers":{},"body":""}'},
         }
         for t in TOOL_DEFINITIONS:
             name = t["name"]
