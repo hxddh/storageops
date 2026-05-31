@@ -1,191 +1,128 @@
 # Getting Started
 
-This guide walks through installation, configuration, and your first diagnosis — step by step.
+This guide walks through installation, setup, and your first diagnosis — step by step.
 
 ---
 
 ## Step 1 — Check prerequisites
 
 ```bash
-python3 --version   # must be 3.9 or later
+python3 --version   # 3.10 or later required
 pip --version
-git --version
 ```
-
-If any of these commands fail, install the missing tool before continuing.
 
 ---
 
 ## Step 2 — Install
 
 ```bash
-# Clone the repository
-git clone https://github.com/hxddh/storageops.git
+pip install storageops
+```
 
-# Enter the project directory
-cd storageops
+Verify:
 
-# Install with LLM support (includes both anthropic and openai packages)
-pip install -e "storageops-cli/[llm]"
-
-# Verify the install
+```bash
 storageops --help
 ```
 
-Expected output:
-```
-usage: storageops [-h] {triage,analyze,report,eval,agent,audit,mcp,serve,memory} ...
-```
+If `storageops` is not found, your pip bin directory may not be on `PATH`:
 
-If `storageops` is not found after installing, your pip's bin directory may not be on `PATH`.
-Common fixes:
-- In a virtual environment: activate it first (`source .venv/bin/activate`)
-- Without a virtual environment: add `~/.local/bin` to your `PATH`
+```bash
+# Common fix for user installs
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
 
 **Recommended: use a virtual environment**
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -e "storageops-cli/[llm]"
+pip install storageops
 storageops --help
 ```
 
 ---
 
-## Step 3 — Configure your API key
-
-StorageOps uses your own LLM API key (BYOK — Bring Your Own Key). Keys are used only for calls to the LLM provider you choose; they are never sent anywhere else.
-
-Export the environment variable for your provider:
+## Step 3 — Run setup
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...      # Anthropic Claude  (recommended)
-export OPENAI_API_KEY=sk-...             # OpenAI
-export DEEPSEEK_API_KEY=sk-...           # DeepSeek
-export MOONSHOT_API_KEY=sk-...           # Moonshot / Kimi
-export DASHSCOPE_API_KEY=sk-...          # Qwen / Alibaba Cloud
-export ZHIPU_API_KEY=...                 # Zhipu / GLM
-export GROQ_API_KEY=gsk_...              # Groq
+storageops setup
 ```
 
-Set only one. StorageOps detects which provider to use from whichever env var is set.
+The setup wizard:
+1. Downloads Pi Coding Agent automatically.
+2. Asks which LLM provider to use (Anthropic or OpenAI).
+3. Asks for your API key and saves it to `~/.storageops/config.json`.
 
-**Make it permanent** by adding the export line to your shell profile:
+After setup, check that everything is healthy:
 
 ```bash
-echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.bashrc   # bash
-echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.zshrc    # zsh
+storageops doctor
 ```
-
-**Alternative — config file** (persists across all shells without modifying profiles):
-
-```bash
-mkdir -p ~/.storageops
-cat > ~/.storageops/config.yaml << 'EOF'
-llm_key: sk-ant-...
-EOF
-chmod 600 ~/.storageops/config.yaml
-```
-
-**Key resolution order** (highest priority first):
-1. `--llm-key` CLI flag
-2. Provider-specific env var (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `MOONSHOT_API_KEY`, `DASHSCOPE_API_KEY`, `ZHIPU_API_KEY`, `GROQ_API_KEY`)
-3. `STORAGEOPS_LLM_KEY` generic env var
-4. `~/.storageops/config.yaml` → `llm_key`
-
-The rule-based commands (`triage`, `analyze`, `report`) require no key at all.
 
 ---
 
-## Step 4 — Try the rule-based triage (no key needed)
+## Step 4 — Try offline triage (no API key needed)
 
-Even without an API key, StorageOps can classify your evidence instantly:
+Rule-based triage works instantly without any API key:
 
 ```bash
 storageops triage \
   agents/skills/storageops-eval-golden-cases/cases/throttling-hot-prefix/input/s3-access-log.txt
 ```
 
-Expected output (abbreviated):
-```json
-{
-  "ok": true,
-  "primary_domain": "performance_throughput",
-  "evidence_quality": "sufficient",
-  "recommended_next_command": "storageops analyze performance_throughput ..."
-}
+Expected output:
+```
+Domain:  performance_throughput  (0.72)
+Evidence quality: sufficient
+Recommended: storageops analyze performance_throughput <file>
 ```
 
 ---
 
-## Step 5 — Run the LLM agent
-
-The LLM agent does multi-turn reasoning: reads your evidence, calls diagnostic tools, forms hypotheses, and writes a structured report.
-
-With your API key exported, the agent auto-detects the provider:
+## Step 5 — Start the interactive REPL
 
 ```bash
-storageops agent \
-  agents/skills/storageops-eval-golden-cases/cases/rclone-corrupted-transfer/input/rclone-debug.log
+storageops
 ```
 
-To watch the agent work turn by turn, add `--verbose`:
+Describe your issue in plain language. Empty line submits. The agent accumulates evidence
+across multiple turns before running analysis.
 
-```bash
-storageops agent \
-  agents/skills/storageops-eval-golden-cases/cases/rclone-corrupted-transfer/input/rclone-debug.log \
-  --verbose
+```
+StorageOps  S3 Diagnostic Agent
+Describe your issue or paste error logs.
+
+> Got 403 from boto3 on GetObject, but my IAM role has s3:GetObject
 ```
 
-You'll see the agent:
-- **Turn 1**: Write an investigation plan and call `search_memory`
-- **Turn 2**: Call `scan_secrets` to redact credentials
-- **Turn 3**: Call `parse_rclone_log` to extract structured facts
-- **Turn 4+**: Reason through the evidence and write the report
-
-The final report is printed to stdout with a YAML frontmatter block:
-
-```markdown
----
-category: cli_sdk_behavior
-root_cause_type: multipart_etag_format_mismatch
-confidence: 0.92
-severity: high
----
-
-## Summary
-rclone's multipart ETag format uses MD5-of-parts which doesn't match...
-
-## Key Evidence
-...
-
-## Remediation
-# manual-only: ...
+**Reference a local file:**
+```
+> here's the error trace @/var/log/s3-error.log
 ```
 
-**Override provider or model explicitly** if needed:
+**Slash commands:**
 
-```bash
-storageops agent error.log --llm-provider anthropic --llm-model claude-opus-4-8
-storageops agent error.log --llm-provider openai --llm-model gpt-5.5
-storageops agent error.log --llm-provider deepseek --llm-model deepseek-v4-pro
-storageops agent error.log --llm-provider groq
-```
+| Command | Action |
+|---------|--------|
+| `/help` | Show available commands |
+| `/clear` | Start a fresh session |
+| `/doctor` | Check environment health |
+| `/setup` | Re-run setup wizard |
+| `/verbose` | Toggle verbose output |
+| `/exit` | Quit |
 
 ---
 
-## Step 6 — Use the web UI (optional)
+## Step 6 — Resume a session
+
+Sessions are saved automatically to `~/.storageops/sessions/`. To pick up where you left off:
 
 ```bash
-pip install fastapi uvicorn
-storageops serve
-# Open http://localhost:8080
+storageops resume            # pick from recent sessions
+storageops resume abc12345   # resume by session ID
 ```
-
-- **Triage tab**: Paste or drag-drop a log file → instant domain detection, no key needed
-- **Analyze tab**: Select a domain, paste evidence → runs the rule-based parser pipeline
-- **Agent tab**: Enter your API key, choose provider and model → full LLM diagnosis in the browser
 
 ---
 
@@ -194,174 +131,97 @@ storageops serve
 ### 403 access denied
 
 ```bash
-storageops agent access-denied.log --max-turns 10
+storageops
+> s3://my-bucket/data/file.csv — AccessDenied, but my IAM role has s3:GetObject
 ```
 
-The agent checks memory for similar cases, scans for credentials, calls `analyze_policy` to trace the denial, and calls `generate_policy_fix` to output a policy statement (manual review before applying).
+The agent checks memory for similar cases, calls `analyze_policy` to trace the denial,
+and `generate_policy_fix` to output a corrected policy statement.
 
 ### Slow transfers — is it throttling?
 
 ```bash
-storageops agent slow-transfer.log
+storageops < slow-transfer.log
 ```
 
 The agent detects 429/SlowDown patterns and calls `detect_throttling` + `analyze_throughput`.
 
-### rclone reports files corrupted after transfer
+### Capture wire-level traffic with httpmon
+
+Wrap any storage command with [httpmon](https://github.com/hxddh/https-traffic-inspector)
+to give StorageOps full HTTP evidence:
 
 ```bash
-storageops agent rclone-debug.log
+httpmon --format json aws s3 cp s3://bucket/key . 2>&1 | storageops
 ```
 
-ETag mismatch from multipart uploads is the most common cause. Use `--verbose` to see the tool reasoning.
-
-### Interactive follow-up after diagnosis
+### One-shot pipe
 
 ```bash
-storageops agent error.log --interactive
+aws s3 cp s3://bucket/key . 2>&1 | storageops
+cat rclone-debug.log | storageops
 ```
 
-After the initial report, enter a follow-up prompt:
-- "What's the exact multipart threshold to set?"
-- "Would this affect Tencent COS too?"
-- "Show me the rclone mount options I should change"
+---
 
-### Complex multi-domain problems
+## Manage configuration
 
 ```bash
-storageops agent error.log --supervisor
+storageops config list              # show current config
+storageops config set provider openai
+storageops config set api_key sk-...
+storageops config get api_key       # prints [REDACTED]
 ```
 
-Multi-agent mode: a triage agent classifies the evidence, then routes to one or two specialist agents.
+Config is stored at `~/.storageops/config.json`.
+
+---
+
+## Update
+
+```bash
+storageops update           # download latest Pi + reinstall skills
+storageops update --check   # check without installing
+```
 
 ---
 
 ## Troubleshooting
-
-### `ModuleNotFoundError: No module named 'anthropic'` or `No module named 'openai'`
-
-The LLM dependencies are not installed. Run:
-
-```bash
-pip install -e "storageops-cli/[llm]"
-```
-
-This installs both the `anthropic` and `openai` packages.
 
 ### `storageops: command not found`
 
 pip installed the script but the bin directory is not on your PATH.
 
 ```bash
-# Check where pip installs scripts
-python3 -m site --user-base
-
-# Add to PATH (bash)
+python3 -m site --user-base          # shows e.g. /home/you/.local
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-Or use a virtual environment as described in Step 2.
+Or use a virtual environment.
 
-### Agent exits immediately with no output
+### `storageops doctor` shows Pi not found
 
-The provider could not be determined. Check which env var you've exported:
+Run `storageops setup` to download Pi, or verify that `pi` is on your PATH.
 
-```bash
-env | grep -E 'ANTHROPIC|OPENAI|DEEPSEEK|MOONSHOT|DASHSCOPE|ZHIPU|GROQ'
-```
+### REPL returns "Pi is not available"
 
-If nothing appears, export a key (see Step 3). Then retry:
+1. Run `storageops setup` to (re-)install Pi.
+2. Ensure your API key is set: `storageops config list`.
+3. Check health: `storageops doctor`.
 
-```bash
-storageops agent mylog.log --verbose
-```
+### report shows `report_valid: false`
 
-### "API key not found" error
-
-The env var is set in a different shell or not exported. Verify:
+The agent didn't include required YAML frontmatter. Try `diagnose` with a longer timeout:
 
 ```bash
-echo $ANTHROPIC_API_KEY   # should print your key (not empty)
+storageops diagnose mylog.log --max-turns 12
 ```
-
-If empty, re-export in the current terminal or add to your shell profile.
-
-### Agent report shows `report_valid: false`
-
-The LLM didn't include the required YAML frontmatter. Increase `--max-turns`:
-
-```bash
-storageops agent mylog.log --max-turns 12
-```
-
-### `pip install` fails with permission error
-
-Use `--user` flag or a virtual environment:
-
-```bash
-pip install --user -e "storageops-cli/[llm]"
-# or
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e "storageops-cli/[llm]"
-```
-
----
-
-## Upgrading
-
-StorageOps is installed as an editable package from a git clone. Upgrading means
-pulling the latest code and re-installing to pick up any new dependencies.
-
-### Standard upgrade
-
-```bash
-# 1. Go to the directory where you cloned the repo
-cd storageops
-
-# 2. Pull the latest changes
-git pull origin main
-
-# 3. Reinstall (picks up any new Python dependencies)
-pip install -e "storageops-cli/[llm]"
-```
-
-If you installed inside a virtual environment, activate it first:
-
-```bash
-source .venv/bin/activate    # Windows: .venv\Scripts\activate
-git pull origin main
-pip install -e "storageops-cli/[llm]"
-```
-
-### What changes after an upgrade
-
-- **Immediately (after `git pull`)**: new diagnostic rules, signature patterns, skill content, provider defaults
-- **After `pip install`**: new Python packages, if `storageops-cli/pyproject.toml` added dependencies
-- **Never touched**: `~/.storageops/memory.jsonl` (past diagnoses), `~/.storageops/audit.jsonl` (session history), `~/.storageops/config.yaml` (your config)
-
-### Verify the upgrade
-
-```bash
-storageops --help | head -1
-git -C . log --oneline -3   # shows the 3 most recent commits you're on
-```
-
-### Rolling back
-
-If an upgrade breaks something, you can roll back to any previous commit:
-
-```bash
-git log --oneline -10          # find the commit to go back to
-git checkout <commit-hash>     # go to that commit
-pip install -e "storageops-cli/[llm]"
-```
-
-To return to the latest: `git checkout main && git pull origin main`.
 
 ---
 
 ## Next Steps
 
 - **[CLI Reference](cli-reference.md)** — full documentation of every command and flag
-- **[Architecture Guide](../CLAUDE.md)** — internals: ReAct loop, tool registry, skill loading
+- **[Tutorial](tutorial.md)** — worked examples for common S3 problems
+- **[Architecture Guide](../ARCHITECTURE.md)** — internals: tool registry, skill loading, Pi RPC
