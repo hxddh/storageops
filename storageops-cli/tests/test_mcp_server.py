@@ -10,15 +10,7 @@ from __future__ import annotations
 
 import sys
 import unittest
-from pathlib import Path
 from unittest.mock import patch
-
-_CLI_DIR = Path(__file__).parent.parent
-_CORE_DIR = _CLI_DIR.parent.parent / "storageops-core"
-for _sub in ("utils", "parsers", "analyzers"):
-    _p = str(_CORE_DIR / _sub)
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
 
 
 class TestMcpServerMissingPackage(unittest.TestCase):
@@ -58,21 +50,22 @@ class TestToolRegistryConsistency(unittest.TestCase):
     def test_dispatch_returns_dict_not_exception(self):
         from storageops.tool_registry import TOOL_DEFINITIONS, dispatch_tool
         minimal: dict[str, dict] = {
-            "scan_secrets":         {"text": "no secrets"},
-            "parse_rclone_log":     {"log_text": "rclone v1.60 log"},
-            "parse_sigv4_error":    {"xml_text": "<Error><Code>X</Code></Error>"},
-            "parse_awscli_debug":   {"log_text": "botocore DEBUG 2024"},
-            "parse_lifecycle_xml":  {"xml_text": "<LifecycleConfiguration/>"},
-            "analyze_policy":       {"error_text": "AccessDenied"},
-            "analyze_cost":         {"prefixes": [{"prefix": "p/", "storage_class": "STANDARD_IA",
-                                                   "object_count": 10, "total_size_bytes": 1024}]},
-            "detect_throttling":    {"status_codes": {"200": 100}, "errors": [],
-                                    "total_operations": 100},
+            "scan_secrets":           {"text": "no secrets"},
+            "parse_rclone_log":       {"log_text": "rclone v1.60 log"},
+            "parse_sigv4_error":      {"xml_text": "<Error><Code>X</Code></Error>"},
+            "parse_awscli_debug":     {"log_text": "botocore DEBUG 2024"},
+            "parse_lifecycle_xml":    {"xml_text": "<LifecycleConfiguration/>"},
+            "analyze_policy":         {"error_text": "AccessDenied"},
+            "analyze_cost":           {"prefixes": [{"prefix": "p/", "storage_class": "STANDARD_IA",
+                                                     "object_count": 10, "total_size_bytes": 1024}]},
+            "detect_throttling":      {"status_codes": {"200": 100}, "errors": [],
+                                      "total_operations": 100},
             "generate_lifecycle_fix": {"xml_text": "<LifecycleConfiguration/>"},
-            "generate_policy_fix":  {"error_text": "AccessDenied"},
-            "search_memory":        {"query": "test"},
-            "analyze_throughput":   {"object_size_mb": 100, "rtt_ms": 50,
-                                    "bandwidth_mbps": 1000},
+            "generate_policy_fix":    {"error_text": "AccessDenied"},
+            "search_memory":          {"query": "test"},
+            "parse_s5cmd_log":        {"log_text": "s5cmd cp s3://bucket/key local 200 OK"},
+            "analyze_throughput":     {"object_size_mb": 100, "rtt_ms": 50,
+                                      "bandwidth_mbps": 1000},
         }
         for t in TOOL_DEFINITIONS:
             name = t["name"]

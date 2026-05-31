@@ -471,15 +471,6 @@ def _result_has_streamed_output(result) -> bool:
 def cmd_agent(args):
     """Run the Pi Coding Agent runtime for offline diagnostics."""
     from storageops.runtime import AgentRunOptions, PiRpcRuntime
-    from storageops.runtime.pi_rpc import _MIGRATION_ERROR
-
-    old_flags = (
-        "llm_provider", "llm_model", "llm_base_url", "llm_api_key", "llm_key",
-        "supervisor", "interactive",
-    )
-    if any(getattr(args, flag, None) for flag in old_flags):
-        print(_MIGRATION_ERROR, file=sys.stderr)
-        sys.exit(2)
 
     if getattr(args, 'runtime', 'pi') != 'pi':
         print("Only the Pi Coding Agent runtime is supported. Use --runtime pi.", file=sys.stderr)
@@ -571,19 +562,6 @@ def main():
                          help='Show runtime diagnostics')
     p_agent.add_argument('--stream', action='store_true',
                          help='Stream Pi output chunks to stdout')
-    # Hidden legacy flags — accepted only to give explicit migration guidance.
-    p_agent.add_argument('--llm-provider', dest='llm_provider', nargs='?', const=True,
-                         default=None, help=argparse.SUPPRESS)
-    p_agent.add_argument('--llm-model', dest='llm_model', nargs='?', const=True,
-                         default=None, help=argparse.SUPPRESS)
-    p_agent.add_argument('--llm-base-url', dest='llm_base_url', nargs='?', const=True,
-                         default=None, help=argparse.SUPPRESS)
-    p_agent.add_argument('--llm-api-key', dest='llm_api_key', nargs='?', const=True,
-                         default=None, help=argparse.SUPPRESS)
-    p_agent.add_argument('--llm-key', dest='llm_key', nargs='?', const=True,
-                         default=None, help=argparse.SUPPRESS)
-    p_agent.add_argument('--interactive', '-i', action='store_true', help=argparse.SUPPRESS)
-    p_agent.add_argument('--supervisor', action='store_true', help=argparse.SUPPRESS)
     p_agent.set_defaults(func=cmd_agent)
 
     # audit

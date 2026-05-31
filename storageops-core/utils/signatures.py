@@ -89,12 +89,12 @@ def auto_detect(text: str) -> list[dict]:
         if score > 0:
             scores[domain] = {'score': score, 'subdomains': list(set(matches))}
 
-    ranked = sorted(scores.items(), key=lambda x: x[1]['score'], reverse=True)
-    return [
+    results = [
         {
             'domain': domain,
             'confidence': min(round(info['score'] / max(1, len(SIGNATURES[domain])), 2), 0.95),
             'subdomains': info['subdomains'],
         }
-        for domain, info in ranked
+        for domain, info in scores.items()
     ]
+    return sorted(results, key=lambda x: x['confidence'], reverse=True)

@@ -172,7 +172,7 @@ def test_missing_evidence_section_rejected():
     assert any("evidence section" in err for err in result["errors"])
 
 
-def test_old_llm_flags_fail_with_migration_guidance(tmp_path: Path):
+def test_old_llm_flags_rejected(tmp_path: Path):
     evidence = tmp_path / "input.log"
     evidence.write_text("AccessDenied\n")
     proc = subprocess.run(
@@ -183,8 +183,8 @@ def test_old_llm_flags_fail_with_migration_guidance(tmp_path: Path):
         timeout=10,
         env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1])},
     )
-    assert proc.returncode == 2
-    assert "StorageOps no longer manages LLM providers" in proc.stderr
+    assert proc.returncode != 0
+    assert "llm-provider" in proc.stderr or "unrecognized" in proc.stderr
 
 
 @pytest.mark.parametrize(
