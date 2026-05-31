@@ -98,11 +98,6 @@ Map the input to one of the issue categories (see `references/issue-taxonomy.md`
 - `security_iam_policy` → `storageops-security-iam-policy`
   - Includes: 403 AccessDenied, IAM/bucket policy, KMS, STS token expiration, cross-account
 - `lifecycle_cost` → `storageops-lifecycle-cost`
-<<<<<<< HEAD
-- `data_consistency` → `storageops-data-consistency`
-- `migration_sync` → `storageops-migration-sync`
-- `unknown_insufficient_evidence` → Request more evidence
-=======
   - Includes: lifecycle rules, storage class costs, STANDARD_IA small-file penalty, Intelligent Tiering
 - `mount_filesystem_workspace` → `storageops-mount-filesystem-workspace`
   - Includes: FUSE mount hangs, git-on-S3 slowness, metadata amplification
@@ -110,8 +105,11 @@ Map the input to one of the issue categories (see `references/issue-taxonomy.md`
   - Includes: VPC endpoints, DNS failures, TLS certificate errors, MTU issues, proxy
 - `replication_versioning` → `storageops-replication-versioning`
   - Includes: CRR/SRR failures, delete marker propagation, versioning anomalies, Object Lock
+- `data_consistency` → `storageops-data-consistency`
+  - Includes: stale reads, replica drift, event notification delay, consistency symptoms after migration
+- `migration_sync` → `storageops-migration-sync`
+  - Includes: migration verification, sync drift, skipped objects, cross-provider copy issues
 - `unknown_insufficient_evidence` → Request more evidence before routing
->>>>>>> origin/main
 
 ### Step 4: Severity Assessment
 
