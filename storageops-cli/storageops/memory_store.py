@@ -148,3 +148,68 @@ def list_cases(domain: str | None = None, limit: int = 20) -> list[dict]:
             entries.append(entry)
 
     return list(reversed(entries[-limit:]))
+
+
+def export_cases(output_path: str, domain: str | None = None) -> int:
+    """Write matching cases to a JSONL file. Returns the number of cases exported."""
+    cases = list_cases(domain=domain, limit=10_000)
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as f:
+        for entry in reversed(cases):  # chronological order
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return len(cases)
+
+
+def import_cases(input_path: str, merge: bool = True) -> tuple[int, int]:
+    """Import cases from a JSONL file. Returns (imported_count, skipped_count).
+
+    With merge=True, entries with a duplicate session_id or matching
+    domain+root_cause+summary are skipped.
+    """
+    src = Path(input_path)
+    if not src.exists():
+        raise FileNotFoundError(f"Import file not found: {input_path}")
+
+    existing: list[dict] = []
+    path = _memory_path()
+    if path.exists():
+        with path.open(encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        existing.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+
+    existing_ids: set[str] = {e["session_id"] for e in existing if "session_id" in e}
+    existing_tuples: set[tuple[str, str, str]] = {
+        (e.get("domain", ""), e.get("root_cause", ""), e.get("summary", "")[:100])
+        for e in existing
+    }
+
+    imported = 0
+    skipped = 0
+    with src.open(encoding="utf-8") as f, path.open("a", encoding="utf-8") as out:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                skipped += 1
+                continue
+            if merge:
+                sid = entry.get("session_id", "")
+                key = (entry.get("domain", ""), entry.get("root_cause", ""), entry.get("summary", "")[:100])
+                if sid in existing_ids or key in existing_tuples:
+                    skipped += 1
+                    continue
+                existing_ids.add(sid)
+                existing_tuples.add(key)
+            out.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            imported += 1
+
+    return imported, skipped
