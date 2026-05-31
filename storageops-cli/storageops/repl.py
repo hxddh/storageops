@@ -99,6 +99,42 @@ def _print_slash_menu() -> None:
     print()
 
 
+def _check_pi_ready() -> bool:
+    """Return True if Pi binary is installed and on PATH."""
+    import shutil
+    try:
+        from storageops.config import get_pi_command
+        pi_cmd = get_pi_command()
+        return bool(shutil.which(pi_cmd))
+    except Exception:
+        return False
+
+
+def _run_first_time_setup() -> bool:
+    """Prompt the user to run setup inline. Returns True if setup ran."""
+    print()
+    print(f"  {_yellow('!')}  Pi Agent is not configured.")
+    print(f"  {_dim('AI diagnosis requires Pi. Run setup to get started.')}")
+    print()
+    try:
+        ans = input("  Run setup now? [Y/n] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    if ans in ("", "y", "yes"):
+        print()
+        import argparse as _ap
+        from storageops.cli import cmd_setup
+        cmd_setup(_ap.Namespace(pi_command="pi"))
+        return True
+    else:
+        print()
+        print(f"  {_dim('Continuing without Pi — AI diagnosis unavailable.')}")
+        print(f"  {_dim('Run')} {_bold('storageops setup')} {_dim('when ready.')}")
+        print()
+        return False
+
+
 def _init_readline() -> None:
     try:
         import readline
@@ -226,8 +262,17 @@ def _print_result(result) -> None:
     """Display a Pi diagnostic result (AgentRunResult)."""
     if not result.ok:
         print()
-        print(f"  {_red('Diagnosis failed')}")
-        print(f"  {_dim(result.error or 'Unknown error')}")
+        err = result.error or "Unknown error"
+        _pi_missing = any(kw in err.lower() for kw in (
+            "not found", "no such file", "filenotfounderror",
+            "command not found", "permission denied", "pi: not found",
+        ))
+        if _pi_missing:
+            print(f"  {_red('Pi Agent not found.')}")
+            print(f"  {_dim('Run')} {_bold('storageops setup')} {_dim('to install Pi, or type')} {_bold('/setup')} {_dim('here.')}")
+        else:
+            print(f"  {_red('Diagnosis failed')}")
+            print(f"  {_dim(err)}")
         print()
         return
 
@@ -288,6 +333,13 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         session = DiagnosticSession()
         if _IS_TTY:
             print(_BANNER)
+
+    # First-run guard: Pi not installed → offer inline setup (TTY only)
+    _pi_ok = _check_pi_ready()
+    if not _pi_ok and _IS_TTY and not initial_text:
+        _run_first_time_setup()
+        # Re-check after potential setup
+        _pi_ok = _check_pi_ready()
 
     def _process(text: str) -> None:
         """Run one diagnostic turn."""
