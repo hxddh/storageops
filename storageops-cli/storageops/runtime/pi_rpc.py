@@ -16,6 +16,8 @@ from storageops.audit_logger import log_session_start, log_pi_result, log_sessio
 from storageops.config import get_pi_command as _cfg_pi_command
 from storageops.config import get_workdir as _cfg_workdir
 from storageops.config import get_skills_dir as _cfg_skills_dir
+from storageops.config import get_api_key as _cfg_api_key
+from storageops.config import get_provider as _cfg_provider
 from storageops.report_validator import validate_agent_report
 from storageops.runtime.base import AgentRunOptions, AgentRunResult
 
@@ -219,6 +221,20 @@ class PiRpcRuntime:
             cmd.extend(["--provider", self.options.pi_provider])
         return cmd
 
+    def _pi_env(self) -> dict:
+        """Build subprocess environment: inherit + inject LLM API key."""
+        env = os.environ.copy()
+        api_key = _cfg_api_key()
+        if api_key:
+            provider = _cfg_provider()
+            env_map = {
+                "anthropic": "ANTHROPIC_API_KEY",
+                "openai":    "OPENAI_API_KEY",
+            }
+            env_var = env_map.get(provider, f"{provider.upper()}_API_KEY")
+            env.setdefault(env_var, api_key)
+        return env
+
     def _run_rpc(self, request: dict[str, Any]) -> AgentRunResult:
         try:
             proc = subprocess.Popen(
@@ -230,6 +246,7 @@ class PiRpcRuntime:
                 encoding="utf-8",
                 errors="replace",
                 cwd=str(_pi_workdir()),
+                env=self._pi_env(),
             )
         except FileNotFoundError:
             return AgentRunResult(False, self.runtime_name, error=_PI_NOT_FOUND_MSG)

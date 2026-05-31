@@ -90,6 +90,8 @@ class TestSetupCommand(unittest.TestCase):
             tmp = Path(td)
             args = argparse.Namespace(pi_command="pi")
             with patch("shutil.which", return_value=None), \
+                 patch("storageops.pi_installer.pi_bin_path", return_value=Path("/nonexistent/pi")), \
+                 patch("storageops.pi_installer.download_pi", side_effect=RuntimeError("no network")), \
                  patch.object(Path, "home", return_value=tmp):
                 with self.assertRaises(SystemExit) as ctx:
                     from storageops.cli import cmd_setup
@@ -107,6 +109,8 @@ class TestSetupCommand(unittest.TestCase):
 
             with patch("shutil.which", return_value="/usr/bin/pi"), \
                  patch("subprocess.check_output", return_value="2.0.0"), \
+                 patch("builtins.input", return_value="1"), \
+                 patch("getpass.getpass", return_value="sk-ant-test"), \
                  patch("storageops.config._DIR", storageops_dir), \
                  patch("storageops.config._FILE", storageops_dir / "config.json"), \
                  patch.object(Path, "home", return_value=home):

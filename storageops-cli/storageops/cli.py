@@ -915,71 +915,126 @@ def _find_bundled_skills() -> Path | None:
 
 
 def cmd_setup(args: argparse.Namespace) -> None:
-    """One-time setup: verify Pi, install skills, write Pi + StorageOps config."""
+    """One-time setup: auto-install Pi, configure LLM provider, install skills."""
     import json
     import shutil
     import subprocess
 
-    pi_cmd = getattr(args, "pi_command", "pi")
+    storageops_dir = Path.home() / ".storageops"
+    storageops_dir.mkdir(parents=True, exist_ok=True)
 
     print()
     print(_bold("StorageOps Setup"))
     print(_hr(40))
     print()
 
-    # 1. Verify Pi is on PATH
-    pi_path = shutil.which(pi_cmd)
-    if not pi_path:
-        print(f"  {_red('✗')}  {pi_cmd}: not found on PATH")
-        print()
-        print("  Install Pi Agent first, then re-run:  storageops setup")
-        print()
-        sys.exit(1)
+    # ── Step 1: Pi Agent ──────────────────────────────────────────────
+    from storageops import pi_installer
 
-    try:
-        ver_out = subprocess.check_output(
-            [pi_cmd, "--version"], text=True, stderr=subprocess.STDOUT, timeout=5
-        ).strip()
-    except Exception:
-        ver_out = "(version unknown)"
-    print(f"  {_green('✓')}  {pi_cmd} {_dim(ver_out)}  {_dim(pi_path)}")
+    pi_cmd_arg = getattr(args, "pi_command", None)
+    pi_path = shutil.which(pi_cmd_arg or "pi")
 
-    # 2. Install skills to ~/.storageops/skills/
-    storageops_dir = Path.home() / ".storageops"
-    storageops_dir.mkdir(parents=True, exist_ok=True)
+    if not pi_path and not pi_installer.pi_bin_path().exists():
+        print(f"  {_yellow('!')}  Pi Agent not found — installing automatically")
+        try:
+            def _progress(done: int, total: int) -> None:
+                pct = int(done / total * 20)
+                bar = "━" * pct + "╌" * (20 - pct)
+                sys.stdout.write(f"\r  {_dim('Downloading')}  {bar}  {done // 1024}KB")
+                sys.stdout.flush()
+
+            dest = pi_installer.download_pi(progress_cb=_progress)
+            sys.stdout.write("\r\033[K")
+            pi_cmd = str(dest)
+            pi_path = pi_cmd
+            added = pi_installer.ensure_path_entry()
+            print(f"  {_green('✓')}  Pi installed → {_dim(str(dest))}")
+            if added:
+                path_hint = 'export PATH="$HOME/.storageops/bin:$PATH"'
+                print(f"  {_dim('  PATH updated — open a new shell or run: ' + path_hint)}")
+        except RuntimeError as exc:
+            print(f"\n  {_red('✗')}  {exc}")
+            print()
+            sys.exit(1)
+    else:
+        pi_cmd = str(pi_installer.pi_bin_path()) if pi_installer.pi_bin_path().exists() else (pi_cmd_arg or "pi")
+        try:
+            ver_out = subprocess.check_output(
+                [pi_path or pi_cmd, "--version"], text=True, stderr=subprocess.STDOUT, timeout=5
+            ).strip()
+        except Exception:
+            ver_out = "(version unknown)"
+        print(f"  {_green('✓')}  Pi {_dim(ver_out)}  {_dim(pi_path or pi_cmd)}")
+
+    # ── Step 2: LLM provider & API key ───────────────────────────────
+    from storageops.config import get_api_key, get_provider, load as _cfg_load, update as _cfg_update
+
+    existing_key = get_api_key()
+    if existing_key:
+        print(f"  {_green('✓')}  API key  {_dim('already configured')}")
+        provider = get_provider()
+    else:
+        print()
+        print(f"  {_bold('Configure LLM provider')}")
+        providers = [
+            ("anthropic", "Anthropic (Claude)"),
+            ("openai",    "OpenAI"),
+            ("custom",    "Custom / other"),
+        ]
+        for i, (_, label) in enumerate(providers, 1):
+            print(f"    [{i}] {label}")
+        try:
+            choice_raw = input("    > ").strip()
+            choice = int(choice_raw) if choice_raw.isdigit() else 1
+        except (EOFError, ValueError):
+            choice = 1
+        provider, _ = providers[min(choice, len(providers)) - 1]
+
+        env_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
+        env_var = env_map.get(provider, f"{provider.upper()}_API_KEY")
+        try:
+            import getpass
+            api_key = getpass.getpass(f"  {env_var}: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            api_key = ""
+
+        if api_key:
+            _cfg_update(provider=provider, api_key=api_key)
+            print(f"  {_green('✓')}  API key saved")
+        else:
+            print(f"  {_yellow('!')}  No key entered — set ${env_var} in your shell")
+
+    # ── Step 3: Install skills ────────────────────────────────────────
     skills_dst = storageops_dir / "skills"
-
     bundled = _find_bundled_skills()
-    if not bundled:
-        print(f"  {_red('✗')}  skills: bundled skills not found — re-install storageops")
-        sys.exit(1)
+    if bundled:
+        if skills_dst.exists():
+            shutil.rmtree(str(skills_dst))
+        shutil.copytree(str(bundled), str(skills_dst))
+        count = sum(1 for d in skills_dst.iterdir() if d.is_dir())
+        print(f"  {_green('✓')}  {count} skills → {_dim(str(skills_dst))}")
+    else:
+        print(f"  {_red('✗')}  skills not found — re-install storageops")
 
-    if skills_dst.exists():
-        shutil.rmtree(str(skills_dst))
-    shutil.copytree(str(bundled), str(skills_dst))
-    count = sum(1 for d in skills_dst.iterdir() if d.is_dir())
-    print(f"  {_green('✓')}  {count} skills → {_dim(str(skills_dst))}")
-
-    # 3. Write ~/.storageops/.pi/settings.json for Pi
+    # ── Step 4: Write Pi settings.json ───────────────────────────────
     pi_settings_dir = storageops_dir / ".pi"
     pi_settings_dir.mkdir(exist_ok=True)
-    pi_settings = {"skills": ["../skills"], "enableSkillCommands": True}
     (pi_settings_dir / "settings.json").write_text(
-        json.dumps(pi_settings, indent=2) + "\n", encoding="utf-8"
+        json.dumps({"skills": ["../skills"], "enableSkillCommands": True}, indent=2) + "\n",
+        encoding="utf-8",
     )
-    print(f"  {_green('✓')}  pi settings → {_dim(str(pi_settings_dir / 'settings.json'))}")
+    print(f"  {_green('✓')}  Pi settings → {_dim(str(pi_settings_dir / 'settings.json'))}")
 
-    # 4. Write ~/.storageops/config.json
-    from storageops.config import save as _save_config
-    _save_config({
-        "pi_command": pi_cmd,
-        "workdir": str(storageops_dir),
-        "skills_dir": str(skills_dst),
-    })
-    print(f"  {_green('✓')}  config → {_dim(str(storageops_dir / 'config.json'))}")
+    # ── Step 5: Write storageops config ──────────────────────────────
+    _cfg_update(
+        pi_command=pi_cmd,
+        workdir=str(storageops_dir),
+        skills_dir=str(skills_dst),
+    )
+    print(f"  {_green('✓')}  Config → {_dim(str(storageops_dir / 'config.json'))}")
 
     print()
-    print(f"  Setup complete.  Run: {_bold('storageops diagnose <log-file>')}")
+    print(f"  {_green('Setup complete.')}  Run: {_bold('storageops')}")
     print()
 
 
@@ -1084,18 +1139,46 @@ def cmd_doctor(args: argparse.Namespace) -> None:
 # ── Argument parser ───────────────────────────────────────────────────
 
 def main() -> None:
+    # ── Intercept: no args or first arg looks like a file / natural-language →
+    #    launch the interactive REPL (like `claude` / `amp` with no subcommand).
+    import shlex
+    _argv = sys.argv[1:]
+    _known_subcmds = {
+        "triage", "analyze", "analyse", "diagnose", "agent", "batch",
+        "report", "eval", "memory", "audit", "mcp", "serve",
+        "setup", "doctor",
+        "--help", "-h", "--version",
+    }
+    _first = _argv[0] if _argv else None
+
+    if _first is None:
+        # `storageops` with no args → interactive REPL
+        from storageops.repl import run_repl
+        run_repl()
+        return
+
+    if _first not in _known_subcmds and not _first.startswith("-"):
+        # Treat as a natural-language prompt or @file shorthand
+        # e.g.: storageops "I'm getting 403" @error.log
+        #        storageops @error.log
+        from storageops.repl import run_repl
+        run_repl(initial_text=" ".join(_argv))
+        return
+
     parser = argparse.ArgumentParser(
-        description="StorageOps CLI — object storage diagnostic toolkit",
+        description="StorageOps — S3 diagnostic agent",
         prog="storageops",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Examples:\n"
+            "Start the interactive agent:\n"
+            "  storageops\n\n"
+            "Or pass a file / description directly:\n"
+            "  storageops @error.log\n"
+            "  storageops 'getting 403 on S3' @rclone.log\n\n"
+            "Subcommands (advanced):\n"
             "  storageops triage error.log\n"
             "  storageops analyze cli_sdk_behavior rclone.log\n"
             "  storageops diagnose error.log\n"
-            "  storageops batch *.log\n"
-            "  cat error.log | storageops triage -\n"
-            "  storageops memory save --domain cli_sdk_behavior --root-cause etag_mismatch ...\n"
         ),
     )
     sub = parser.add_subparsers(dest="command", help="Commands")
@@ -1263,10 +1346,11 @@ def main() -> None:
     p_doctor = sub.add_parser("doctor", help="Check installation health")
     p_doctor.set_defaults(func=cmd_doctor)
 
-    args = parser.parse_args()
+    args = parser.parse_args(_argv)
     if hasattr(args, "func"):
         args.func(args)
     else:
+        # Unknown subcommand or bare --help already handled by argparse
         parser.print_help()
 
 
