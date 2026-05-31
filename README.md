@@ -11,7 +11,7 @@ StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /ex
 
 > s3://my-bucket/data/file.csv — AccessDenied, but my IAM role has s3:GetObject
 
-  ⠹  Analyzing…  3s
+  ⠹  Analyzing…  4s
 
   ────────────────────────────────────────────────────────
   missing resource qualifier  HIGH  91%
@@ -55,64 +55,33 @@ pip install storageops
 storageops setup
 ```
 
-`setup` does three things automatically:
+`setup` does three things:
 1. Downloads [Pi Coding Agent](https://pi.ai/agent) (the AI backend)
-2. Asks for your LLM provider (Anthropic / OpenAI) and API key
+2. Asks for your LLM provider (Anthropic or OpenAI) and API key
 3. Configures Pi to auto-load StorageOps diagnostic skills
-
-That's it. Skills load automatically when the agent starts — no manual configuration needed.
-
----
-
-## Commands
-
-| Command | Requires Pi | Description |
-|---|---|---|
-| `storageops` | ✓ | Start the interactive REPL |
-| `storageops resume [id]` | ✓ | Resume a previous REPL session by ID, or pick from a list |
-| `storageops setup` | — | First-time setup: download Pi, configure API key |
-| `storageops config <action>` | — | View or edit configuration (`list` / `get` / `set`) |
-| `storageops update [--check]` | — | Download latest Pi binary and reinstall skills |
-| `storageops doctor` | — | Check environment health: Pi, API key, skills |
-| `storageops memory <action>` | — | Manage past diagnosed cases (`list` / `search` / `save` / `export` / `import`) |
-| `storageops mcp` | — | Start MCP stdio server (for Claude Desktop and MCP clients) |
-| `storageops serve` | — | Start HTTP API server and web UI |
-
-The following commands are available for CI pipelines and scripting but hidden from the main help (the REPL runs them automatically during interactive sessions):
-
-| Command | Description |
-|---|---|
-| `storageops diagnose <file>` | Full AI diagnosis of a single evidence file |
-| `storageops triage <file>` | Instant rule-based domain classification (offline) |
-| `storageops analyze <domain> <file>` | Domain-specific parser + analyzer pipeline (offline) |
-| `storageops scan <files…>` | Triage multiple files and print a summary table |
-| `storageops report <json>` | Render a saved analysis JSON as Markdown |
 
 ---
 
 ## Usage
 
-### Interactive REPL (recommended)
+### Interactive session
 
 ```bash
 storageops
 ```
 
-Describe your problem in plain language or paste log output. Press Enter to submit.
+Type your question or paste log output and press Enter. Type `/` to see all commands.
 
-```
-> Got 403 from boto3, here's the trace:
-  botocore.exceptions.ClientError: An error occurred (AccessDenied)
-  when calling the GetObject operation: Access Denied
-```
-
-**Reference a local file** with `@path`:
-
-```
-> analyze this log @/var/log/s3-error.log
+```bash
+storageops "getting 429 SlowDown on S3 uploads"   # start with a description
+storageops @error.log                              # start with a file reference
+storageops < error.log                             # pipe via stdin
+aws s3 cp s3://bucket/key . 2>&1 | storageops      # pipe CLI output directly
 ```
 
-**Multiple turns** — continue the conversation naturally; context accumulates across turns:
+### Multi-turn conversation
+
+Context accumulates across turns — add evidence progressively:
 
 ```
 > access denied on GetObject
@@ -120,115 +89,88 @@ Describe your problem in plain language or paste log output. Press Enter to subm
 > and the IAM role: @role.json
 ```
 
-**Slash commands** (type `/` to see the full list):
+### Slash commands
+
+Type `/` inside the session to see the full list:
 
 | Command | What it does |
 |---|---|
 | `/help` | Show the command list |
 | `/clear` | Start a fresh session |
 | `/status` | Show session ID, turn count, Pi and API key status |
-| `/verbose` | Toggle verbose mode — shows tool calls and results as Pi works |
+| `/verbose` | Toggle verbose mode — shows each tool call and result as Pi works |
 | `/doctor` | Run environment health check without leaving the session |
 | `/setup` | Re-run the setup wizard without restarting |
 | `/exit` | Quit (`Ctrl+C` also works) |
 
 ### Resume a past session
 
-```bash
-storageops resume            # show a numbered list of recent sessions to pick from
-storageops resume abc12345   # resume a specific session by its 8-character ID
-```
-
-Sessions are saved automatically to `~/.storageops/sessions/`. All context and conversation
-turns are preserved and reloaded exactly as they were.
-
-### One-shot (pipe / script)
-
-Any argument that is not a known subcommand is treated as an initial REPL message:
+Sessions are saved automatically to `~/.storageops/sessions/`.
 
 ```bash
-# Describe a problem in plain language
-storageops "getting 429 SlowDown on S3 uploads"
-
-# Pipe a log file via stdin
-storageops < error.log
-aws s3 cp s3://bucket/key . 2>&1 | storageops
-
-# Pass a file reference as the initial message
-storageops @/path/to/s3-errors.log
+storageops resume            # resume most recent session
+storageops resume --list     # pick from a numbered list of recent sessions
+storageops resume abc12345   # resume a specific session by ID
 ```
 
-### One-file diagnosis (Pi agent)
+---
 
-For a direct file-in → report-out workflow without the REPL:
+## Commands
 
-```bash
-storageops diagnose error.log
-storageops diagnose error.log --stream          # stream Pi output live
-storageops diagnose error.log --exit-code       # exit 1 on high/critical severity (CI)
-storageops diagnose error.log --pi-model claude-opus-4-8
-cat error.log | storageops diagnose -
 ```
+storageops                       Start interactive session
+storageops [message|@file]       Describe your issue or pass a log file
+storageops <command> [options]   Run a specific command
+```
+
+| Command | Description |
+|---|---|
+| `storageops resume [id]` | Resume most recent session, or pick from a list with `--list` |
+| `storageops setup` | First-time setup: download Pi, configure LLM provider and API key |
+| `storageops config` | View or edit configuration (`list` / `get <key>` / `set <key> <val>`) |
+| `storageops update` | Download latest Pi binary and reinstall skills (`--check` to preview) |
+| `storageops doctor` | Check environment health: Python, Pi binary, API key, skills, config |
+| `storageops memory` | Manage past diagnosed cases (`list` / `search` / `save` / `export` / `import`) |
+| `storageops mcp` | Start MCP stdio server (for Claude Desktop and other MCP clients) |
+| `storageops serve` | Start HTTP API server and web UI |
+
+### CI / scripting commands
+
+These are hidden from the main help but fully supported for automation:
+
+| Command | Description |
+|---|---|
+| `storageops diagnose <file\|->` | Full Pi AI diagnosis of a single evidence file |
+| `storageops triage <file\|->` | Instant rule-based domain classification (no Pi required) |
+| `storageops analyze <domain> <file\|->` | Domain-specific parser + analyzer pipeline (no Pi required) |
+| `storageops scan <files…>` | Triage multiple files, print a summary table |
+| `storageops report <json>` | Render a saved analysis JSON as Markdown |
 
 ---
 
 ## Configuration
 
 ```bash
-storageops config list                  # show all config (api_key value is redacted)
-storageops config get api_key           # get a specific key
+storageops config list                  # show all config (api_key is redacted)
+storageops config get provider          # get one key
 storageops config set provider openai   # set LLM provider
 storageops config set api_key sk-...    # set API key
 ```
 
 Config is stored at `~/.storageops/config.json`.
 
-## Updates
-
-```bash
-storageops update          # download latest Pi binary and reinstall skills
-storageops update --check  # check for updates without installing
-```
-
----
-
-## Offline commands (no AI required)
-
-These run entirely offline without Pi or an API key:
-
-```bash
-# Rule-based triage — instant domain classification
-storageops triage error.log
-storageops triage error.log --format json
-
-# Domain-specific parser + analyzer pipeline
-storageops analyze security_iam_policy error.log
-storageops analyze performance_throughput s3-access.log
-storageops analyze cli_sdk_behavior rclone-debug.log
-
-# Triage multiple files at once
-storageops scan *.log --output report.md
-
-# Render a saved analysis JSON as a Markdown report
-storageops report analysis.json
-
-# Environment health check
-storageops doctor
-```
-
 ---
 
 ## Case memory
 
-StorageOps saves every successful diagnosis to `~/.storageops/memory.jsonl` for future
-BM25 similarity search. Manage the memory store with:
+Every successful diagnosis is saved to `~/.storageops/memory.jsonl` for BM25 similarity search.
 
 ```bash
-storageops memory list                          # list recent cases (most recent first)
-storageops memory list --domain cli_sdk_behavior  # filter by domain
-storageops memory search "ETag mismatch rclone" # BM25 keyword search
-storageops memory export backup.jsonl           # export to file
-storageops memory import backup.jsonl           # import from file
+storageops memory list                             # list recent cases
+storageops memory list --domain cli_sdk_behavior   # filter by domain
+storageops memory search "ETag mismatch rclone"    # BM25 keyword search
+storageops memory export backup.jsonl              # export to file
+storageops memory import backup.jsonl              # import from file
 storageops memory save \
   --domain performance_throughput \
   --root-cause hot_prefix_throttling \
@@ -237,53 +179,41 @@ storageops memory save \
 
 ---
 
-## Web UI / HTTP API
+## Offline commands (no Pi, no API key)
 
 ```bash
-storageops serve
-# Open http://localhost:8080
+storageops triage error.log                           # instant domain classification
+storageops analyze security_iam_policy error.log      # parser + analyzer pipeline
+storageops analyze performance_throughput s3-access.log
+storageops analyze cli_sdk_behavior rclone-debug.log
+storageops scan *.log --output report.md              # triage multiple files
+storageops report analysis.json                       # render analysis JSON as Markdown
+storageops doctor                                     # environment health check
 ```
-
-Options: `--host 127.0.0.1` (default), `--port 8080` (default), `--reload` (dev mode).
-
-The HTTP API accepts the same inputs as the CLI:
-
-| Endpoint | Description |
-|---|---|
-| `POST /triage` | `{"text": "…"}` → domain classification |
-| `POST /analyze` | `{"text": "…", "domain": "…"}` → offline analysis |
-| `GET /memory` | List recent diagnosed cases |
-| `GET /memory/search?q=…` | BM25 search past cases |
-| `GET /health` | `{"status": "ok", "version": "…"}` |
 
 ---
 
 ## Capturing traffic with httpmon
 
 [httpmon](https://github.com/hxddh/https-traffic-inspector) wraps any CLI command and
-captures the actual HTTP/HTTPS traffic. This gives StorageOps **wire-level evidence** —
-the real error XML, auth headers, response timing — that tool logs don't expose.
+captures wire-level HTTP/HTTPS traffic — giving StorageOps the real error XML, auth headers,
+and per-request timing that tool logs don't expose.
 
-**Install httpmon:**
 ```bash
 go install github.com/hxddh/https-traffic-inspector@latest
 ```
 
-**Use with StorageOps:**
-
 ```bash
-# Capture and pipe directly into the REPL
+# Pipe directly into a session
 httpmon --format json aws s3 cp s3://bucket/key . 2>&1 | storageops
 
-# Capture to HAR file, then pass as a file reference
+# Save as HAR, then reference
 httpmon --har capture.har rclone copy remote:bucket/ ./local/
 storageops @capture.har
 
-# Direct Pi diagnosis of captured traffic
+# Or run direct Pi diagnosis
 storageops diagnose capture.har
 ```
-
-**What httpmon reveals that tool logs hide:**
 
 | Diagnostic need | What httpmon captures |
 |---|---|
@@ -296,30 +226,33 @@ storageops diagnose capture.har
 
 ---
 
-## Supported providers
+## Web UI / HTTP API
 
-StorageOps diagnoses issues across all S3-compatible storage:
+```bash
+storageops serve            # starts on http://localhost:8080
+storageops serve --port 9000 --host 0.0.0.0
+```
 
-- **AWS S3**
-- **Alibaba Cloud OSS**
-- **Baidu Cloud BOS**
-- **Tencent Cloud COS**
-- **Volcengine TOS**
-- **MinIO**, **Ceph**, **Wasabi**, and other S3-compatible endpoints
+Requires: `pip install "storageops[api]"` (FastAPI + uvicorn).
+
+| Endpoint | Description |
+|---|---|
+| `GET /` | Web UI |
+| `POST /triage` | `{"text": "…"}` → domain classification |
+| `POST /analyze` | `{"text": "…", "domain": "…"}` → offline analysis |
+| `GET /memory` | List recent diagnosed cases |
+| `GET /memory/search?q=…` | BM25 search past cases |
+| `GET /health` | `{"status": "ok", "version": "…"}` |
 
 ---
 
-## For AI agents
-
-StorageOps exposes all diagnostic capabilities as MCP tools and a JSON API.
-
-**Start the MCP server:**
+## For AI agents (MCP / programmatic)
 
 ```bash
-storageops mcp
+storageops mcp     # start MCP stdio server
 ```
 
-**Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -331,11 +264,11 @@ storageops mcp
 }
 ```
 
-**Available tools (21 total):**
+**21 registered tools:**
 
 | Tool | Description |
 |---|---|
-| `scan_secrets` | Redact AK/SK, tokens, and Authorization headers before processing |
+| `scan_secrets` | Redact AK/SK, tokens, and Authorization headers |
 | `parse_rclone_log` | Parse rclone `-vv` debug log → transfer records and errors |
 | `parse_awscli_debug` | Parse AWS CLI `--debug` trace → request/response timeline |
 | `parse_sigv4_error` | Parse `SignatureDoesNotMatch` XML → canonical request diff |
@@ -349,7 +282,7 @@ storageops mcp
 | `analyze_policy` | Trace a 403 AccessDenied through IAM and bucket policies |
 | `analyze_throughput` | Analyze throughput against theoretical limits; identify bottleneck layer |
 | `analyze_cors` | Generate a CORS configuration fix for detected preflight issues |
-| `analyze_network` | Root-cause DNS/TLS/TCP/VPC endpoint failures from parsed diagnostics |
+| `analyze_network` | Root-cause DNS/TLS/TCP/VPC endpoint failures |
 | `analyze_replication` | Diagnose CRR/SRR replication failures |
 | `analyze_cost` | Analyze per-prefix inventory data for storage cost attribution |
 | `detect_throttling` | Detect 429/SlowDown patterns and estimate throttle onset rate |
@@ -357,39 +290,21 @@ storageops mcp
 | `generate_lifecycle_fix` | Generate corrected lifecycle XML from identified rule issues |
 | `search_memory` | Search past diagnosed cases by BM25 keyword similarity |
 
-**Tool input/output format:**
-
-All tools accept a primary string field (`text`, `log_text`, or similar) and return structured JSON:
-
-```json
-{
-  "domain": "security_iam_policy",
-  "root_cause_type": "missing_resource_qualifier",
-  "confidence": 0.91,
-  "severity": "high",
-  "findings": ["Policy grants s3:GetObject on bucket ARN only"],
-  "recommendations": ["Add /* suffix to resource ARN"]
-}
-```
-
-**Report format** — every diagnostic report includes a machine-readable YAML frontmatter block:
+**Report format** — every Pi report includes machine-readable YAML frontmatter:
 
 ```markdown
 ---
 category: security_iam_policy
 root_cause_type: missing_resource_qualifier
 confidence: 0.91
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
 severity: high
-evidence_quality: sufficient
-evidence_quality_score: 0.85
-next_actions:
-  - type: invoke_skill
-    target: storageops-security-iam-policy
-    priority: 1
 ---
+## Summary
+...
+## Key Evidence
+...
+## Remediation
+- manual-only: aws iam put-role-policy ...
 ```
 
 **Programmatic use:**
@@ -397,39 +312,18 @@ next_actions:
 ```python
 from storageops.runtime import PiRpcRuntime, AgentRunOptions
 
-# run() accepts a file path; returns AgentRunResult with .ok and .report_markdown
-result = PiRpcRuntime(AgentRunOptions(stream=False)).run("error.log")
-print(result.report_markdown)
+result = PiRpcRuntime(AgentRunOptions()).run("error.log")
 print(result.ok)
-```
-
-**Agent workflow with httpmon:**
-
-```python
-import subprocess
-from storageops.tool_registry import dispatch_tool
-
-# Step 1: capture wire-level traffic
-proc = subprocess.run(
-    ["httpmon", "--format", "json", "aws", "s3", "ls", "s3://my-bucket"],
-    capture_output=True, text=True
-)
-
-# Step 2: parse with StorageOps MCP tool
-parsed = dispatch_tool("parse_httpmon_log", {"log_text": proc.stdout})
-
-# Step 3: signals route to the right skill
-for signal in parsed["signals"]:
-    print(signal)  # e.g. "access_denied_detected → security_iam_policy"
+print(result.report_markdown)
 ```
 
 ---
 
-## Skill system
+## Skills
 
-StorageOps ships a skill pack (v2 contract) that Pi loads automatically. Each skill covers
-one diagnostic domain with evidence checklists, recommended tool calls, and Light/Heavy
-dual-mode diagnosis workflows.
+StorageOps ships 15 Pi skill definitions that load automatically. Each skill covers one
+diagnostic domain with evidence checklists, recommended tool calls, and Light/Heavy dual-mode
+diagnosis workflows.
 
 | Skill | Maturity | Domain |
 |---|---|---|
@@ -447,14 +341,26 @@ dual-mode diagnosis workflows.
 | storageops-data-consistency | beta | Stale reads, replica drift |
 | storageops-migration-sync | beta | Cross-provider data migration |
 | storageops-event-notification | experimental | S3 → Lambda/SQS/SNS event triggers |
+| storageops-eval-golden-cases | — | Regression evaluation golden cases |
+
+---
+
+## Supported providers
+
+- **AWS S3**
+- **Alibaba Cloud OSS**
+- **Baidu Cloud BOS**
+- **Tencent Cloud COS**
+- **Volcengine TOS**
+- **MinIO**, **Ceph**, **Wasabi**, and other S3-compatible endpoints
 
 ---
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.9+
 - Pi Coding Agent (auto-installed by `storageops setup`)
-- One of: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (configured during setup)
+- `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (configured during setup)
 - Optional: [httpmon](https://github.com/hxddh/https-traffic-inspector) for wire-level traffic capture
 
 ---
@@ -465,8 +371,8 @@ dual-mode diagnosis workflows.
 git clone https://github.com/hxddh/storageops
 cd storageops
 pip install -e storageops-cli/
-make test        # run all tests (107 tests, no network/LLM required)
-make lint        # ruff + mypy
+make test        # 107 tests — no network or LLM required
+make lint        # ruff
 make eval        # golden-case regression
 ```
 
@@ -477,7 +383,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 ## Security
 
 - All log content is treated as **untrusted input** — never executed as instructions
-- Secrets (AK/SK, tokens, Authorization headers) are **automatically redacted** before the AI sees them
-- httpmon output: Authorization header **values** are never exposed — only classified as `sigv4`/`presigned`/`anonymous`
+- Secrets (AK/SK, tokens, Authorization headers) are **automatically redacted** before Pi sees them
+- `parse_httpmon_log` classifies Authorization header type (`sigv4`/`presigned`/`anonymous`) but never returns the raw value
 - StorageOps never connects to real cloud accounts or modifies cloud resources
 - See [SECURITY.md](SECURITY.md) for the full security model
