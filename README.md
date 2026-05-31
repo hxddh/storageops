@@ -52,12 +52,12 @@ pip install storageops
 storageops setup
 ```
 
-`setup` walks you through:
-1. Installing [Pi Coding Agent](https://pi.ai/agent) (the AI backend) — automatically downloaded
-2. Selecting your LLM provider (Anthropic / OpenAI) and entering your API key
-3. Installing diagnostic skills to `~/.storageops/`
+`setup` does three things automatically:
+1. Downloads [Pi Coding Agent](https://pi.ai/agent) (the AI backend)
+2. Asks for your LLM provider (Anthropic / OpenAI) and API key
+3. Configures Pi to auto-load StorageOps diagnostic skills
 
-That's it. No config files to edit manually.
+That's it. Skills load automatically when the agent starts — no manual configuration needed.
 
 ---
 
@@ -91,16 +91,24 @@ Describe your problem in plain language, paste log output, or both. Empty line s
 > and the IAM role: @role.json
 ```
 
-**Slash commands:**
+**REPL commands:**
 
-| Command | Action |
+| Command | What it does |
 |---|---|
-| `/help` | Show available commands |
-| `/clear` | Start a fresh session |
-| `/doctor` | Check environment health |
-| `/setup` | Re-run setup wizard |
-| `/verbose` | Toggle verbose output |
-| `/exit` | Quit |
+| `/help` | Show available REPL commands |
+| `/clear` | Discard current session and start fresh |
+| `/verbose` | Toggle verbose output (show tool calls and pre-flight details) |
+| `/doctor` | Run environment health check without leaving the REPL |
+| `/exit` | Quit (also: Ctrl+C) |
+
+### Resume a past session
+
+```bash
+storageops resume            # pick from list of recent sessions
+storageops resume abc12345   # resume by session ID
+```
+
+Sessions are saved automatically to `~/.storageops/sessions/`. Evidence from all turns is preserved and reloaded.
 
 ### Resume a past session
 
