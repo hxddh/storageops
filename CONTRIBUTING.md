@@ -35,6 +35,8 @@ storageops/
 │   └── storageops/
 │       ├── cli.py            # All CLI commands
 │       ├── agent.py          # Domain routing and report generation
+│       ├── session.py        # Session persistence (save/load/list)
+│       ├── repl.py           # Interactive REPL
 │       ├── tool_registry.py  # Tool definitions + dispatch for Pi/MCP
 │       ├── api_server.py     # FastAPI server + SSE endpoints
 │       ├── memory_store.py   # BM25 case memory (JSONL)
@@ -89,7 +91,7 @@ storageops/
 ## Testing
 
 ```bash
-# Full suite (187 tests, no LLM/Pi required)
+# Full suite (107 tests, no LLM/Pi required)
 make test
 
 # Core engine only
@@ -120,7 +122,8 @@ Any code that bypasses these rules will be rejected.
 ## Pull Request Guidelines
 
 - PRs should include tests for new parsers, analyzers, or tool registrations.
-- Run `make lint` before submitting (ruff enforces line-length=100, target=py39).
+- Run `make lint` before submitting (ruff enforces line-length=100, target=py310).
 - Keep `storageops-core` free of imports from `storageops-cli` — the dependency only flows one way.
 - Do not add dependencies to `storageops-core/` — it must remain zero-dependency.
 - The `storageops-cli` optional extras (`api`, `mcp`, `dev`) gate optional heavy deps.
+- Update `CHANGELOG.md` and `README.md` with each PR (especially for new commands or tools).

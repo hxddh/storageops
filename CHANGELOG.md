@@ -1,44 +1,76 @@
 # Changelog
 
-## v1.0.0 — Autonomous Agent
+## [Unreleased]
 
-- **Agent:** `storageops agent <evidence> [--interactive]` — autonomous multi-turn diagnostic agent
-  - Automatic evidence quality assessment
-  - Targeted follow-up questions when evidence is insufficient
-  - Multi-domain detection with cross-domain routing suggestions
-  - Structured markdown report generation
-- **Cross-tool comparison:** `parse_s5cmd_error.py` detects awscli-works-but-s5cmd-fails patterns
-- **Inline security analysis:** `analyze_inline_403()` diagnoses 403 errors without requiring policy JSON
-- **Lifecycle XML parser:** `parse_lifecycle_xml.py` extracts transition/expiration rules with auto-warnings
-- **pip install:** `pip install -e storageops-cli/` makes `storageops` available globally
-- **CI:** GitHub Actions workflow — smoke tests + validation + eval on push
-- **Git:** project under version control
-- **Secret scanner:** expanded to 11 patterns including bce-auth and mid-line credential formats
-- **rclone parser:** handles truncated logs, short MD5s, size diff details, timeout errors
-- **Smoke tests:** 7/7 passing
-- **Validation:** 5/5 real-world style cases, 0 gaps
+## 2026-05-31 — httpmon integration + full documentation rewrite
 
-## v0.3.0 — CLI
+- **httpmon integration**: `parse_httpmon_log` parser captures wire-level S3 signals from
+  httpmon NDJSON (`--format json`) and HAR (`--har`) output. Auth header values are classified
+  (sigv4/presigned/anonymous) but never exposed.
+- **MCP tool**: `parse_httpmon_log` registered in `tool_registry.py`; available to Pi and
+  Claude Desktop via MCP.
+- **Skills v2 recommended tool calls**: `parse_httpmon_log` added to `storageops-performance-diagnosis`
+  and `storageops-network-endpoint-access` recommended tool tables.
+- **README**: httpmon installation, three usage patterns, and "what httpmon reveals" comparison table.
+- **Docs overhaul**: `CHANGELOG.md`, `docs/cli-reference.md`, `docs/getting-started.md`,
+  `CONTRIBUTING.md`, `ARCHITECTURE.md`, `storageops-cli/README.md`, `storageops-core/README.md`,
+  and `docs/tutorial.md` all rewritten to reflect current CLI commands, install flow, and architecture.
 
-- **`storageops triage`:** classifies evidence, auto-detects domain, scans for secrets
-- **`storageops analyze`:** runs domain-specific parser + analyzer pipeline
-- **`storageops report`:** generates structured markdown from analysis JSON
-- **`storageops eval`:** runs golden case evaluation with 7-dimension scoring
-- Shell wrapper for development use without pip install
+## 2026-05-25 — Modern CLI commands + Skills v2 contract
 
-## v0.2.0 — Core Engines
+- **Session persistence**: REPL sessions auto-saved to `~/.storageops/sessions/`; each session has
+  a unique ID and timestamp. Evidence blocks and conversation turns are preserved across restarts.
+- **`storageops resume`**: list recent sessions or resume a specific session by ID.
+- **`storageops config list/get/set`**: manage `~/.storageops/config.json` from the CLI;
+  API key stored under `api_key`, provider under `provider`.
+- **`storageops update`**: re-downloads Pi binary and reinstalls skills without a full reinstall.
+- **`storageops scan`**: renamed from `batch`; `batch` retained as a hidden alias.
+- **Hidden aliases**: `agent` → `diagnose`; `batch` → `scan`; `analyse` → `analyze`.
+- **Skills v2 contract**: all 14 skills upgraded with structured frontmatter (`maturity`, `mode`,
+  `estimated_tokens`, `trigger_keywords`, `recommended_tools`), Output Envelope v2
+  (`confidence_factors`, `evidence_quality_score`, `next_actions`), Recommended Tool Calls table,
+  Light/Heavy dual mode, and Thinking framework blockquote.
+- **`skill-registry.yaml` v2.0**: updated to reflect v2 contract, maturity levels, and all 14 skills.
+- **`storageops-data-consistency`**: expanded from 64-line stub to a full skill with complete
+  diagnosis workflow, root cause pattern library, and output requirements.
+- **README**: fully rewritten for human beginners and AI agents; includes REPL demo, session
+  resume, slash commands, httpmon table, MCP tool table, Output Envelope v2 example, skills table
+  with maturity column.
 
-- **Parsers:** awscli debug, rclone verbose, s5cmd debug, SigV4 error XML
-- **Analyzers:** throughput/bottleneck, throttling detection, IAM policy tracing, metadata amplification, cost attribution
-- **Eval runner:** golden case scoring with hard gates (category match + unsafe output)
-- **Secret scanner:** redacts AK/SK, tokens, Authorization headers, embedded credentials
-- **Smoke test:** 7 integration tests
+## 2026-05-17 — Interactive REPL + Pi auto-install + API key config
+
+- **REPL (`storageops`)**: natural-language interactive session with multi-turn evidence accumulation.
+- **`@file` references**: `> analyze this log @/var/log/s3-error.log` inlines file content.
+- **Slash commands**: `/help`, `/clear`, `/doctor`, `/setup`, `/verbose`, `/exit`.
+- **`storageops setup`**: guided wizard that installs Pi, selects LLM provider, and stores API key.
+- **Pi auto-install**: `storageops setup` downloads Pi binary automatically; `storageops doctor`
+  checks environment health and reports Pi status.
+- **One-shot pipe**: `aws s3 cp s3://bucket/key . 2>&1 | storageops`.
+- **README**: hero demo, 2-command install, provider table.
+
+## 2026-05-10 — pip install + setup/doctor
+
+- **pip-installable**: `pip install storageops` (PyPI); no git clone required.
+- **`storageops setup`** and **`storageops doctor`** added as primary user-facing commands.
+- Config stored at `~/.storageops/config.json`.
+- **`storageops triage`** and **`storageops analyze`** work offline without Pi or an API key.
+- **`storageops diagnose`**: sends redacted evidence to Pi and returns a validated markdown report.
+
+## 2026-04-28 — Offline engine, Makefile, network parser
+
+- `parse_network_diagnostics.py` — parses `dig`/`curl -v`/`ping` output.
+- `analyze_network.py` — DNS/TLS/TCP/VPC endpoint root cause from parsed diagnostics.
+- Makefile targets: `make test`, `make lint`, `make eval`.
+- SKILL.md files translated to English; v1 skill structure.
+- 107 tests (no LLM, Pi, or network required).
 
 ## v0.1.0 — Skill Pack
 
-- **10 diagnostic Skills:** triage, S3 protocol, CLI/SDK, performance, mount, network, security, lifecycle, reporting, eval
-- **47 reference documents** covering SigV4, ETag, multipart, rclone, s5cmd, IAM policy, KMS, lifecycle, etc.
-- **4 report templates:** customer, engineering note, reproduction checklist, diagnosis report
-- **5 golden cases** with expected.json validation schemas
-- **AGENTS.md + README.md** — project-level agent instructions
-- **skill-registry.yaml** — skill discovery and routing
+- **10 diagnostic skills**: triage, S3 protocol, CLI/SDK, performance, mount, network, security,
+  lifecycle, reporting, eval.
+- **47 reference documents** covering SigV4, ETag, multipart, rclone, s5cmd, IAM policy, KMS,
+  lifecycle, and more.
+- **4 report templates**: customer, engineering note, reproduction checklist, diagnosis report.
+- **5 golden cases** with `expected.json` validation schemas.
+- **AGENTS.md + README.md** — project-level agent instructions.
+- **`skill-registry.yaml`** — skill discovery and routing.

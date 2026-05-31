@@ -1,109 +1,223 @@
 # StorageOps Tutorial
 
-## 5 分钟上手
+## Quick Start (5 minutes)
 
-### 第一步：连接到云主机
-
-```bash
-ssh -i ~/Documents/ssh/oracle/amd-1511/ssh-key-2026-04-11.key ubuntu@161.33.182.66
-pi
-```
-
-### 第二步：描述你的问题
-
-直接告诉 pi 你遇到的对象存储问题。不需要记住 skill 名字。例如：
-
-| 你说 | pi 自动做的 |
-|------|-----------|
-| "rclone 报 corrupted on transfer" | 自动加载 `storageops-cli-sdk-diagnosis` → 对比 ETag → 路由到 `s3-protocol-compatibility` |
-| "BOS 上传很慢，只有 10MB/s" | 自动加载 `storageops-triage` → 路由到 `performance-diagnosis` → BDP 分析 |
-| "S3 返回 403 AccessDenied" | 自动加载 `security-iam-policy` → 策略评估 → 定位拒绝源 |
-| "挂载的 BOS 上 git status 要 3 分钟" | 自动加载 `mount-filesystem-workspace` → 元数据放大估算 |
-
-### 第三步：提供日志
-
-pi 会告诉你需要什么证据以及如何获取。例如：
+### Step 1 — Install and set up
 
 ```bash
-# pi 可能需要这些命令的输出
-aws --version
-rclone version
-grep -i "error\|fail" rclone-debug.log | head -20
+pip install storageops
+storageops setup
 ```
 
-### 第四步：获得诊断报告
+`setup` downloads Pi Coding Agent, asks for your LLM provider and API key, and saves
+them to `~/.storageops/config.json`.
 
-pi 会输出结构化诊断，包含：
-- 根因分析
-- 置信度评分
-- 证据引用
-- 修复建议（manual-only）
-- 验证命令
-- 降级推断（如果证据不足）
+### Step 2 — Start the REPL
 
+```bash
+storageops
+```
+
+Describe your problem in plain language. No need to know skill names — the agent routes automatically.
+
+```
+StorageOps  S3 Diagnostic Agent
+Describe your issue or paste error logs.
+
+> rclone reports "corrupted on transfer" after copying large files to S3
+```
+
+### Step 3 — Provide evidence
+
+The agent tells you what evidence it needs and how to collect it. Paste log output directly,
+or reference a file with `@`:
+
+```
+> here is the rclone debug log @/tmp/rclone-vv.log
+```
+
+### Step 4 — Read the report
+
+The agent outputs a structured diagnosis:
+
+```markdown
 ---
+category: s3_protocol_compatibility
+root_cause_type: multipart_etag_format_mismatch
+confidence: 0.92
+severity: high
+---
+## Summary
+rclone's multipart ETag is an MD5 of part-MD5s (not the full object MD5),
+which doesn't match the server's ETag on verification.
 
-## 进阶使用
-
-### 指定特定 Skill
-
-```bash
-# 在 pi 交互中
-/skill:storageops-performance-diagnosis
-```
-
-### 使用诊断脚本
-
-```bash
-# 凭证安全加载
-source scripts/credential-loader.sh bos
-
-# rclone 配置审计
-./scripts/rclone-config-auditor.sh
-
-# 元数据放大估算
-python3 scripts/metadata-amplification-estimator.py git-status 50
-
-# 签名错误对比
-python3 scripts/sigv4-error-diff.py error-response.xml
-
-# 权限评估
-python3 scripts/policy-permission-evaluator.py bucket-policy.json s3:GetObject "arn:aws:s3:::my-bucket/*"
-
-# 复制状态检查
-./scripts/replication-status-checker.sh source-bucket dest-bucket my-key
-
-# Skill 健康检查
-./scripts/skill-health-check.sh
+## Remediation
+# manual-only: rclone --s3-upload-cutoff 5G copy src remote:bucket
 ```
 
 ---
 
-## 常见问题 FAQ
+## Scenario Walkthroughs
 
-### Q: 我该从哪里开始？
-A: 直接告诉 pi 你的症状。它会自动路由到正确的诊断 Skill。如果 pi 不确定，会通过 `storageops-triage` 先分类。
+### 403 AccessDenied on GetObject
 
-### Q: 需要提供什么证据？
-A: 越详细越好。至少提供：错误信息/状态码 + 使用的工具及版本 + endpoint/provider。pi 会告诉你还需要什么。
+```
+> s3://my-bucket/data/file.csv — AccessDenied, but my IAM role has s3:GetObject
+```
 
-### Q: 为什么诊断置信度只有 0.5？
-A: 证据不足。可能只提供了错误描述没有日志。pi 会告诉你需要补充什么来提升置信度。这不是失败——这是诚实的。
+What StorageOps checks:
+- Does the policy grant `s3:GetObject` on the **bucket ARN** but miss the `/*` suffix
+  for objects?
+- Is there a bucket policy with an explicit `Deny`?
+- Is there an SCP at the organization level?
+- Is a VPC endpoint condition restricting access?
 
-### Q: Skill 会修改我的 bucket 吗？
-A: **不会。** 所有危险操作都标记为 `manual-only`，需要你手动确认。诊断完全是 read-only 的。
+Typical output: corrected policy snippet with the missing resource qualifier added.
 
-### Q: 支持哪些 Provider？
-A: AWS S3（基线）、BOS（百度）、OSS（阿里）、COS（腾讯）、MinIO。每个都有 `provider-quirks` 参考文档。
+### Slow uploads — throttling or bandwidth?
 
-### Q: 支持哪些工具？
-A: rclone, awscli, s5cmd, bcecmd, obsutil, boto3/botocore, MinIO Client (mc), s3cmd。每个都有专用 reference。
+```
+> AWS S3 uploads only hitting 20 MB/s, expected 200 MB/s
+> here's the rclone log @rclone-vv.log
+```
 
-### Q: 诊断出了错怎么办？
-A: 检查 `limitations` — 诊断盲区已标注。补充证据后重新诊断。也可用 golden cases 做回归验证。
+What StorageOps checks:
+1. 429/SlowDown errors → throttling from prefix hotspot
+2. Multipart part size and concurrency settings vs bandwidth-delay product
+3. Client CPU or disk I/O as bottleneck
+4. TLS handshake overhead on small files
 
-### Q: 能分析 BOS/OSS/COS 的 access log 吗？
-A: 在 pi 中告诉它日志路径即可。对于 BOS access log，参考 `bos-log-analysis` skill 做更深度的分析。
+### SignatureDoesNotMatch on MinIO
 
-### Q: 5 大绝对红线是什么？
-A: 1) 禁止读取凭证文件 2) 禁止推荐公开访问 3) 禁止禁用TLS 4) 禁止自动写操作 5) 禁止编造证据
+```
+> MinIO returns SignatureDoesNotMatch but the same command works on AWS S3
+```
+
+What StorageOps checks:
+- Clock skew (request timestamp vs server time)
+- Path-style vs virtual-hosted-style endpoint mismatch
+- SigV4 region in the credential scope vs the endpoint region
+- Provider quirks documented in `references/provider-quirks/minio.md`
+
+### rclone corrupted on transfer
+
+```
+> rclone copy to BOS says "corrupted on transfer" for files > 5 GB
+```
+
+Root cause (most common): rclone uses multipart upload for large files; the resulting ETag
+is `MD5(part-MD5s)-N`, not `MD5(full-object)`. If BOS is returning the object MD5, the
+comparison fails.
+
+Fix:
+```bash
+# manual-only: set upload cutoff above the largest file to force single-part upload
+rclone copy src bos:bucket --s3-upload-cutoff 10G
+
+# Or: disable ETag verification (loses integrity check)
+# manual-only: rclone copy src bos:bucket --checksum=false
+```
+
+### VPC endpoint unreachable
+
+```
+> inside our VPC, aws s3 ls times out — works fine from my laptop
+```
+
+What StorageOps checks:
+- Does the VPC endpoint have Private DNS enabled? (If not, DNS resolves to a public IP)
+- Is there a route table entry for the endpoint?
+- Does the security group allow HTTPS (443) to the endpoint?
+
+### Browser CORS error
+
+```
+> JavaScript in the browser gets "No 'Access-Control-Allow-Origin' header" on PutObject
+```
+
+What StorageOps checks:
+- Does the bucket CORS configuration list the request origin in `AllowedOrigins`?
+- Does it include `PUT` in `AllowedMethods`?
+- Is the S3 CORS preflight (OPTIONS) returning the correct headers?
+
+---
+
+## Using httpmon for Wire-Level Evidence
+
+[httpmon](https://github.com/hxddh/https-traffic-inspector) wraps any CLI command and
+captures full HTTP/HTTPS traffic. Pipe the output to StorageOps for the most precise diagnosis.
+
+```bash
+# Install httpmon
+go install github.com/hxddh/https-traffic-inspector@latest
+
+# Capture and pipe directly to StorageOps
+httpmon --format json aws s3 cp s3://bucket/key . 2>&1 | storageops
+
+# Capture to HAR, then diagnose
+httpmon --har capture.har rclone copy remote:bucket/ ./local/
+storageops @capture.har
+```
+
+httpmon reveals what tool logs hide: the full error XML body, exact Authorization header
+format, per-request TTFB timing, and complete CORS preflight headers.
+
+---
+
+## Session Resume
+
+StorageOps saves every REPL session automatically. Pick up where you left off:
+
+```bash
+storageops resume            # pick from list of recent sessions
+storageops resume abc12345   # resume by session ID
+```
+
+---
+
+## One-Shot and CI Mode
+
+```bash
+# Pipe a log file
+storageops < error.log
+
+# CI: exit 1 on high/critical severity
+storageops diagnose error.log --exit-code
+
+# JSON output for scripting
+storageops triage error.log --format json
+```
+
+---
+
+## FAQ
+
+**Q: Where do I start?**
+Describe your symptom to the REPL (`storageops`). The agent routes to the correct skill.
+If uncertain, it runs triage first.
+
+**Q: What evidence should I provide?**
+At minimum: error message/status code + tool + provider/endpoint. More is better.
+The agent tells you what it needs to increase confidence.
+
+**Q: Why is confidence only 0.5?**
+Insufficient evidence. The agent lists what's missing. Provide more evidence and the
+confidence goes up. Low confidence = honest, not wrong.
+
+**Q: Will StorageOps modify my bucket?**
+No. All dangerous operations are labeled `manual-only` and require your explicit action.
+StorageOps is purely read-only and diagnostic.
+
+**Q: Which providers are supported?**
+AWS S3 (baseline), Alibaba Cloud OSS, Baidu Cloud BOS, Tencent Cloud COS, Volcengine TOS,
+MinIO, Ceph, Wasabi, and other S3-compatible endpoints.
+
+**Q: Which tools are supported?**
+rclone, AWS CLI, s5cmd, boto3/botocore, MinIO Client (mc), s3cmd. Each has a dedicated parser.
+
+**Q: What are the absolute limits?**
+1. Never reads credential files  
+2. Never recommends public access  
+3. Never disables TLS  
+4. Never executes write operations automatically  
+5. Never fabricates evidence
