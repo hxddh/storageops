@@ -60,6 +60,15 @@ def get_skills_dir() -> Path | None:
     return default if default.exists() else None
 
 
+def detect_provider_from_key(key: str) -> str:
+    """Infer LLM provider from API key prefix."""
+    if key.startswith("sk-ant-"):
+        return "anthropic"
+    if key.startswith("sk-"):
+        return "openai"
+    return "anthropic"
+
+
 def get_provider() -> str:
     return load().get("provider", "anthropic")
 
