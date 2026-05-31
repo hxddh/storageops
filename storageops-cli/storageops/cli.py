@@ -1089,24 +1089,35 @@ def cmd_setup(args: argparse.Namespace) -> None:
     storageops_dir = Path.home() / ".storageops"
     storageops_dir.mkdir(parents=True, exist_ok=True)
 
+    _TOTAL_STEPS = 5
+
+    def _step(n: int, label: str) -> None:
+        print()
+        print(f"  {_dim(f'[{n}/{_TOTAL_STEPS}]')}  {_bold(label)}")
+
     print()
     print(_bold("StorageOps Setup"))
     print(_hr(40))
-    print()
 
-    # ── Step 1: Pi Agent ──────────────────────────────────────────────
+    # ── [1/5] Pi Agent ────────────────────────────────────────────────
+    _step(1, "Pi Agent")
     from storageops import pi_installer
 
     pi_cmd_arg = getattr(args, "pi_command", None)
     pi_path = shutil.which(pi_cmd_arg or "pi")
 
     if not pi_path and not pi_installer.pi_bin_path().exists():
-        print(f"  {_yellow('!')}  Pi Agent not found — installing automatically")
+        print(f"        {_dim('Not found — downloading...')}")
         try:
             def _progress(done: int, total: int) -> None:
-                pct = int(done / total * 20)
-                bar = "━" * pct + "╌" * (20 - pct)
-                sys.stdout.write(f"\r  {_dim('Downloading')}  {bar}  {done // 1024}KB")
+                if total:
+                    pct = int(done / total * 24)
+                    bar = "━" * pct + "╌" * (24 - pct)
+                    kb = done // 1024
+                    sys.stdout.write(f"\r        {bar}  {kb} KB")
+                else:
+                    kb = done // 1024
+                    sys.stdout.write(f"\r        {kb} KB downloaded")
                 sys.stdout.flush()
 
             dest = pi_installer.download_pi(progress_cb=_progress)
@@ -1114,63 +1125,75 @@ def cmd_setup(args: argparse.Namespace) -> None:
             pi_cmd = str(dest)
             pi_path = pi_cmd
             added = pi_installer.ensure_path_entry()
-            print(f"  {_green('✓')}  Pi installed → {_dim(str(dest))}")
+            print(f"  {_green('✓')}     Pi installed → {_dim(str(dest))}")
             if added:
                 path_hint = 'export PATH="$HOME/.storageops/bin:$PATH"'
-                print(f"  {_dim('  PATH updated — open a new shell or run: ' + path_hint)}")
+                print(f"        {_dim('PATH updated — open a new shell or run:')}")
+                print(f"        {_dim(path_hint)}")
         except RuntimeError as exc:
-            print(f"\n  {_red('✗')}  {exc}")
+            print(f"  {_red('✗')}     {exc}")
             print()
             sys.exit(1)
     else:
-        pi_cmd = str(pi_installer.pi_bin_path()) if pi_installer.pi_bin_path().exists() else (pi_cmd_arg or "pi")
+        pi_cmd = (
+            str(pi_installer.pi_bin_path())
+            if pi_installer.pi_bin_path().exists()
+            else (pi_cmd_arg or "pi")
+        )
         try:
             ver_out = subprocess.check_output(
-                [pi_path or pi_cmd, "--version"], text=True, stderr=subprocess.STDOUT, timeout=5
+                [pi_path or pi_cmd, "--version"],
+                text=True, stderr=subprocess.STDOUT, timeout=5,
             ).strip()
         except Exception:
             ver_out = "(version unknown)"
-        print(f"  {_green('✓')}  Pi {_dim(ver_out)}  {_dim(pi_path or pi_cmd)}")
+        print(f"  {_green('✓')}     {ver_out}  {_dim(pi_path or pi_cmd)}")
 
-    # ── Step 2: LLM provider & API key ───────────────────────────────
-    from storageops.config import get_api_key, get_provider, load as _cfg_load, update as _cfg_update
+    # ── [2/5] LLM provider ────────────────────────────────────────────
+    _step(2, "LLM provider")
+    from storageops.config import get_api_key, get_provider, update as _cfg_update
 
     existing_key = get_api_key()
     if existing_key:
-        print(f"  {_green('✓')}  API key  {_dim('already configured')}")
         provider = get_provider()
+        print(f"  {_green('✓')}     {provider}  {_dim('(already configured)')}")
+        _step(3, "API key")
+        print(f"  {_green('✓')}     Already configured")
     else:
-        print()
-        print(f"  {_bold('Configure LLM provider')}")
         providers = [
             ("anthropic", "Anthropic (Claude)"),
             ("openai",    "OpenAI"),
             ("custom",    "Custom / other"),
         ]
         for i, (_, label) in enumerate(providers, 1):
-            print(f"    [{i}] {label}")
+            print(f"        [{i}] {label}")
         try:
-            choice_raw = input("    > ").strip()
+            choice_raw = input("        > ").strip()
             choice = int(choice_raw) if choice_raw.isdigit() else 1
         except (EOFError, ValueError):
             choice = 1
-        provider, _ = providers[min(choice, len(providers)) - 1]
+        provider, provider_label = providers[min(choice, len(providers)) - 1]
+        print(f"  {_green('✓')}     {provider_label}")
 
+        # ── [3/5] API key ─────────────────────────────────────────────
+        _step(3, "API key")
         env_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
         env_var = env_map.get(provider, f"{provider.upper()}_API_KEY")
         try:
             import getpass
-            api_key = getpass.getpass(f"  {env_var}: ").strip()
+            api_key = getpass.getpass(f"        {env_var}: ").strip()
         except (EOFError, KeyboardInterrupt):
             api_key = ""
 
         if api_key:
             _cfg_update(provider=provider, api_key=api_key)
-            print(f"  {_green('✓')}  API key saved")
+            print(f"  {_green('✓')}     Key saved")
         else:
-            print(f"  {_yellow('!')}  No key entered — set ${env_var} in your shell")
+            print(f"  {_yellow('!')}     No key entered — set ${env_var} in your shell")
+            provider = get_provider()
 
-    # ── Step 3: Install skills ────────────────────────────────────────
+    # ── [4/5] Skills ──────────────────────────────────────────────────
+    _step(4, "Skills")
     skills_dst = storageops_dir / "skills"
     bundled = _find_bundled_skills()
     if bundled:
@@ -1178,26 +1201,24 @@ def cmd_setup(args: argparse.Namespace) -> None:
             shutil.rmtree(str(skills_dst))
         shutil.copytree(str(bundled), str(skills_dst))
         count = sum(1 for d in skills_dst.iterdir() if d.is_dir())
-        print(f"  {_green('✓')}  {count} skills → {_dim(str(skills_dst))}")
+        print(f"  {_green('✓')}     {count} skills → {_dim(str(skills_dst))}")
     else:
-        print(f"  {_red('✗')}  skills not found — re-install storageops")
+        print(f"  {_red('✗')}     Skills not found — re-install storageops")
 
-    # ── Step 4: Write Pi settings.json ───────────────────────────────
+    # ── [5/5] Configuration ───────────────────────────────────────────
+    _step(5, "Configuration")
     pi_settings_dir = storageops_dir / ".pi"
     pi_settings_dir.mkdir(exist_ok=True)
     (pi_settings_dir / "settings.json").write_text(
         json.dumps({"skills": ["../skills"], "enableSkillCommands": True}, indent=2) + "\n",
         encoding="utf-8",
     )
-    print(f"  {_green('✓')}  Pi settings → {_dim(str(pi_settings_dir / 'settings.json'))}")
-
-    # ── Step 5: Write storageops config ──────────────────────────────
     _cfg_update(
         pi_command=pi_cmd,
         workdir=str(storageops_dir),
         skills_dir=str(skills_dst),
     )
-    print(f"  {_green('✓')}  Config → {_dim(str(storageops_dir / 'config.json'))}")
+    print(f"  {_green('✓')}     {_dim(str(storageops_dir / 'config.json'))}")
 
     print()
     print(f"  {_green('Setup complete.')}  Run: {_bold('storageops')}")
