@@ -1304,17 +1304,33 @@ def cmd_doctor(args: argparse.Namespace) -> None:
 
 # ── Argument parser ───────────────────────────────────────────────────
 
-_HELP_EPILOG = """\
-Examples:
+_HELP_TEXT = """\
+\033[1mstorageops\033[0m — AI-powered S3 diagnostic agent
+
+\033[1mUsage:\033[0m
+  storageops                       Start interactive session
+  storageops [message|@file]       Describe your issue or pass a log file
+  storageops <command> [options]   Run a specific command
+
+\033[1mCommands:\033[0m
+  resume [id]    Resume a previous session (or pick from a list)
+  setup          First-time setup: download Pi, configure API key
+  config         View or edit configuration
+  update         Download latest Pi binary and reinstall skills
+  doctor         Check environment health: Pi, API key, skills
+  memory         Manage past diagnosed cases
+  mcp            Start MCP server (for Claude Desktop and MCP clients)
+  serve          Start HTTP API server and web UI
+
+\033[1mExamples:\033[0m
   storageops                              Start interactive session
-  storageops resume                       Resume a past session
+  storageops "getting 429 SlowDown"       Describe your issue
   storageops @error.log                   Diagnose a log file
-  storageops "getting 403 on S3"          Describe your issue in plain language
-  storageops diagnose error.log           Pi agent deep diagnosis
-  storageops triage error.log             Fast rule-based triage (offline)
-  storageops config list                  Show configuration
-  storageops update                       Update Pi binary and skills
-  storageops doctor                       Health check
+  storageops resume                       Resume last session
+  storageops < error.log                  Pipe a log via stdin
+  httpmon --format json aws s3 ... | storageops  Capture wire traffic
+
+Run \033[1mstorageops <command> --help\033[0m for command-specific help.
 """
 
 
@@ -1342,18 +1358,21 @@ def main() -> None:
             print("storageops (version unknown)")
         return
 
+    # --help / -h: use our own clean help instead of argparse's
+    if _first in ("--help", "-h"):
+        print(_HELP_TEXT)
+        return
+
     if _first not in _known_subcmds and not _first.startswith("-"):
         from storageops.repl import run_repl
         run_repl(initial_text=" ".join(_argv))
         return
 
     parser = argparse.ArgumentParser(
-        description="StorageOps — AI-powered S3 diagnostic agent",
         prog="storageops",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=_HELP_EPILOG,
+        add_help=False,   # we handle --help ourselves above
     )
-    parser.add_argument("--version", action="store_true", help="Show version and exit")
+    parser.add_argument("--version", action="store_true")
     sub = parser.add_subparsers(dest="command")
 
     # ════════════════════════════════════════════════════
@@ -1381,8 +1400,9 @@ def main() -> None:
         p.add_argument("--exit-code", action="store_true",
                        help="Exit 1 if severity is high/critical (CI mode)")
 
-    p_diagnose = sub.add_parser("diagnose",
-                                help="Deep AI diagnosis with Pi agent (requires setup)")
+    # diagnose: hidden — the REPL handles this use case for interactive users;
+    # kept as an explicit subcommand for CI pipelines and scripting.
+    p_diagnose = sub.add_parser("diagnose", help=argparse.SUPPRESS)
     _add_diagnose_args(p_diagnose)
     p_diagnose.set_defaults(func=cmd_diagnose)
 
@@ -1418,18 +1438,19 @@ def main() -> None:
     p_doctor.set_defaults(func=cmd_doctor)
 
     # ════════════════════════════════════════════════════
-    # Offline commands (no Pi / API key required)
+    # CI / scripting commands — hidden from main help.
+    # These are the engine internals; the REPL runs them automatically.
+    # Still fully functional: storageops triage/analyze/scan/report all work.
     # ════════════════════════════════════════════════════
 
     # ── triage
-    p_triage = sub.add_parser("triage", help="Fast rule-based evidence classification (offline)")
+    p_triage = sub.add_parser("triage", help=argparse.SUPPRESS)
     p_triage.add_argument("file", help="Evidence file (or '-' for stdin)")
     p_triage.add_argument("--format", choices=["human", "json"], default="human")
     p_triage.set_defaults(func=cmd_triage)
 
     # ── analyze
-    p_analyze = sub.add_parser("analyze",
-                               help="Domain-specific parser + analyzer pipeline (offline)")
+    p_analyze = sub.add_parser("analyze", help=argparse.SUPPRESS)
     p_analyze.add_argument("domain", help=(
         "One of: s3_protocol_compatibility, cli_sdk_behavior, performance_throughput, "
         "mount_filesystem_workspace, network_endpoint_access, security_iam_policy, "
@@ -1447,14 +1468,14 @@ def main() -> None:
     p_analyze.set_defaults(func=cmd_analyze)
 
     # ── scan (replaces batch)
-    p_scan = sub.add_parser("scan", help="Triage multiple files at once (offline)")
+    p_scan = sub.add_parser("scan", help=argparse.SUPPRESS)
     p_scan.add_argument("files", nargs="+", help="Evidence files")
     p_scan.add_argument("--format", choices=["human", "json"], default="human")
     p_scan.add_argument("--output", help="Save summary report to this markdown file")
     p_scan.set_defaults(func=cmd_scan)
 
     # ── report
-    p_report = sub.add_parser("report", help="Render markdown report from analysis JSON")
+    p_report = sub.add_parser("report", help=argparse.SUPPRESS)
     p_report.add_argument("file", help="Analysis JSON file")
     p_report.set_defaults(func=cmd_report)
 
