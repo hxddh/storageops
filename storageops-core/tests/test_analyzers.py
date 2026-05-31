@@ -352,3 +352,113 @@ class TestAnalyzeReplication:
         })
         for cmd in result["verification_commands"]:
             assert "manual-only" in cmd.lower(), f"Command must be labeled manual-only: {cmd}"
+
+
+class TestAnalyzeNetwork:
+    def _parsed_base(self, **overrides):
+        base = {
+            "endpoint": "s3.us-east-1.amazonaws.com",
+            "is_vpc_endpoint": False,
+            "is_s3_endpoint": True,
+            "dns": {
+                "status": "NOERROR",
+                "resolved_ips": ["52.216.0.1"],
+                "nxdomain": False,
+                "servfail": False,
+                "query_time_ms": 12,
+                "cname_chain": [],
+            },
+            "tcp": {
+                "connected": True,
+                "refused": False,
+                "timed_out": False,
+                "http_status": 200,
+                "redirect_location": None,
+                "server_header": "AmazonS3",
+                "timing": {},
+            },
+            "tls": {"error": None, "cert_common_name": None, "verified": True},
+            "latency": {
+                "min_ms": 5.0,
+                "avg_ms": 7.5,
+                "max_ms": 12.0,
+                "packet_loss_pct": 0.0,
+                "host_unreachable": False,
+            },
+            "hops": [],
+            "summary": {"error_count": 0, "root_cause_hint": "connectivity_ok"},
+        }
+        base.update(overrides)
+        return base
+
+    def test_healthy_returns_ok(self):
+        from analyze_network import analyze
+        result = analyze(self._parsed_base())
+        assert result["severity"] in ("ok", "low")
+        assert result["root_cause"] == "No network issues detected"
+
+    def test_nxdomain_critical(self):
+        from analyze_network import analyze
+        parsed = self._parsed_base()
+        parsed["dns"]["nxdomain"] = True
+        parsed["summary"]["root_cause_hint"] = "dns_nxdomain"
+        result = analyze(parsed)
+        assert result["severity"] == "critical"
+        assert any(f["code"] == "DNS_NXDOMAIN" for f in result["findings"])
+        assert result["confidence"] >= 0.90
+
+    def test_tls_error_critical(self):
+        from analyze_network import analyze
+        parsed = self._parsed_base()
+        parsed["tls"]["verified"] = False
+        parsed["tls"]["error"] = "SSL certificate problem: certificate has expired"
+        parsed["summary"]["root_cause_hint"] = "tls_certificate_error"
+        result = analyze(parsed)
+        assert result["severity"] == "critical"
+        assert any(f["code"] == "TLS_CERT_ERROR" for f in result["findings"])
+
+    def test_tcp_refused_critical(self):
+        from analyze_network import analyze
+        parsed = self._parsed_base()
+        parsed["tcp"]["connected"] = False
+        parsed["tcp"]["refused"] = True
+        parsed["tcp"]["http_status"] = None
+        parsed["summary"]["root_cause_hint"] = "tcp_connection_refused"
+        result = analyze(parsed)
+        assert result["severity"] == "critical"
+        assert any(f["code"] == "TCP_CONNECTION_REFUSED" for f in result["findings"])
+
+    def test_http_403_medium_severity(self):
+        from analyze_network import analyze
+        parsed = self._parsed_base()
+        parsed["tcp"]["http_status"] = 403
+        parsed["summary"]["root_cause_hint"] = "http_403_access_denied"
+        result = analyze(parsed)
+        assert result["severity"] == "medium"
+        assert any(f["code"] == "HTTP_403_ACCESS_DENIED" for f in result["findings"])
+
+    def test_recommendations_not_empty_on_error(self):
+        from analyze_network import analyze
+        parsed = self._parsed_base()
+        parsed["dns"]["nxdomain"] = True
+        parsed["summary"]["root_cause_hint"] = "dns_nxdomain"
+        result = analyze(parsed)
+        assert len(result["recommendations"]) > 0
+
+    def test_vpc_endpoint_type_detected(self):
+        from analyze_network import analyze
+        parsed = self._parsed_base(is_vpc_endpoint=True, is_s3_endpoint=False)
+        result = analyze(parsed)
+        assert result["endpoint_type"] == "vpc_endpoint"
+
+    def test_public_s3_endpoint_type(self):
+        from analyze_network import analyze
+        result = analyze(self._parsed_base())
+        assert result["endpoint_type"] == "public_s3"
+
+    def test_high_latency_warning(self):
+        from analyze_network import analyze
+        parsed = self._parsed_base()
+        parsed["latency"]["avg_ms"] = 350.0
+        result = analyze(parsed)
+        assert any(f["code"] == "HIGH_LATENCY" for f in result["findings"])

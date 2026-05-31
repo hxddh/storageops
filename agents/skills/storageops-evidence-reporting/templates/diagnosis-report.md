@@ -8,58 +8,58 @@ findings.
 
 ---
 
-# 诊断报告 (Diagnosis Report)
+# Diagnosis Report
 
-**报告编号 (Report ID):** STORAGEOPS-DIAG-XXXX
-**生成时间 (Generated):** YYYY-MM-DD HH:MM UTC
-**分类 (Category):** [primary_category] / [subcategory]
-**严重程度 (Severity):** Critical | High | Medium | Low
-**置信度 (Confidence):** [0.0–1.0]
+**Report ID:** STORAGEOPS-DIAG-XXXX
+**Generated:** YYYY-MM-DD HH:MM UTC
+**Category:** [primary_category] / [subcategory]
+**Severity:** Critical | High | Medium | Low
+**Confidence:** [0.0–1.0]
 
 ---
 
-## 摘要 (Summary)
+## Summary
 
 [One paragraph describing the issue, the primary finding, and the impact.
 This section should be understandable by both technical and non-technical readers.]
 
 ---
 
-## 问题现象 (Symptoms)
+## Symptoms
 
-### 用户报告 (User Report)
+### User Report
 [What the user described, in their own words if available.]
 
-### 观测到的问题 (Observed Symptoms)
+### Observed Symptoms
 - **Error messages:** [Exact error messages, status codes, response bodies]
 - **Timing:** [When it started, frequency, pattern]
 - **Scope:** [Affected buckets, objects, operations, users]
 - **Environment:** [Provider, region, tool/version, access path]
 
-### 影响评估 (Impact Assessment)
+### Impact Assessment
 - [Current operational impact]
 - [Potential escalation if unresolved]
 
 ---
 
-## 诊断结论 (Diagnosis Conclusion)
+## Diagnosis Conclusion
 
-### 主要根因 (Primary Root Cause)
+### Primary Root Cause
 [Detailed explanation of the primary root cause. This should cite specific evidence.]
 
-### 次要因素 (Contributing Factors)
+### Contributing Factors
 - [Factor 1 — explanation and evidence]
 - [Factor 2 — explanation and evidence]
 - [Factors ruled out — explanation for why]
 
-### 分类 (Classification)
+### Classification
 - **Category:** [from issue taxonomy]
 - **Subcategory:** [if applicable]
 - **Root cause type:** [e.g., misconfiguration, provider behavior, workload pattern, etc.]
 
 ---
 
-## 置信度 (Confidence Assessment)
+## Confidence Assessment
 
 | Aspect | Assessment |
 |---|---|
@@ -69,16 +69,16 @@ This section should be understandable by both technical and non-technical reader
 | Factors decreasing confidence | [List factors limiting certainty] |
 | Additional evidence needed | [What would increase confidence] |
 
-### 诊断局限与数据盲区 (Limitations & Blind Spots)
+### Diagnostic Limitations & Blind Spots
 
-[声明此诊断存在的已知局限和数据盲区。必须如实标注，不可为提升置信度而隐瞒。]
-- [局限 1: 例如 "未包含 CloudTrail 审计日志, 可能存在未被日志记录的 API 操作"]
-- [局限 2: 例如 "仅基于采样时段, 未反映日间/周间流量波动"]
-- [盲区 1: 例如 "从未被读取的冷数据不在此分析范围, 实际可降本空间可能更大"]
+[Declare known limitations and blind spots in this diagnosis. Must be honestly noted — do not conceal them to inflate confidence.]
+- [Limitation 1: e.g., "CloudTrail audit logs not included; API operations may exist that are not captured in logs"]
+- [Limitation 2: e.g., "Based on sampled time window only; does not reflect intraday/intraweek traffic variation"]
+- [Blind spot 1: e.g., "Cold data that has never been read is outside this analysis scope; actual cost-saving potential may be larger"]
 
 ---
 
-## 关键证据 (Key Evidence)
+## Key Evidence
 
 | # | Evidence | Source | Type | Relevance |
 |---|---|---|---|---|
@@ -87,7 +87,7 @@ This section should be understandable by both technical and non-technical reader
 
 ---
 
-## 根因排序 (Root Cause Ranking)
+## Root Cause Ranking
 
 1. **[Root Cause 1]** — Confidence: [X%]
    - Evidence: [citation to evidence table]
@@ -99,7 +99,7 @@ This section should be understandable by both technical and non-technical reader
 
 ---
 
-## 验证命令 (Validation Commands)
+## Validation Commands
 
 Commands that can be used to validate the diagnosis. All are read-only unless
 marked `manual-only`.
@@ -117,38 +117,38 @@ marked `manual-only`.
 
 ---
 
-## 修复建议 (Remediation Recommendations)
+## Remediation Recommendations
 
-### 建议 1: [Title] (Recommended)
+### Recommendation 1: [Title] (Recommended)
 - **Action:** [What to do]
 - **Expected outcome:** [What should improve]
 - **Risk:** [Low / Medium / High] — [explanation of risks]
 - **Rollback:** [How to undo if needed]
 - **Status:** `manual-only` — requires review before applying
 
-### 建议 2: [Title]
+### Recommendation 2: [Title]
 - ...
 
 ---
 
-## 风险提示 (Risk Notes)
+## Risk Notes
 
-### 当前风险 (Current State Risks)
+### Current State Risks
 - [Risk of not addressing the issue]
 - [Potential for escalation]
 
-### 变更风险 (Change Risks)
+### Change Risks
 - [Risks associated with each recommendation]
 - [Interactions with other systems or configurations]
 - [Compatibility concerns]
 
-### 安全考量 (Security Considerations)
+### Security Considerations
 - [Any security implications of the findings or recommendations]
 - [Secret exposure: Yes / No — if yes, all redacted]
 
 ---
 
-## 后续排查清单 (Next-Step Checklist)
+## Next-Step Checklist
 
 - [ ] **Action item 1** — Rationale and expected outcome
 - [ ] **Action item 2** — Rationale and expected outcome
@@ -158,24 +158,25 @@ marked `manual-only`.
 
 ---
 
-## 附录 (Appendix)
+## Appendix
 
-### 使用的 Skill
+### Skills Used
 - `storageops-triage`
 - `[specialist-skill-name]`
 - `storageops-evidence-reporting`
 
-### 参考文献
+### References
 - [Provider documentation URLs]
 - [Related issues or previous reports]
 
-### 量化影响评估 (Quantified Impact)
+### Quantified Impact
 
-[如果适用，包含量化的影响评估。]\n- **影响范围:** [受影响的 object 数 / bucket 数 / 用户数]
-- **时间恢复预估:** [预估修复时间]
-- **成本影响 (估算):** [预估月/年财务影响, 注明假设价格]
+[If applicable, include a quantified impact assessment.]
+- **Affected scope:** [Number of affected objects / buckets / users]
+- **Estimated recovery time:** [Estimated time to fix]
+- **Cost impact (estimate):** [Estimated monthly/annual financial impact; state assumed prices]
 
-### 脱敏声明 (Redaction Statement)
+### Redaction Statement
 All secrets, credentials, tokens, and Authorization headers in this report
 have been redacted as `[REDACTED]`. No real credentials are exposed.
 

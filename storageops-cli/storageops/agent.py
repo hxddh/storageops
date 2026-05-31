@@ -279,16 +279,11 @@ def run_analysis(domain: str, text: str) -> dict:
                 result = parse_lifecycle(text)
 
         elif domain == 'network_endpoint_access':
-            result = {
-                "note": "Network diagnosis requires live tools. Run manually:\n"
-                        "  dig <endpoint-hostname>\n"
-                        "  curl -v --connect-timeout 5 https://<endpoint>\n"
-                        "  mtr -r -c 10 <endpoint-hostname>",
-                "recommendations": [
-                    "Collect DNS resolution, TCP connectivity, TLS handshake, and RTT data.",
-                    "Use storageops-network-endpoint-access Skill for detailed guidance.",
-                ],
-            }
+            from parse_network_diagnostics import parse as parse_net_diag
+            from analyze_network import analyze as analyze_net
+            parsed = parse_net_diag(text)
+            result = analyze_net(parsed)
+            result['_parsed'] = parsed
 
     except Exception as exc:
         result = {"error": str(exc), "note": "Analysis failed. More evidence may be needed."}

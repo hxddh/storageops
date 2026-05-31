@@ -430,6 +430,52 @@ TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    {
+        "name": "parse_network_diagnostics",
+        "description": (
+            "Parse network diagnostic output (dig, curl -v, ping, mtr, traceroute) into a "
+            "structured dict. Use when evidence contains DNS lookup results, curl verbose output, "
+            "ping statistics, or traceroute/mtr hop data for an S3 or VPC endpoint. "
+            "Extracts: DNS status (NXDOMAIN/SERVFAIL/resolved IPs/CNAME chain), TCP connectivity "
+            "(refused/timed out/HTTP status), TLS certificate errors, ICMP latency and packet loss, "
+            "and routing hops. Detects VPC endpoints and S3 endpoints automatically. "
+            "Pass the raw command output as 'diagnostic_text'. "
+            "Follow with analyze_network for root-cause diagnosis."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "diagnostic_text": {
+                    "type": "string",
+                    "description": "Raw output from dig, curl -v, ping, mtr, or traceroute",
+                },
+            },
+            "required": ["diagnostic_text"],
+        },
+    },
+    {
+        "name": "analyze_network",
+        "description": (
+            "Analyze parsed network diagnostic data and return root-cause diagnosis with "
+            "actionable recommendations. Use after parse_network_diagnostics. "
+            "Diagnoses: DNS NXDOMAIN (bad hostname/missing VPC endpoint DNS), DNS SERVFAIL "
+            "(resolver failure), TLS certificate errors, TCP refused (firewall/security group), "
+            "TCP timeout (silent drop/NACL), host unreachable, packet loss, HTTP 403 (S3 policy). "
+            "Returns: root_cause, severity (critical/high/medium/low/ok), confidence score, "
+            "findings list, and prioritized recommendations. "
+            "Provide the full parse_network_diagnostics output as 'parsed'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "parsed": {
+                    "type": "object",
+                    "description": "Full output dict from parse_network_diagnostics",
+                },
+            },
+            "required": ["parsed"],
+        },
+    },
 ]
 
 
@@ -531,6 +577,14 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
         elif name == "parse_hadoop_s3a":
             from parse_hadoop_s3a import parse
             return parse(inputs["log_text"])
+
+        elif name == "parse_network_diagnostics":
+            from parse_network_diagnostics import parse  # noqa: E402
+            return parse(inputs["diagnostic_text"])
+
+        elif name == "analyze_network":
+            from analyze_network import analyze  # noqa: E402
+            return analyze(inputs["parsed"])
 
         else:
             return {"error": f"Unknown tool: {name!r}"}
