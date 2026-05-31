@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 _DIR = Path.home() / ".storageops"
@@ -22,8 +23,24 @@ def save(config: dict) -> None:
     _FILE.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def update(**kwargs) -> None:
+    cfg = load()
+    cfg.update(kwargs)
+    save(cfg)
+
+
 def get_pi_command() -> str:
-    return load().get("pi_command", "pi")
+    """Resolve the Pi binary: config > env > 'pi'."""
+    from storageops.pi_installer import pi_bin_path
+    # Config override
+    cfg_cmd = load().get("pi_command")
+    if cfg_cmd:
+        return cfg_cmd
+    # Bundled bin
+    bundled = pi_bin_path()
+    if bundled.exists():
+        return str(bundled)
+    return "pi"
 
 
 def get_workdir() -> Path:
@@ -41,3 +58,22 @@ def get_skills_dir() -> Path | None:
             return d
     default = _DIR / "skills"
     return default if default.exists() else None
+
+
+def get_provider() -> str:
+    return load().get("provider", "anthropic")
+
+
+def get_api_key() -> str | None:
+    """Get LLM API key: config file first, then standard env vars."""
+    cfg_key = load().get("api_key")
+    if cfg_key:
+        return cfg_key
+    provider = get_provider()
+    env_map = {
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openai":    "OPENAI_API_KEY",
+    }
+    env_var = env_map.get(provider, f"{provider.upper()}_API_KEY")
+    return os.environ.get(env_var)
+
