@@ -14,25 +14,20 @@ from storageops.session import DiagnosticSession
 _BANNER = """\
 \033[1mStorageOps\033[0m  S3 Diagnostic Agent
 Describe your issue or paste error logs. Use \033[2m@file.log\033[0m to reference a file.
-\033[2m/help for commands · Ctrl+C or /exit to quit\033[0m
+\033[2mType / for commands · Ctrl+C or /exit to quit\033[0m
 """
 
-_HELP = """
-Commands:
-  /help      This message
-  /clear     Clear session and start fresh
-  /doctor    Environment health check
-  /setup     Re-run setup wizard
-  /verbose   Toggle verbose mode
-  /exit      Exit
-
+_TIPS = """
 Tips:
   • Paste log output directly — StorageOps detects it automatically
   • Reference a file:  @/path/to/error.log
+  • Type / then Tab to see all commands
   • Empty line submits a multi-line block
 """
 
 _IS_TTY = sys.stdout.isatty()
+
+_SLASH_CMDS = ["/help", "/clear", "/doctor", "/setup", "/verbose", "/exit"]
 
 
 # ── ANSI helpers (safe for non-TTY) ──────────────────────────────────
@@ -85,9 +80,50 @@ class _Spinner:
 
 # ── Input reading ─────────────────────────────────────────────────────
 
+_SLASH_CMD_HELP = {
+    "/help":    "Show this command list",
+    "/clear":   "Clear session and start fresh",
+    "/doctor":  "Environment health check",
+    "/setup":   "Re-run setup wizard",
+    "/verbose": "Toggle verbose mode",
+    "/exit":    "Exit",
+}
+
+
+def _print_slash_menu() -> None:
+    """Print a formatted slash command list (shown on '/' or '/help')."""
+    print()
+    print(f"  {_bold('Commands')}")
+    for cmd, desc in _SLASH_CMD_HELP.items():
+        print(f"  {_cyan(cmd):<20}  {_dim(desc)}")
+    print()
+
+
 def _init_readline() -> None:
     try:
-        import readline  # noqa: F401
+        import readline
+
+        def _completer(text: str, state: int) -> str | None:
+            if text.startswith("/"):
+                matches = [c + " " for c in _SLASH_CMDS if c.startswith(text)]
+                return matches[state] if state < len(matches) else None
+            return None
+
+        def _display_matches(substitution: str, matches: list[str], longest: int) -> None:
+            print()
+            for m in matches:
+                cmd = m.strip()
+                desc = _SLASH_CMD_HELP.get(cmd, "")
+                print(f"  {_cyan(cmd):<20}  {_dim(desc)}")
+            print()
+            # Reprint the current prompt + partial input
+            readline.redisplay()
+
+        readline.set_completer(_completer)
+        readline.set_completion_display_matches_hook(_display_matches)
+        readline.parse_and_bind("tab: complete")
+        # Complete on first Tab, not second
+        readline.set_completer_delims(" \t\n")
     except ImportError:
         pass
 
@@ -337,8 +373,9 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         if first in ("/exit", "/quit") or text.lower() in ("exit", "quit"):
             print("Goodbye.")
             break
-        elif first == "/help":
-            print(_HELP)
+        elif first in ("/help", "/"):
+            _print_slash_menu()
+            print(_TIPS)
             continue
         elif first == "/clear":
             session.reset()
