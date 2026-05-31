@@ -1354,7 +1354,6 @@ _HELP_TEXT = """\
   storageops <command> [options]   Run a specific command
 
 \033[1mCommands:\033[0m
-  resume [id]    Resume a previous session (or pick from a list)
   setup          Configure API key and install Pi Agent
   config         View or edit configuration
   update         Download latest Pi binary and reinstall skills
@@ -1367,9 +1366,10 @@ _HELP_TEXT = """\
   storageops                              Start interactive session
   storageops "getting 429 SlowDown"       Describe your issue
   storageops @error.log                   Diagnose a log file
-  storageops resume                       Resume last session
   storageops < error.log                  Pipe a log via stdin
   httpmon --format json aws s3 ... | storageops  Capture wire traffic
+
+Inside a session, type \033[1m/\033[0m to see all commands including /resume.
 
 Run \033[1mstorageops <command> --help\033[0m for command-specific help.
 """
@@ -1380,7 +1380,7 @@ def main() -> None:
     _known_subcmds = {
         "triage", "analyze", "analyse", "diagnose", "agent", "scan", "batch",
         "report", "eval", "memory", "audit", "mcp", "serve",
-        "setup", "doctor", "resume", "config", "update",
+        "setup", "doctor", "config", "update",
         "--help", "-h", "--version",
     }
     _first = _argv[0] if _argv else None
@@ -1420,8 +1420,8 @@ def main() -> None:
     # Main commands
     # ════════════════════════════════════════════════════
 
-    # ── resume
-    p_resume = sub.add_parser("resume", help="Resume a past diagnostic session")
+    # ── resume (hidden: use /resume inside a session instead)
+    p_resume = sub.add_parser("resume", help=argparse.SUPPRESS)
     p_resume.add_argument("session_id", nargs="?", default=None,
                           help="Session ID to resume (omit to resume most recent)")
     p_resume.add_argument("--list", action="store_true",

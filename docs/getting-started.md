@@ -106,6 +106,7 @@ StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /ex
 | Command | Action |
 |---------|--------|
 | `/help` | Show available commands |
+| `/resume` | Pick a past session to continue |
 | `/clear` | Start a fresh session |
 | `/status` | Show session ID, Pi and API key status |
 | `/doctor` | Check environment health |
@@ -113,16 +114,7 @@ StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /ex
 | `/verbose` | Toggle verbose output (shows tool calls) |
 | `/exit` | Quit |
 
----
-
-## Step 6 — Resume a session
-
-Sessions are saved automatically to `~/.storageops/sessions/`. To pick up where you left off:
-
-```bash
-storageops resume            # pick from recent sessions
-storageops resume abc12345   # resume by session ID
-```
+Sessions are saved automatically to `~/.storageops/sessions/`. Use `/resume` inside a session to continue a past conversation.
 
 ---
 
