@@ -10,6 +10,24 @@ description: >
   concurrent access, and performance degradation compared to local SSD.
   Use when the user describes a mounted filesystem that is "slow", "unstable",
   "hangs", or where tools like git, npm, or IDE operations are severely delayed.
+maturity: mature
+mode: light_heavy
+estimated_tokens: 2500
+trigger_keywords:
+  - mount
+  - s3fs
+  - rclone mount
+  - FUSE
+  - workspace slow
+  - git slow
+  - node_modules
+  - bosfs
+  - ossfs
+recommended_tools:
+  - parse_rclone_log
+  - analyze_throughput
+  - scan_secrets
+  - search_memory
 ---
 
 # Mount & Filesystem Workspace Diagnosis
@@ -42,6 +60,15 @@ description: >
 - Do not recommend running destructive filesystem operations (rm -rf) on mounted storage without explicit confirmation.
 - Mount hangs can cause processes to enter uninterruptible sleep (D state) — do not recommend `kill -9` on fuse processes without warning.
 
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `parse_rclone_log` | When rclone mount log is provided | `{"text": "<rclone mount log>"}` |
+| `analyze_throughput` | When timing/throughput data for mount operations is available | `{"text": "<timing measurements or strace output>"}` |
+| `scan_secrets` | Before any output, scan mount config for credentials | `{"text": "<mount options or config>"}` |
+| `search_memory` | At start, check for known FUSE or mount tool issues | `{"query": "FUSE mount <tool> <symptom>"}` |
+
 ## Required evidence
 
 1. **Mount type and version** — s3fs, rclone mount, ossfs, bosfs, gcsfuse, Mountpoint for S3, with version.
@@ -61,6 +88,11 @@ See reference files:
 - `references/object-storage-as-filesystem.md`
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Classify the Mount
 
@@ -154,12 +186,29 @@ Instead of direct mount as hot workspace:
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: mount_filesystem_workspace
 subcategory: metadata_storm | posix_mismatch | cache_configuration | connection_pool | concurrent_access | mount_disconnect | write_amplification
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 primary_bottleneck: metadata_amplification | write_amplification | connection_pool_exhaustion | provider_rate_limit | posix_mismatch
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 Plus:

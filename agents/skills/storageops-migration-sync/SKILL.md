@@ -9,6 +9,23 @@ description: >
   cost estimation, incremental sync planning, migration dry-run, rollback strategy,
   and common migration failure patterns. Use when planning a data migration,
   validating a completed migration, or troubleshooting a failed sync job.
+maturity: beta
+mode: light_heavy
+estimated_tokens: 3000
+trigger_keywords:
+  - migrate
+  - migration
+  - sync bucket
+  - cross-provider
+  - transfer data
+  - sync across
+  - move data
+recommended_tools:
+  - parse_rclone_log
+  - parse_s5cmd_log
+  - analyze_cost
+  - scan_secrets
+  - search_memory
 ---
 
 # Cross-Provider Migration & Sync Planning
@@ -41,6 +58,16 @@ description: >
 - Always include a rollback strategy in the migration plan.
 - Cost estimates are ESTIMATES only — actual costs depend on provider billing and data transfer pricing.
 
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `parse_rclone_log` | When rclone sync/copy log is provided | `{"text": "<rclone log>"}` |
+| `parse_s5cmd_log` | When s5cmd sync log is provided | `{"text": "<s5cmd log>"}` |
+| `analyze_cost` | When estimating migration transfer or storage costs | `{"text": "<object count, size, and provider info>"}` |
+| `scan_secrets` | Before any output, redact AK/SK from bucket listings | `{"text": "<bucket listing or config>"}` |
+| `search_memory` | At start, check for known migration failure patterns | `{"query": "migration sync <source provider> <dest provider>"}` |
+
 ## Required evidence
 
 1. **Source bucket info** — Provider, region, endpoint, object count, total size.
@@ -72,6 +99,11 @@ rclone version && s5cmd version && aws --version
 ```
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Classify the Migration Scenario
 
@@ -223,16 +255,33 @@ ETag algorithms differ across providers. During cross-provider migration:
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: migration_sync
 subcategory: cross_provider | same_provider_cross_region | same_provider_same_region | incremental_sync
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 migration_strategy: server_side_copy | direct_client_transfer | snowball_offline
 estimated_time_hours: <number>
 estimated_cost_est: <CNY or $>
 recommended_tool: rclone | s5cmd | awscli | mc
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 limitations: [<coverage gaps>, ...]
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 Plus:

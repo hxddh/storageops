@@ -9,6 +9,24 @@ description: >
   behavioral differences between AWS S3 baseline and S3-compatible providers.
   Use when the error message references S3 API operations or XML response bodies,
   or when a browser reports a CORS policy error accessing an S3 endpoint.
+maturity: core
+mode: light_heavy
+estimated_tokens: 2500
+trigger_keywords:
+  - SignatureDoesNotMatch
+  - InvalidSignature
+  - ETag mismatch
+  - ListObjects
+  - CompleteMultipartUpload
+  - CORS
+  - checksum
+  - S3 protocol
+recommended_tools:
+  - parse_sigv4_error
+  - parse_cors_error
+  - analyze_cors
+  - scan_secrets
+  - search_memory
 ---
 
 # S3 Protocol Compatibility Diagnosis
@@ -40,6 +58,16 @@ description: >
 - Do not recommend modifying server-side protocol behavior (this is the provider's responsibility).
 - When comparing provider behavior to AWS S3, always note that compatibility is a spectrum, not binary.
 - Do not recommend circumventing signature validation.
+
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `parse_sigv4_error` | When SigV4 / SignatureDoesNotMatch error is present | `{"text": "<error XML or debug log>"}` |
+| `parse_cors_error` | When a CORS preflight error is reported | `{"text": "<CORS error message or response headers>"}` |
+| `analyze_cors` | After parsing CORS error, to classify and recommend fix | `{"text": "<CORS config or error>"}` |
+| `scan_secrets` | Before any output, redact Authorization headers from debug logs | `{"text": "<log content>"}` |
+| `search_memory` | At start, check for known provider-specific protocol quirks | `{"query": "S3 protocol <provider> <error code>"}` |
 
 ## Required evidence
 
@@ -80,6 +108,11 @@ See reference files:
 - `references/cors.md` — CORS configuration and preflight diagnosis
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Identify the Operation
 
@@ -141,13 +174,30 @@ Before finalizing, exclude these cross-domain possibilities:
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: s3_protocol_compatibility
 subcategory: sigv4 | list_objects | multipart_upload | checksum_etag | copy_object | head_object | delete_object | cors
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 root_cause_type: client_configuration | clock_skew | provider_behavior_difference | provider_bug | protocol_misuse
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 limitations: [<coverage gaps>, ...]
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 - **Protocol Trace** — Timelined breakdown of the failing request/response cycle
 - **AWS Baseline Comparison** — Expected vs observed behavior, with citations

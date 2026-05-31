@@ -6,6 +6,18 @@ description: >
   severity and evidence completeness, and routes to the appropriate specialist
   Skill. Use this Skill when the user reports any object storage symptom without
   a clear diagnostic category, or when classification is needed before deeper analysis.
+maturity: core
+mode: light_heavy
+estimated_tokens: 2000
+trigger_keywords:
+  - object storage
+  - S3 error
+  - storage issue
+  - storage problem
+  - bucket issue
+recommended_tools:
+  - scan_secrets
+  - search_memory
 ---
 
 # StorageOps Triage
@@ -35,6 +47,13 @@ description: >
 - If the issue involves production systems, flag with `env_risk: "possible_production"`.
 - If secrets are detected in evidence, add a `secret_exposure_risk` warning.
 
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `scan_secrets` | Before any output, scan all provided evidence | `{"text": "<log or config content>"}` |
+| `search_memory` | At start, check for prior cases matching this symptom | `{"query": "object storage issue <keyword>"}` |
+
 ## Required evidence
 
 The triage Skill determines what evidence is MISSING, not just what is present.
@@ -53,6 +72,11 @@ Evidence quality assessment:
 - `insufficient` — Cannot classify; must request more evidence before proceeding
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Input Classification
 
@@ -155,23 +179,42 @@ Check for:
 The triage output must include:
 
 ```yaml
+# Output Envelope v2
 category: <primary_domain>
 subcategory: <optional>
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_count
+    weight: 0.4
+    note: "distinct evidence types present"
+  - factor: error_code_specificity
+    weight: 0.4
+    note: "exact error code vs. vague description"
+  - factor: temporal_signal
+    weight: 0.2
+    note: "timestamps or change event present"
 severity: critical | high | medium | low
 input_type: log_file | error_message | config_file | natural_language | command_output | monitoring_data
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 route_to: [<skill_name>, ...]
 cross_domain_checks: [<exclusion_hypothesis>, ...]
 temporal_pattern: constant | spike_at_hour | gradual_increase | sudden_onset | intermittent | after_change | unknown
 safety_flags: [<flag>, ...]
-limitations: [<coverage gaps>, ...]  # Diagnostic limitations and blind spots
+limitations: [<coverage gaps>, ...]
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
+
+Evidence references in narrative use E-1, E-2, ... numbering (e.g., "E-1: AccessDenied error at 14:32 UTC").
 
 Plus narrative sections:
 
 - **Symptom Summary** — What the user is experiencing
-- **Domain Rationale** — Why this classification was chosen
+- **Domain Rationale** — Why this classification was chosen (cite E-N)
 - **Evidence Gaps** — What is missing and how to collect it
 - **Routing Decision** — Which specialist Skill(s) to invoke next
 - **Risk Notes** — Security or production concerns

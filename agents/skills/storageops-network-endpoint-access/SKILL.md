@@ -8,6 +8,23 @@ description: >
   MTU path discovery, RTT analysis, and proxy/NAT traversal. Use when the
   endpoint is unreachable, DNS fails, TLS errors occur, or access from specific
   network paths (VPC, cross-cloud, private network) is non-functional or slow.
+maturity: mature
+mode: light_heavy
+estimated_tokens: 2000
+trigger_keywords:
+  - endpoint unreachable
+  - DNS
+  - TLS error
+  - certificate
+  - VPC endpoint
+  - connection refused
+  - MTU
+  - proxy
+recommended_tools:
+  - parse_network_diagnostics
+  - analyze_network
+  - scan_secrets
+  - search_memory
 ---
 
 # Network & Endpoint Access Diagnosis
@@ -40,6 +57,15 @@ description: >
 - Do not recommend opening firewalls without understanding the security impact.
 - `mtr` and `traceroute` may be considered intrusive by network administrators.
 
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `parse_network_diagnostics` | When dig/ping/traceroute/curl output is provided | `{"text": "<network diagnostic output>"}` |
+| `analyze_network` | After parsing, to classify the connectivity failure | `{"text": "<parsed network evidence>"}` |
+| `scan_secrets` | Before any output, redact any credentials found in logs | `{"text": "<log or config content>"}` |
+| `search_memory` | At start, check for known endpoint or DNS patterns | `{"query": "network endpoint <provider> <error>"}` |
+
 ## Required evidence
 
 1. **Endpoint URL** — Full endpoint with protocol, hostname, port if non-standard.
@@ -59,6 +85,11 @@ See reference files:
 - `references/tls-mtu-rtt.md`
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Endpoint Classification
 
@@ -164,12 +195,29 @@ Each pattern below maps a symptom signature to a root cause and fix.
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: network_endpoint_access
 subcategory: dns | tls | routing | endpoint_configuration | private_access | cross_cloud | proxy | mtu
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 primary_failure_point: dns_resolution | tcp_connect | tls_handshake | routing_path | endpoint_misconfiguration | proxy_interference | mtu_issue
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 Plus:

@@ -9,6 +9,19 @@ description: >
   completing diagnosis with one or more specialist Skills, when the
   user requests a formal written report, or when documenting findings
   for handoff to another team.
+maturity: core
+mode: light_heavy
+estimated_tokens: 2000
+trigger_keywords:
+  - report
+  - write up
+  - document
+  - customer summary
+  - diagnosis report
+  - reproduction steps
+recommended_tools:
+  - scan_secrets
+  - search_memory
 ---
 
 # Evidence-Based Reporting
@@ -38,6 +51,13 @@ description: >
 - Include risk warnings for any recommended changes.
 - Do not include destructive or security-weakening recommendations.
 - Label confidence levels honestly — do not overstate certainty.
+
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `scan_secrets` | Before finalizing any report, scan all content for credentials | `{"text": "<full report draft>"}` |
+| `search_memory` | At start, retrieve prior diagnostic sessions for context | `{"query": "prior diagnosis <category> <symptom>"}` |
 
 ## Required evidence
 
@@ -74,6 +94,11 @@ Before generating a report, verify:
 - Used by most specialist Skills as default output format.
 
 ## Workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Collect Diagnostic Outputs
 Gather the structured YAML/JSON outputs from all specialist skills invoked during diagnosis.
@@ -175,13 +200,30 @@ Every diagnosis report MUST include these sections:
 The report must include in its structured output:
 
 ```yaml
+# Output Envelope v2
 report_type: customer_report | internal_engineering_note | reproduction_checklist | diagnosis_report
 category: <from specialist Skill>
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 evidence_count: <number of evidence items>
+evidence_quality_score: <0.0–1.0>
 unsafe_recommendations: <count of manual-only items>
 secret_scan_passed: true | false
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 ## Common mistakes to avoid

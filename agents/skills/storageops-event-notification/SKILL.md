@@ -10,6 +10,22 @@ description: >
   queue configuration, event message format parsing (S3 event structure),
   CloudTrail vs S3 Event Notification differences, and cross-region notification
   delivery issues.
+maturity: experimental
+mode: light_heavy
+estimated_tokens: 2500
+trigger_keywords:
+  - Lambda not triggered
+  - S3 event
+  - notification not working
+  - SQS not receiving
+  - event notification
+  - missing events
+  - duplicate events
+  - ObjectCreated
+recommended_tools:
+  - analyze_policy
+  - scan_secrets
+  - search_memory
 ---
 
 # S3 Event Notification Diagnosis
@@ -42,6 +58,14 @@ description: >
 - Do not recommend disabling event notification without understanding data loss implications.
 - All configuration changes must be tagged `manual-only`.
 - Event notification changes can cause data processing gaps — always warn about impact.
+
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `analyze_policy` | When SQS queue policy or Lambda resource policy is available | `{"policy": "<policy JSON>"}` |
+| `scan_secrets` | Before any output, redact ARNs and queue URLs | `{"text": "<notification config or event JSON>"}` |
+| `search_memory` | At start, check for known event notification failure patterns | `{"query": "S3 event notification Lambda SQS <error>"}` |
 
 ## Required evidence
 
@@ -79,6 +103,11 @@ description: >
 ```
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Verify Notification Configuration Exists
 
@@ -213,13 +242,30 @@ Common bug: URL-encoded keys in event → consumer doesn't decode → fails to f
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: event_notification
 subcategory: lambda_invocation | sqs_delivery | sns_publish | event_filter | concurrency | delivery_latency
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 root_cause_type: missing_event_type | filter_mismatch | iam_policy_gap | lambda_concurrency | destination_deleted | cross_region | event_format_parse_error
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 limitations: [<coverage gaps>, ...]
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 ## Common mistakes to avoid

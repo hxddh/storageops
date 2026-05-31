@@ -8,6 +8,24 @@ description: >
   alias and SSL issues, and Go/Java/Node.js SDK configuration issues. Use when
   errors are tool-specific rather than raw S3 API errors, or when comparing
   behavior across different clients against the same endpoint.
+maturity: mature
+mode: light_heavy
+estimated_tokens: 2000
+trigger_keywords:
+  - awscli
+  - boto3
+  - rclone
+  - s5cmd
+  - bcecmd
+  - obsutil
+  - corrupted on transfer
+  - debug log
+recommended_tools:
+  - parse_awscli_debug
+  - parse_rclone_log
+  - parse_s5cmd_log
+  - scan_secrets
+  - search_memory
 ---
 
 # CLI & SDK Diagnosis
@@ -41,6 +59,16 @@ description: >
 - Do not recommend writing credentials to unrestricted files.
 - rclone config files often contain plaintext credentials — do not read or expose them.
 
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `parse_awscli_debug` | When awscli --debug output is provided | `{"text": "<awscli debug log>"}` |
+| `parse_rclone_log` | When rclone -vv log is provided | `{"text": "<rclone verbose log>"}` |
+| `parse_s5cmd_log` | When s5cmd log output is provided | `{"text": "<s5cmd log>"}` |
+| `scan_secrets` | Before any output, scan all debug logs for credentials | `{"text": "<debug log content>"}` |
+| `search_memory` | At start, check for known tool version bugs or patterns | `{"query": "<tool name> <error> <version>"}` |
+
 ## Required evidence
 
 1. **Tool name and exact version** — `aws --version`, `rclone version`, `s5cmd version`, `bcecmd version`, etc.
@@ -61,6 +89,11 @@ See reference files:
 - `references/minio-client.md`
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Identify the Tool and Version
 
@@ -120,14 +153,31 @@ Classify:
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: cli_sdk_behavior
 subcategory: awscli | boto3 | bcecmd | rclone | s5cmd | obsutil | go_sdk | java_sdk
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 root_cause_type: tool_misconfiguration | tool_version_bug | tool_sdk_incompatibility | tool_default_behavior | sdk_exception
 tools_compared: [<tool>, ...]
 evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 limitations: [<coverage gaps>, ...]
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 - **Tool Behaviour Trace** — Key debug log excerpts showing the failure
 - **Configuration Issues** — Specific misconfigurations found

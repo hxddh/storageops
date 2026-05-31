@@ -8,6 +8,26 @@ description: >
   handshake overhead, and client-side CPU/disk/network bottlenecks. Use when
   the user reports "slow", "timeout", "throttling", "429", or throughput below
   expectations.
+maturity: core
+mode: light_heavy
+estimated_tokens: 2500
+trigger_keywords:
+  - slow upload
+  - slow download
+  - timeout
+  - 429
+  - SlowDown
+  - throttling
+  - throughput
+  - performance
+  - latency
+recommended_tools:
+  - detect_throttling
+  - analyze_throughput
+  - parse_awscli_debug
+  - parse_rclone_log
+  - parse_s5cmd_log
+  - search_memory
 ---
 
 # Performance Diagnosis
@@ -39,6 +59,18 @@ description: >
 - Do not recommend changes that would trigger service-wide throttling (e.g., unlimited concurrency).
 - Do not recommend disabling TLS verification for performance gains.
 - Do not recommend disabling checksums for performance gains without warning about integrity risk.
+
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `detect_throttling` | When 429/SlowDown errors are present in logs | `{"text": "<debug log content>"}` |
+| `analyze_throughput` | When throughput measurements are available | `{"text": "<performance log or metrics>"}` |
+| `parse_awscli_debug` | When awscli --debug output is provided | `{"text": "<awscli debug log>"}` |
+| `parse_rclone_log` | When rclone verbose log is provided | `{"text": "<rclone -vv log>"}` |
+| `parse_s5cmd_log` | When s5cmd log is provided | `{"text": "<s5cmd log>"}` |
+| `scan_secrets` | Before any output, redact credentials from logs | `{"text": "<log content>"}` |
+| `search_memory` | At start, check for prior performance cases | `{"query": "performance throughput <tool> <provider>"}` |
 
 ## Required evidence
 
@@ -91,6 +123,11 @@ See reference files:
 - `references/throttling.md`
 
 ## Diagnosis workflow
+
+> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
+> Light mode: steps 1–3 only. Heavy mode: all steps.
+
+> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
 
 ### Step 1: Characterize the Workload
 
@@ -164,16 +201,34 @@ Before finalizing, verify the bottleneck is NOT caused by a different domain:
 ## Output requirements
 
 ```yaml
+# Output Envelope v2
 category: performance_throughput
 subcategory: upload | download | small_file | large_file | listing | mixed
 confidence: <0.0–1.0>
+confidence_factors:
+  - factor: evidence_specificity
+    weight: 0.5
+    note: "exact error code and context vs. vague description"
+  - factor: evidence_completeness
+    weight: 0.3
+    note: "required evidence categories present"
+  - factor: cross_domain_exclusion
+    weight: 0.2
+    note: "competing hypotheses ruled out"
 severity: critical | high | medium | low
 bottleneck_layer: dns | tcp | tls | http_server | transfer_bandwidth | client_cpu | client_disk | server_throttling | concurrency | configuration
 observed_throughput_mbps: <number>
 expected_throughput_mbps: <number>
 efficiency_ratio: <observed/expected>
 peak_in_flight_estimated: <number | null>  # Estimated peak in-flight concurrency
+evidence_quality: sufficient | partial | insufficient
+evidence_quality_score: <0.0–1.0>
 limitations: [<coverage gap statements>, ...]
+next_actions:
+  - type: request_evidence | invoke_skill | ask_user
+    target: <skill_name or evidence_type>
+    reason: <why>
+    priority: 1
 ```
 
 Plus:
