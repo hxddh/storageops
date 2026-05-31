@@ -96,6 +96,7 @@ Type `/` inside the session to see the full list:
 | Command | What it does |
 |---|---|
 | `/help` | Show the command list |
+| `/resume` | Pick a past session to continue from a numbered list |
 | `/clear` | Start a fresh session |
 | `/status` | Show session ID, turn count, Pi and API key status |
 | `/verbose` | Toggle verbose mode — shows each tool call and result as Pi works |
@@ -103,15 +104,7 @@ Type `/` inside the session to see the full list:
 | `/setup` | Re-run the setup wizard without restarting |
 | `/exit` | Quit (`Ctrl+C` also works) |
 
-### Resume a past session
-
 Sessions are saved automatically to `~/.storageops/sessions/`.
-
-```bash
-storageops resume            # resume most recent session
-storageops resume --list     # pick from a numbered list of recent sessions
-storageops resume abc12345   # resume a specific session by ID
-```
 
 ---
 
@@ -125,7 +118,6 @@ storageops <command> [options]   Run a specific command
 
 | Command | Description |
 |---|---|
-| `storageops resume [id]` | Resume most recent session, or pick from a list with `--list` |
 | `storageops setup` | First-time setup: download Pi, configure LLM provider and API key |
 | `storageops config` | View or edit configuration (`list` / `get <key>` / `set <key> <val>`) |
 | `storageops update` | Download latest Pi binary and reinstall skills (`--check` to preview) |

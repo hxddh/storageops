@@ -36,6 +36,7 @@ StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /ex
 | Command | Action |
 |---------|--------|
 | `/help` | Show available commands |
+| `/resume` | Pick a past session to continue |
 | `/clear` | Start a fresh session |
 | `/status` | Show session ID, Pi and API key status |
 | `/doctor` | Check environment health |
@@ -43,26 +44,14 @@ StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /ex
 | `/verbose` | Toggle verbose output (shows tool calls) |
 | `/exit` | Quit |
 
+Sessions are saved automatically to `~/.storageops/sessions/`.
+
 **One-shot (pipe):**
 ```bash
 storageops < error.log
 aws s3 cp s3://bucket/key . 2>&1 | storageops
 storageops @/path/to/s3-errors.log
 ```
-
----
-
-## `storageops resume`
-
-Resume a previous REPL session. Evidence and conversation turns are preserved.
-
-```bash
-storageops resume              # pick from recent sessions
-storageops resume abc12345     # resume by session ID
-```
-
-Sessions are saved automatically to `~/.storageops/sessions/`. Use `resume` with no
-arguments to see a numbered list of recent sessions; enter the number to load one.
 
 ---
 

@@ -34,10 +34,11 @@ def _hr(w: int = 60) -> str:
 
 # ── Slash commands ────────────────────────────────────────────────────
 
-_SLASH_CMDS = ["/help", "/clear", "/status", "/doctor", "/setup", "/verbose", "/exit"]
+_SLASH_CMDS = ["/help", "/resume", "/clear", "/status", "/doctor", "/setup", "/verbose", "/exit"]
 
 _SLASH_CMD_HELP = {
     "/help":    "Show this command list",
+    "/resume":  "Load a past session",
     "/clear":   "Clear context and start a fresh session",
     "/status":  "Show session info and configuration",
     "/doctor":  "Run environment health check",
@@ -388,6 +389,65 @@ def _print_status(session: DiagnosticSession) -> None:
     print()
 
 
+# ── Session resume picker ─────────────────────────────────────────────
+
+def _handle_resume(current: DiagnosticSession) -> DiagnosticSession:
+    """
+    Show recent sessions, let user pick one to load.
+    Returns the loaded session (or current if cancelled).
+    """
+    sessions = DiagnosticSession.list_sessions(limit=20)
+    if not sessions:
+        print(f"\n  {_dim('No past sessions found.')}\n")
+        return current
+
+    print()
+    for i, s in enumerate(sessions, 1):
+        ts      = s["ts"][:16].replace("T", " ")
+        domain  = (s["domain"] or "unknown").replace("_", " ")
+        preview = (s["preview"] or "")[:60].replace("\n", " ")
+        mark    = _green("✓") if s.get("has_assistant") else _dim("·")
+        print(f"  {_dim(str(i)+'.'):<5}{mark}  {_bold(s['session_id'])}  {_dim(ts)}  {_cyan(domain)}")
+        if preview:
+            print(f"         {_dim(preview)}")
+    print()
+
+    if not _IS_INPUT_TTY:
+        return current
+
+    try:
+        raw = input(f"  Load [1–{len(sessions)}] or session ID (Enter to cancel): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return current
+
+    if not raw:
+        return current
+
+    try:
+        idx = int(raw) - 1
+        if 0 <= idx < len(sessions):
+            target_id = sessions[idx]["session_id"]
+        else:
+            print(f"  {_red('✗')}  Invalid choice\n")
+            return current
+    except ValueError:
+        target_id = raw
+
+    loaded = DiagnosticSession.load(target_id)
+    if loaded is None:
+        print(f"  {_red('✗')}  Session not found: {target_id}\n")
+        return current
+
+    user_turns = len([t for t in loaded.turns if t.role == "user"])
+    last = next((t for t in reversed(loaded.turns) if t.role == "user"), None)
+    print(f"\n  {_dim('Loaded')}  {_bold(loaded.session_id)}  {_dim(f'·  {user_turns} turn(s)')}")
+    if last:
+        print(f"  {_dim(last.content[:80].replace(chr(10), ' '))}")
+    print()
+    return loaded
+
+
 # ── Response display ──────────────────────────────────────────────────
 
 def _print_result(result, *, elapsed: float | None = None, session_id: str | None = None) -> None:
@@ -593,6 +653,9 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
 
         elif first in ("/help", "/"):
             _print_slash_menu()
+
+        elif first == "/resume":
+            session = _handle_resume(session)
 
         elif first == "/status":
             _print_status(session)
