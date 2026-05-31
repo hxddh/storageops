@@ -104,6 +104,18 @@ EVIDENCE_CHECKLIST = {
             'Region and pricing tier',
         ],
     },
+    'cors_configuration': {
+        'required': ['Error message (NoSuchCORSConfiguration, CORSForbidden, etc.)', 'Origin header value', 'HTTP method'],
+        'helpful': ['Full preflight request/response headers', 'Bucket name'],
+    },
+    'replication_versioning': {
+        'required': ['ReplicationStatus per object or rule', 'Source and destination bucket names'],
+        'helpful': ['IAM policy for replication role', 'KMS key ARN if encryption is used', 'aws s3api get-bucket-replication output'],
+    },
+    'bigdata_pipeline': {
+        'required': ['Full stack trace or error log', 'Hadoop/Spark version', 'Committer type (staging or magic)'],
+        'helpful': ['spark.hadoop.fs.s3a.committer.name config', 'IAM policy for EMR/Spark role', '_temporary/ path that failed'],
+    },
 }
 
 
@@ -261,6 +273,23 @@ def run_analysis(domain: str, text: str) -> dict:
                     "Use storageops-network-endpoint-access Skill for detailed guidance.",
                 ],
             }
+
+        elif domain == 'cors_configuration':
+            from parse_cors_error import parse as parse_cors
+            from analyze_cors import analyze as analyze_cors_cfg
+            parsed = parse_cors(text)
+            result = analyze_cors_cfg(parsed)
+
+        elif domain == 'replication_versioning':
+            from parse_replication_status import parse as parse_repl
+            from analyze_replication import analyze as analyze_repl
+            parsed = parse_repl(text)
+            result = analyze_repl(parsed)
+
+        elif domain == 'bigdata_pipeline':
+            from parse_hadoop_s3a import parse as parse_s3a
+            result = parse_s3a(text)
+
     except Exception as exc:
         result = {"error": str(exc), "note": "Analysis failed. More evidence may be needed."}
 

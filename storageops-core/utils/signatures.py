@@ -22,6 +22,8 @@ SIGNATURES: dict[str, list[tuple[str, str]]] = {
         (r'ReplicationStatus|ReplicationConfiguration|ReplicateObject|DeleteMarkerReplication',
          'replication'),
         (r'IsDeleteMarker|ListObjectVersions|VersionId.*null|NoncurrentVersion', 'versioning'),
+        (r'XMinioStorageFull|XMinioInvalidObjectName', 'minio'),
+        (r'InvalidBucketName.*r2|r2.*region', 'r2'),
     ],
     'cli_sdk_behavior': [
         (r'corrupted on transfer', 'rclone'),
@@ -32,6 +34,8 @@ SIGNATURES: dict[str, list[tuple[str, str]]] = {
         (r's5cmd', 's5cmd'),
         (r'botocore\.', 'boto3'),
         (r'aws-cli/', 'awscli'),
+        (r'obsutil|huaweicloud|OBS', 'obsutil'),
+        (r'rclone.*r2|cloudflare.*r2', 'r2'),
     ],
     'performance_throughput': [
         (r'\b429\b', 'throttling'),
@@ -57,6 +61,8 @@ SIGNATURES: dict[str, list[tuple[str, str]]] = {
         (r'DNS.*fail|NXDOMAIN', 'network'),
         (r'VPC.*endpoint|PrivateLink', 'network'),
         (r'MTU', 'network'),
+        (r'minio.*server|MinIO', 'minio'),
+        (r'r2\.cloudflarestorage', 'r2'),
     ],
     'security_iam_policy': [
         (r'AccessDenied', 'security'),
@@ -72,6 +78,29 @@ SIGNATURES: dict[str, list[tuple[str, str]]] = {
         (r'minimum.*storage.*duration', 'lifecycle'),
         (r'retrieval.*cost|request.*cost', 'lifecycle'),
         (r'Intelligent.*Tiering', 'lifecycle'),
+    ],
+    'cors_configuration': [
+        (r'NoSuchCORSConfiguration', 'cors'),
+        (r'CORSForbidden', 'cors'),
+        (r'Access-Control-Allow-Origin', 'cors'),
+        (r'preflight.*fail|OPTIONS.*403', 'cors'),
+        (r'AllowedOrigin|AllowedMethod|AllowedHeader|ExposeHeader', 'cors'),
+    ],
+    'replication_versioning': [
+        (r'ReplicationStatus.*FAILED|PENDING.*replication', 'replication'),
+        (r'ReplicationConfiguration|ReplicateObject', 'replication'),
+        (r'DeleteMarkerReplication|delete.*marker.*replicate', 'versioning'),
+        (r'CRR|SRR|cross.region.replication|same.region.replication', 'replication'),
+        (r'IsDeleteMarker.*true|ListObjectVersions', 'versioning'),
+        (r'NoncurrentVersionTransition|VersionId.*null', 'versioning'),
+    ],
+    'bigdata_pipeline': [
+        (r'S3AFileSystem|s3a://', 'hadoop_s3a'),
+        (r'staging.*committer|magic.*committer|MagicS3GuardCommitter', 'committer'),
+        (r'HADOOP-\d+|hadoop.*rename', 'hadoop'),
+        (r'spark.*s3|pyspark.*s3|hive.*s3', 'spark_hive'),
+        (r'_temporary/|__spark_staging', 'committer'),
+        (r'EmrFileSystem|EMRFS', 'emrfs'),
     ],
 }
 

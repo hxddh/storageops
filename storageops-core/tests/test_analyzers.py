@@ -196,3 +196,159 @@ class TestAnalyzeMetadataAmplification:
         })
         assert isinstance(result, dict)
         assert "amplification_factor" in result or "total_rtt_ms" in result
+
+
+# ── analyze_cors ──────────────────────────────────────────────────────
+
+class TestAnalyzeCors:
+    def test_returns_dict(self):
+        from analyze_cors import analyze
+        result = analyze({"cors_errors": [], "no_cors_config": False,
+                          "preflight_failed": False, "missing_headers": [],
+                          "summary": {"error_count": 0, "needs_cors_config": False}})
+        assert isinstance(result, dict)
+
+    def test_expected_keys_present(self):
+        from analyze_cors import analyze
+        result = analyze({
+            "cors_errors": [{"type": "NoSuchCORSConfiguration", "origin": "https://example.com",
+                             "method": "GET", "headers": []}],
+            "no_cors_config": True,
+            "preflight_failed": False,
+            "missing_headers": [],
+            "bucket": "my-bucket",
+            "summary": {"error_count": 1, "needs_cors_config": True},
+        })
+        assert "issues" in result
+        assert "recommended_cors_xml" in result
+        assert "explanation" in result
+        assert "usage" in result
+
+    def test_generates_cors_xml(self):
+        from analyze_cors import analyze
+        result = analyze({
+            "cors_errors": [{"type": "NoSuchCORSConfiguration", "origin": "https://app.example.com",
+                             "method": "PUT", "headers": ["content-type"]}],
+            "no_cors_config": True,
+            "preflight_failed": False,
+            "missing_headers": [],
+            "bucket": "my-bucket",
+            "summary": {"error_count": 1, "needs_cors_config": True},
+        })
+        xml = result["recommended_cors_xml"]
+        assert "<CORSConfiguration" in xml
+        assert "<AllowedOrigin>" in xml
+        assert "<AllowedMethod>" in xml
+
+    def test_usage_contains_manual_only(self):
+        from analyze_cors import analyze
+        result = analyze({
+            "cors_errors": [],
+            "no_cors_config": True,
+            "preflight_failed": False,
+            "missing_headers": [],
+            "summary": {"error_count": 0, "needs_cors_config": True},
+        })
+        assert "manual-only" in result["usage"].lower()
+
+    def test_issues_populated_for_no_cors_config(self):
+        from analyze_cors import analyze
+        result = analyze({
+            "cors_errors": [{"type": "NoSuchCORSConfiguration", "origin": "", "method": "", "headers": []}],
+            "no_cors_config": True,
+            "preflight_failed": False,
+            "missing_headers": [],
+            "summary": {"error_count": 1, "needs_cors_config": True},
+        })
+        assert len(result["issues"]) >= 1
+
+    def test_preflight_adds_options_method(self):
+        from analyze_cors import analyze
+        result = analyze({
+            "cors_errors": [{"type": "preflight_failed", "origin": "https://app.io",
+                             "method": "DELETE", "headers": []}],
+            "no_cors_config": False,
+            "preflight_failed": True,
+            "missing_headers": [],
+            "summary": {"error_count": 1, "needs_cors_config": True},
+        })
+        xml = result["recommended_cors_xml"]
+        assert "OPTIONS" in xml
+
+
+# ── analyze_replication ───────────────────────────────────────────────
+
+class TestAnalyzeReplication:
+    def test_returns_dict(self):
+        from analyze_replication import analyze
+        result = analyze({
+            "objects": [], "rules": [],
+            "status_counts": {"FAILED": 0, "PENDING": 0, "COMPLETED": 0},
+            "has_failures": False, "failure_reasons": [],
+            "summary": {"total_objects": 0, "failure_rate_pct": 0.0},
+        })
+        assert isinstance(result, dict)
+
+    def test_expected_keys_present(self):
+        from analyze_replication import analyze
+        result = analyze({
+            "objects": [{"key": "data/obj.parquet", "status": "FAILED", "rule_id": "rule1"}],
+            "rules": [],
+            "status_counts": {"FAILED": 1, "PENDING": 0, "COMPLETED": 0},
+            "has_failures": True,
+            "failure_reasons": [],
+            "summary": {"total_objects": 1, "failure_rate_pct": 100.0},
+        })
+        assert "likely_cause" in result
+        assert "diagnosis" in result
+        assert "recommendations" in result
+        assert "verification_commands" in result
+
+    def test_iam_cause_detected_on_failures(self):
+        from analyze_replication import analyze
+        result = analyze({
+            "objects": [{"key": "k", "status": "FAILED", "rule_id": "r1"}],
+            "rules": [],
+            "status_counts": {"FAILED": 5, "PENDING": 0, "COMPLETED": 0},
+            "has_failures": True,
+            "failure_reasons": ["Access Denied: not authorized"],
+            "summary": {"total_objects": 5, "failure_rate_pct": 100.0},
+        })
+        assert result["likely_cause"] == "iam_permission"
+
+    def test_kms_cause_detected(self):
+        from analyze_replication import analyze
+        result = analyze({
+            "objects": [],
+            "rules": [],
+            "status_counts": {"FAILED": 3, "PENDING": 0, "COMPLETED": 0},
+            "has_failures": True,
+            "failure_reasons": ["kms:Decrypt not authorized"],
+            "summary": {"total_objects": 3, "failure_rate_pct": 100.0},
+        })
+        assert result["likely_cause"] == "kms"
+
+    def test_no_failure_returns_none_cause(self):
+        from analyze_replication import analyze
+        result = analyze({
+            "objects": [],
+            "rules": [],
+            "status_counts": {"FAILED": 0, "PENDING": 0, "COMPLETED": 10},
+            "has_failures": False,
+            "failure_reasons": [],
+            "summary": {"total_objects": 10, "failure_rate_pct": 0.0},
+        })
+        assert result["likely_cause"] == "none"
+
+    def test_verification_commands_are_manual_only(self):
+        from analyze_replication import analyze
+        result = analyze({
+            "objects": [{"key": "k", "status": "FAILED", "rule_id": "r1"}],
+            "rules": [],
+            "status_counts": {"FAILED": 1, "PENDING": 0, "COMPLETED": 0},
+            "has_failures": True,
+            "failure_reasons": [],
+            "summary": {"total_objects": 1, "failure_rate_pct": 100.0},
+        })
+        for cmd in result["verification_commands"]:
+            assert "manual-only" in cmd.lower(), f"Command must be labeled manual-only: {cmd}"
