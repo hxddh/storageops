@@ -119,12 +119,14 @@ class DiagnosticSession:
                 last_user = next(
                     (t["content"][:80] for t in reversed(turns) if t["role"] == "user"), ""
                 )
+                has_assistant = any(t["role"] == "assistant" for t in turns)
                 results.append({
                     "session_id": data["session_id"],
                     "ts": data.get("updated") or data.get("ts", ""),
                     "domain": data.get("domain") or "unknown",
                     "turns": len(turns),
                     "preview": last_user,
+                    "has_assistant": has_assistant,
                 })
             except (json.JSONDecodeError, KeyError, OSError):
                 continue
