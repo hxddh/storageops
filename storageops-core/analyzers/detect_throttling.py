@@ -36,7 +36,7 @@ def detect(data: dict) -> dict:
         'throttle_errors': generic_throttle_count,
     }
 
-    throttle_count = sum(throttle_indicators.values())
+    throttle_count = status_429  # Canonical count; avoid double-counting with error-message breakdown
     throttle_rate = round(throttle_count / total_ops * 100, 2) if total_ops > 0 else 0
 
     # Affected scope

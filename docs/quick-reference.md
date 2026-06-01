@@ -20,7 +20,7 @@
 
 ## 五大绝对红线
 
-1. **禁止读取凭证文件** — 使用 `source scripts/credential-loader.sh`
+1. **禁止读取凭证文件** — 使用 `source ../scripts/credential-loader.sh`
 2. **禁止推荐 `Allow */*`** — 违反最小权限原则
 3. **禁止禁用 TLS 验证** — `--no-verify-ssl` 仅用于调试
 4. **禁止自动执行写操作** — 所有 mutating 命令标记 `manual-only`

@@ -101,6 +101,9 @@ LLM eval uses `.github/scripts/llm_smoke_test.py` (requires `ANTHROPIC_API_KEY`)
 
 ## Report format
 
+Refer to the Pi diagnosis system prompt at `storageops-cli/storageops/prompts/pi_diagnosis_prompt.md`
+for the full diagnosis workflow, report structure, and safety rules.
+
 Every diagnostic report must include a YAML frontmatter block:
 
 ```markdown
