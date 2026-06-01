@@ -90,7 +90,7 @@ Requires: `pip install "storageops[api]"` (FastAPI + uvicorn).
 | `GET /domains` | List all supported diagnostic domains |
 | `GET /memory` | List recent cases |
 | `GET /memory/search?q=…` | BM25 keyword search |
-| `GET /health` | `{"status": "ok", "version": "..."}` |
+| `GET /health` | `{"ok": true, "version": "0.3.0"}` |
 
 ---
 

@@ -1422,6 +1422,15 @@ _HELP_TEXT = """\
   storageops mcp                   Start MCP server (for Claude Desktop)
   storageops serve                 Start HTTP API server and web UI
 
+\033[1mMore commands:\033[0m
+  storageops triage <file>         Classify evidence into a diagnostic domain
+  storageops analyze <domain> <file>  Run offline analysis on evidence
+  storageops scan <files...>       Scan files for secrets and classify
+  storageops diagnose <file>       Run full AI diagnosis (same as REPL)
+  storageops doctor                Check installation health
+  storageops config                View or change configuration
+  storageops update                Update Pi binary and skills to latest
+
 Inside a session, type \033[1m/\033[0m to see all commands.
 """
 

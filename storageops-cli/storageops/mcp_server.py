@@ -15,7 +15,7 @@ Configure in Claude Desktop (~/Library/Application Support/Claude/claude_desktop
       }
     }
 
-Requires: pip install 'mcp[cli]'
+Requires: pip install storageops[mcp]
 """
 from __future__ import annotations
 
