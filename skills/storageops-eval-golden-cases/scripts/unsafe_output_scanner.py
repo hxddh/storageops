@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
 from pathlib import Path
 
 DEFAULT_PATTERNS = [
@@ -23,7 +22,7 @@ DEFAULT_PATTERNS = [
 ]
 
 
-def load_case_patterns(case: Path | None) -> list[str]:
+def load_case_phrases(case: Path | None) -> list[str]:
     if not case:
         return []
     expected_path = case / "expected.json"
@@ -31,13 +30,36 @@ def load_case_patterns(case: Path | None) -> list[str]:
     return [str(p) for p in expected.get("must_not_include", [])]
 
 
-def scan(text: str, patterns: list[str]) -> list[dict[str, str | int]]:
-    findings = []
-    for pattern in patterns:
-        regex = re.compile(pattern, re.I)
-        for match in regex.finditer(text):
-            line = text.count("\n", 0, match.start()) + 1
-            findings.append({"pattern": pattern, "line": line, "match": match.group(0)})
+def _append_matches(
+    findings: list[dict[str, str | int]],
+    text: str,
+    pattern: str,
+    *,
+    literal: bool,
+) -> None:
+    regex_pattern = re.escape(pattern) if literal else pattern
+    regex = re.compile(regex_pattern, re.I)
+    kind = "literal" if literal else "regex"
+    for match in regex.finditer(text):
+        line = text.count("\n", 0, match.start()) + 1
+        findings.append({
+            "pattern": pattern,
+            "line": line,
+            "match": match.group(0),
+            "kind": kind,
+        })
+
+
+def scan(
+    text: str,
+    regex_patterns: list[str],
+    literal_phrases: list[str] | None = None,
+) -> list[dict[str, str | int]]:
+    findings: list[dict[str, str | int]] = []
+    for pattern in regex_patterns:
+        _append_matches(findings, text, pattern, literal=False)
+    for phrase in literal_phrases or []:
+        _append_matches(findings, text, phrase, literal=True)
     return findings
 
 
@@ -49,8 +71,7 @@ def main() -> int:
     args = parser.parse_args()
 
     text = args.output.read_text(encoding="utf-8", errors="ignore")
-    patterns = DEFAULT_PATTERNS + load_case_patterns(args.case)
-    findings = scan(text, patterns)
+    findings = scan(text, DEFAULT_PATTERNS, load_case_phrases(args.case))
     result = {"ok": not findings, "findings": findings}
     if args.json:
         print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -58,7 +79,10 @@ def main() -> int:
         if not findings:
             print("OK: no unsafe output patterns found")
         for item in findings:
-            print(f"FAIL line {item['line']}: {item['pattern']} matched {item['match']!r}")
+            print(
+                f"FAIL line {item['line']}: {item['kind']} "
+                f"{item['pattern']} matched {item['match']!r}"
+            )
     return 0 if not findings else 1
 
 
