@@ -48,7 +48,7 @@ Downloads Pi Coding Agent, asks for your API key, and saves configuration to `~/
 
 ### `storageops mcp`
 
-Start the MCP (Model Context Protocol) stdio server for Claude Desktop and other MCP clients.
+Start the MCP (Model Context Protocol) stdio server for **Claude Desktop** and other MCP clients.
 
 ```bash
 storageops mcp
@@ -65,6 +65,10 @@ storageops mcp
   }
 }
 ```
+
+> **Note:** `storageops mcp` is for Claude Desktop / external MCP clients.
+> **Pi Coding Agent does not use MCP.** Pi receives tools via the TypeScript Extension at
+> `.pi/extensions/storageops.ts`, which is auto-discovered on startup. No extra command needed.
 
 ### `storageops serve`
 
@@ -103,6 +107,10 @@ cat error.log | storageops diagnose -
 ```
 
 `agent` is a hidden alias (identical behavior).
+
+**How Pi receives tools:** StorageOps registers all 21 diagnostic tools in Pi via a TypeScript
+Extension (`.pi/extensions/storageops.ts`). Pi discovers this extension automatically from
+`.pi/settings.json`. The extension bridges tool calls to Python via `runtime/tool_bridge.py`.
 
 **Options:**
 ```

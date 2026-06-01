@@ -43,9 +43,21 @@ storageops memory list  # prefer /memory inside the REPL; CLI form for scripting
 ```json
 {
   "skills": ["../agents/skills"],
-  "enableSkillCommands": true
+  "enableSkillCommands": true,
+  "extensions": ["./extensions"]
 }
 ```
+
+## Pi Extension — tool registration
+
+Pi does **not** support MCP as a client. Tools are registered via a TypeScript Pi Extension:
+
+- **File**: `.pi/extensions/storageops.ts` (auto-discovered by Pi on startup)
+- **Mechanism**: `pi.registerTool()` × 21 tools
+- **Execution**: each tool call runs `python3 runtime/tool_bridge.py` as a subprocess
+
+`tool_bridge.py` reads `{"tool": "<name>", "inputs": {...}}` from stdin, calls `dispatch_tool()`,
+and writes the JSON result to stdout.
 
 ## Testing
 
@@ -58,11 +70,17 @@ All tools are declared in `tool_registry.py`:
 - `TOOL_DEFINITIONS` — list of `{name, description, input_schema}` dicts
 - `dispatch_tool(name, inputs)` — routes to the correct function, returns `dict`
 
+Tools are exposed via three paths:
+1. **Pi Extension** (`.pi/extensions/storageops.ts`) — Pi's LLM calls these during diagnosis
+2. **MCP server** (`mcp_server.py`) — Claude Desktop and other MCP clients
+3. **HTTP API** (`api_server.py`) — REST/SSE endpoints
+
 To add a new tool:
 1. Implement the function (in `storageops-core/` or `storageops-cli/storageops/`)
 2. Add an entry to `TOOL_DEFINITIONS` with name, description (>10 chars), and JSON schema
 3. Add a dispatch case in `dispatch_tool()`
-4. Add a minimal-input entry to `test_mcp_server.py::TestToolRegistryConsistency`
+4. Add the tool to `.pi/extensions/storageops.ts` (copy the TOOLS array entry)
+5. Add a minimal-input entry to `test_mcp_server.py::TestToolRegistryConsistency`
 
 ## Adding a new parser
 
