@@ -1468,7 +1468,7 @@ def main() -> None:
     p_update.set_defaults(func=cmd_update)
 
     # ── setup
-    p_setup = sub.add_parser("setup", help="One-time setup wizard")
+    p_setup = sub.add_parser("setup", help="Download Pi and configure API key")
     p_setup.add_argument("--pi-command", default="pi", metavar="CMD",
                          help="Pi executable name or path (default: pi)")
     p_setup.set_defaults(func=cmd_setup)

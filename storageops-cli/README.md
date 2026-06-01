@@ -27,11 +27,7 @@ Reference a local file:
 > analyze this log @/var/log/s3-error.log
 ```
 
-Resume a previous session:
-```bash
-storageops resume            # pick from recent sessions
-storageops resume abc12345   # resume by session ID
-```
+Resume a previous session: type `/resume` inside the session.
 
 ## Agent Runtime
 
@@ -48,10 +44,12 @@ If Pi is missing, run `storageops setup` to install it.
 
 ## Configuration
 
-```bash
-storageops config list                    # show config
-storageops config set provider anthropic
-storageops config set api_key sk-ant-...
+Inside a session, use `/config` to view or change settings:
+
+```
+/config                          # show current config
+/config set provider anthropic   # change provider
+/config set api_key sk-ant-...   # set API key
 ```
 
 Config stored at `~/.storageops/config.json`.
@@ -104,10 +102,7 @@ Runs golden case evaluation without calling real LLM APIs.
 
 ## Update
 
-```bash
-storageops update           # download latest Pi + reinstall skills
-storageops update --check   # check without installing
-```
+Inside a session, type `/update` to download the latest Pi binary and reinstall skills.
 
 ## Safety
 

@@ -41,7 +41,7 @@ Follow this order for every diagnosis:
 
 1. **Plan**: In 2–3 bullet points, state what evidence you see, which tools you will call,
    and what hypotheses you will test. Do this before calling any tools.
-2. **Memory**: Run `storageops memory search "<keywords>"` to check for similar past cases.
+2. **Memory**: Call the `search_memory` tool with relevant keywords to check for similar past cases.
    If matches exist, use them to guide your investigation but verify against current evidence.
 3. **Triage**: Run `storageops triage {{ evidence_file }}` for domain classification.
 4. **Analyze**: Run `storageops analyze <domain> {{ evidence_file }}` for structured parsing.
@@ -54,13 +54,29 @@ Follow this order for every diagnosis:
 ## Available StorageOps Commands (read-only/offline)
 
 ```
-storageops triage <file>               # classify domain, detect subdomains
-storageops analyze <domain> <file>     # run parser + analyzer pipeline
-storageops analyze performance_throughput <file> --subdomain throttling
-storageops analyze security_iam_policy <file>
-storageops analyze lifecycle_cost <file>
-storageops report <analysis-json>      # render markdown from JSON
-storageops memory search "<keywords>"  # search past diagnosed cases
+Use the registered MCP tools — do NOT call storageops CLI subcommands directly:
+
+  scan_secrets          — redact AK/SK, tokens, Authorization headers
+  parse_rclone_log      — parse rclone -vv debug log
+  parse_awscli_debug    — parse AWS CLI --debug trace
+  parse_sigv4_error     — parse SignatureDoesNotMatch XML
+  parse_s5cmd_log       — parse s5cmd --log debug output
+  parse_cors_error      — parse CORS error responses / preflight
+  parse_lifecycle_xml   — parse S3 lifecycle configuration XML
+  parse_replication_status — parse CRR/SRR replication status
+  parse_hadoop_s3a      — parse Hadoop/Spark S3A error logs
+  parse_network_diagnostics — parse dig/curl/ping/mtr/traceroute output
+  parse_httpmon_log     — parse httpmon NDJSON or HAR
+  analyze_policy        — trace 403 AccessDenied through IAM/bucket policies
+  analyze_throughput    — analyze throughput vs theoretical limits
+  analyze_cors          — generate CORS configuration fix
+  analyze_network       — root-cause DNS/TLS/TCP/VPC endpoint failures
+  analyze_replication   — diagnose CRR/SRR replication failures
+  analyze_cost          — analyze per-prefix inventory for cost attribution
+  detect_throttling     — detect 429/SlowDown patterns
+  generate_policy_fix   — generate corrected IAM or bucket policy
+  generate_lifecycle_fix — generate corrected lifecycle XML
+  search_memory         — search past diagnosed cases by keyword
 ```
 
 ## Evidence Supplied by StorageOps

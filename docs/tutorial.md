@@ -166,12 +166,8 @@ format, per-request TTFB timing, and complete CORS preflight headers.
 
 ## Session Resume
 
-StorageOps saves every REPL session automatically. Pick up where you left off:
-
-```bash
-storageops resume            # pick from list of recent sessions
-storageops resume abc12345   # resume by session ID
-```
+StorageOps saves every session automatically to `~/.storageops/sessions/`.
+Type `/resume` inside a session to see a numbered list of past sessions and load one.
 
 ---
 
