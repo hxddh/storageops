@@ -21,8 +21,8 @@ storageops
 Describe your problem in plain language. No need to know skill names — the agent routes automatically.
 
 ```
-StorageOps  S3 Diagnostic Agent
-Describe your issue or paste error logs.
+StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit
+  Session  a3f2b1c8
 
 > rclone reports "corrupted on transfer" after copying large files to S3
 ```

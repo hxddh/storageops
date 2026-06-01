@@ -35,21 +35,32 @@
 ## 常用命令速览
 
 ```bash
-# 安全加载凭证
-source scripts/credential-loader.sh [bos|aws|oss] [profile]
+# 启动交互式诊断会话
+storageops
+storageops "getting 429 SlowDown on uploads"   # 带初始问题启动
+storageops @error.log                           # 带文件启动
+aws s3 cp s3://bucket/key . 2>&1 | storageops  # 管道输入
 
-# rclone 配置审计
-./scripts/rclone-config-auditor.sh
+# 离线快速分类（无需 Pi / API key）
+storageops triage error.log
+storageops triage error.log --format json
 
-# 复制状态检查
-./scripts/replication-status-checker.sh <src-bucket> <dst-bucket> <key>
+# 离线领域分析
+storageops analyze security_iam_policy policy.json
+storageops analyze cli_sdk_behavior rclone.log
+storageops analyze performance_throughput s3-access.log
 
-# 签名错误对比
-python3 scripts/sigv4-error-diff.py <error-response.xml>
+# 批量扫描多个文件
+storageops scan logs/*.log
 
-# 元数据放大估算
-python3 scripts/metadata-amplification-estimator.py git-status 50
+# 查看诊断历史
+storageops memory list
+storageops memory search "ETag mismatch"
 
-# 权限评估
-python3 scripts/policy-permission-evaluator.py <policy.json> <action> <resource>
+# 回归评估（20 个黄金用例）
+storageops eval --all
+
+# HTTP API 服务
+storageops serve                    # 启动 http://localhost:8080
+storageops mcp                      # Claude Desktop MCP 服务器
 ```
