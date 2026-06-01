@@ -5,20 +5,21 @@ import os
 import platform
 import shutil
 import stat
+import tarfile
 import urllib.request
 from pathlib import Path
 
 # Override via environment variable for testing or custom Pi builds.
 _PI_RELEASES_BASE = os.environ.get(
     "STORAGEOPS_PI_RELEASES_URL",
-    "https://github.com/pi-agent/pi/releases/latest/download",
+    "https://github.com/earendil-works/pi/releases/latest/download",
 )
 
 _PLATFORM_MAP = {
-    ("linux",  "x86_64"):  "pi-linux-amd64",
-    ("linux",  "aarch64"): "pi-linux-arm64",
-    ("darwin", "x86_64"):  "pi-darwin-amd64",
-    ("darwin", "arm64"):   "pi-darwin-arm64",
+    ("linux",  "x86_64"):  "pi-linux-x64.tar.gz",
+    ("linux",  "aarch64"): "pi-linux-arm64.tar.gz",
+    ("darwin", "x86_64"):  "pi-darwin-x64.tar.gz",
+    ("darwin", "arm64"):   "pi-darwin-arm64.tar.gz",
     ("windows","amd64"):   "pi-windows-amd64.exe",
 }
 
@@ -70,10 +71,25 @@ def download_pi(progress_cb=None) -> Path:
             downloaded = min(block_num * block_size, total_size)
             progress_cb(downloaded, total_size)
 
+    is_tarball = binary_name.endswith((".tar.gz", ".tgz"))
+    download_path = str(dest) if not is_tarball else str(dest_dir / binary_name)
+
     try:
-        urllib.request.urlretrieve(url, str(dest), reporthook=_reporthook)
+        urllib.request.urlretrieve(url, download_path, reporthook=_reporthook)
     except Exception as exc:
         raise RuntimeError(f"Failed to download Pi from {url}: {exc}") from exc
+
+    if is_tarball:
+        # Extract the tarball and locate the pi binary + companion files
+        with tarfile.open(download_path, "r:gz") as tf:
+            tf.extractall(path=str(dest_dir))
+        # Remove the tarball after extraction
+        Path(download_path).unlink(missing_ok=True)
+        if not dest.exists():
+            raise RuntimeError(
+                f"Pi binary not found after extracting {binary_name}. "
+                "Expected 'pi' in the archive root."
+            )
 
     # Make executable on Unix
     if platform.system().lower() != "windows":
