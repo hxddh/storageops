@@ -1,417 +1,359 @@
 /**
- * StorageOps Pi Extension
+ * StorageOps Pi Extension — v1.0
  *
- * Registers all 21 StorageOps diagnostic tools so Pi's LLM can call them
- * natively during multi-turn diagnosis sessions. Each tool delegates to
- * storageops-core via a lightweight Python bridge subprocess.
+ * A lightweight Pi extension that provides object-storage diagnostic tools.
+ * All tools run inline in the TypeScript runtime — no Python subprocess.
+ *
+ * Architecture:
+ *   Pi ← storageops.ts (3 tools: scan_secrets, detect_domain, search_memory)
+ *     ← skills/*.SKILL.md (15 diagnostic skill packs)
  *
  * Placement: .pi/extensions/storageops.ts (auto-discovered by Pi)
  * Reload:    /reload inside Pi session
  */
-import { spawnSync } from "child_process";
+
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 
-// Bridge script relative to this extension file: .pi/extensions/ → repo root → cli
-const BRIDGE = path.resolve(
-  __dirname,
-  "..",
-  "..",
-  "storageops",
-  "tool_bridge.py"
-);
+// ── Secret Scanner ──────────────────────────────────────────────────────────
+// Embedded regex patterns for credential detection.
+// Patterns match: AWS AK/SK, tokens, Authorization headers, Alibaba/Tencent/Baidu
+// Cloud AK/SK, rclone config secrets, private keys.
 
-function callTool(name: string, inputs: unknown): unknown {
-  const result = spawnSync("python3", [BRIDGE], {
-    input: JSON.stringify({ tool: name, inputs }),
-    encoding: "utf8",
-    timeout: 30_000,
-  });
-  if (result.error) {
-    return { error: `Bridge spawn error: ${result.error.message}` };
+const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  // AWS access keys (AKIA...)
+  [/(?:AWS|aws)[\s_-]*(?:access[\s_-]*)?(?:key[\s_-]*id|akid)[\s]*[:=][\s]*([A-Z0-9]{16,})/gi, "AWS_ACCESS_KEY"],
+  [/(?:AKIA|ASIA)[A-Z0-9]{16}/g, "AWS_ACCESS_KEY_ID"],
+  // AWS secret keys — long alphanumeric with config keyword
+  [/(?:secret[\s_-]*)?(?:access[\s_-]*)?key[\s]*[:=][\s]*['"]?([A-Za-z0-9\/+=]{20,60})['"]?/gi, "AWS_SECRET_KEY"],
+  // AWS session tokens
+  [/(?:session[\s_-]*)?(?:token|x-amz-security-token)[\s]*[:=][\s]*['"]?([A-Za-z0-9\/+=]{100,})['"]?/gi, "AWS_SESSION_TOKEN"],
+  // Alibaba Cloud AK
+  [/(?:LTAI)[A-Za-z0-9]{16,20}/g, "ALIBABA_ACCESS_KEY"],
+  // Tencent Cloud SecretId
+  [/(?:AKID)[A-Za-z0-9]{32,48}/g, "TENCENT_SECRET_ID"],
+  // Baidu Cloud AK
+  [/(?:ak[\s]*=|access_key[\s]*=)[\s]*['"]?([a-f0-9]{32})['"]?/gi, "BAIDU_ACCESS_KEY"],
+  // Generic Authorization: Bearer / Basic tokens
+  [/Authorization[\s]*:[\s]*(?:Bearer|Basic|AWS4-HMAC-SHA256)[\s]+([^\s]{20,})/gi, "AUTHORIZATION_HEADER"],
+  // Private keys (PEM format)
+  [/-----BEGIN (?:RSA|EC|DSA|OPENSSH) PRIVATE KEY-----/g, "PRIVATE_KEY"],
+  // rclone config passwords
+  [/(?:pass|password|token|secret)[\s]*=[\s]*['"]?([^\s'"]{8,})['"]?/gi, "RCLONE_CREDENTIAL"],
+  // Generic API keys (sk-... for OpenAI/DeepSeek style)
+  [/(?:api[\s_-]*)?(?:key|token)[\s]*[:=][\s]*['"]?(sk-[A-Za-z0-9]{20,})['"]?/gi, "API_KEY"],
+  // GitHub tokens (ghp_, gho_, github_pat_)
+  [/(?:ghp_|gho_|github_pat_)[A-Za-z0-9]{36,}/g, "GITHUB_TOKEN"],
+];
+
+function redactText(text: string): { findings: Array<{ line: number; type: string; preview: string }>; redacted: string } {
+  const findings: Array<{ line: number; type: string; preview: string }> = [];
+  let redacted = text;
+
+  for (const [pattern, type] of SECRET_PATTERNS) {
+    // Reset lastIndex for global regex
+    pattern.lastIndex = 0;
+    const matches = Array.from(text.matchAll(pattern));
+    for (const m of matches) {
+      const line = text.slice(0, m.index!).split("\n").length;
+      const preview = m[0].length > 60 ? m[0].slice(0, 60) + "..." : m[0];
+      // Skip if already redacted
+      if (redacted.includes("[REDACTED]")) {
+        const before = redacted.slice(Math.max(0, m.index! - 30), m.index!).toLowerCase();
+        const after = redacted.slice(m.index! + m[0].length, m.index! + m[0].length + 30).toLowerCase();
+        if (before.includes("[redacted]") || after.includes("[redacted]")) continue;
+      }
+      findings.push({ line, type, preview });
+    }
   }
-  if (result.status !== 0) {
-    return { error: `Bridge exited ${result.status}: ${result.stderr?.trim()}` };
+
+  // Redact in reverse order to preserve positions
+  for (const [pattern] of SECRET_PATTERNS) {
+    pattern.lastIndex = 0;
+    redacted = redacted.replace(pattern, "[REDACTED]");
   }
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
-    return { error: "Bridge returned non-JSON output", raw: result.stdout?.slice(0, 500) };
-  }
+
+  return { findings, redacted };
 }
 
-// ── Tool Definitions ─────────────────────────────────────────────────────────
 
-interface ToolDef {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
+// ── Domain Detection ────────────────────────────────────────────────────────
+// Signature-based domain classification from evidence text.
+// Replaces the old Python storageops/utils/signatures.py
+
+const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
+  "security-iam-policy": [
+    [/403\s*(?:Forbidden|Access\s*Denied)/i, "access_denied"],
+    [/AccessDenied/i, "access_denied_api"],
+    [/InvalidAccessKeyId/i, "invalid_key"],
+    [/SignatureDoesNotMatch/i, "signature_error"],
+    [/RequestExpired|clock\s*skew/i, "clock_skew"],
+    [/KMS/i, "kms_error"],
+    [/Unauthorized/i, "unauthorized"],
+    [/AssumeRole|sts:/i, "role_error"],
+  ],
+  "performance-throttling": [
+    [/429|TooManyRequests|RequestRateLimitExceeded/i, "rate_limit"],
+    [/SlowDown/i, "slow_down"],
+    [/throttl/i, "throttle"],
+    [/timeout|timed?\s*out/i, "timeout"],
+    [/bandwidth/i, "bandwidth"],
+    [/retry/i, "retry"],
+  ],
+  "network-endpoint": [
+    [/DNS|Name\s*or\s*service\s*not\s*known|NXDOMAIN/i, "dns"],
+    [/Could\s*not\s*connect|Connection\s*refused|connect\s*ETIMEDOUT/i, "connectivity"],
+    [/TLS|SSL|Certificate|cert/i, "tls"],
+    [/VPC|endpoint|ENDPOINT/i, "endpoint"],
+    [/host\s*unreachable|no\s*route/i, "route"],
+  ],
+  "cli-sdk": [
+    [/rclone/i, "rclone"],
+    [/s5cmd/i, "s5cmd"],
+    [/awscli|botocore|boto3/i, "aws_cli"],
+    [/bcecmd|bos:/i, "bcecmd"],
+    [/obsutil|obs:/i, "obsutil"],
+    [/corrupted\s*on\s*transfer|multipart.*etag/i, "corruption"],
+  ],
+  "replication-versioning": [
+    [/replicat/i, "replication"],
+    [/CRR|SRR/i, "replication_type"],
+    [/version/i, "versioning"],
+    [/DeleteMarker/i, "delete_marker"],
+    [/sync\s*(?:lag|delay)/i, "sync_lag"],
+  ],
+  "lifecycle-cost": [
+    [/lifecycle/i, "lifecycle"],
+    [/Standard_IA|Glacier|Deep_Archive/i, "storage_class"],
+    [/cost|费用|计费|账单/i, "cost"],
+    [/transition|expir/i, "transition"],
+    [/objects.*small|small.*objects/i, "small_objects"],
+  ],
+  "mount-filesystem": [
+    [/mount|FUSE|s3fs|goofys/i, "mount"],
+    [/fuse|FUSE/i, "fuse"],
+    [/filesystem/i, "filesystem"],
+  ],
+  "migration-sync": [
+    [/migrat|搬迁|迁移/i, "migration"],
+    [/sync|cp\s+-r/i, "sync"],
+    [/transfer/i, "transfer"],
+  ],
+  "data-consistency": [
+    [/consistenc|一致性/i, "consistency"],
+    [/stale|陈旧/i, "stale"],
+    [/mismatch/i, "mismatch"],
+    [/checksum|ETag/i, "checksum"],
+  ],
+  "event-notification": [
+    [/notification|通知/i, "notification"],
+    [/event/i, "event"],
+  ],
+};
+
+function detectDomain(text: string): Array<{ domain: string; confidence: number; subdomains: string[] }> {
+  const scores: Record<string, { score: number; subdomains: Set<string> }> = {};
+
+  for (const [domain, patterns] of Object.entries(DOMAIN_SIGNATURES)) {
+    for (const [regex, subdomain] of patterns) {
+      if (regex.test(text)) {
+        if (!scores[domain]) scores[domain] = { score: 0, subdomains: new Set() };
+        scores[domain].score += 1;
+        scores[domain].subdomains.add(subdomain);
+      }
+    }
+  }
+
+  return Object.entries(scores)
+    .map(([domain, info]) => ({
+      domain,
+      confidence: Math.min(info.score / (DOMAIN_SIGNATURES[domain]?.length || 1), 0.95),
+      subdomains: Array.from(info.subdomains),
+    }))
+    .sort((a, b) => b.confidence - a.confidence);
 }
 
-const TOOLS: ToolDef[] = [
-  {
+
+// ── Memory Search ───────────────────────────────────────────────────────────
+// Searches Pi session JSONL files for past diagnostic context.
+
+function searchMemory(query: string, limit: number = 5): Array<{ sessionId: string; snippet: string; updated: string }> {
+  const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions");
+  if (!fs.existsSync(sessionsDir)) return [];
+
+  const metaFiles = fs.readdirSync(sessionsDir)
+    .filter(f => f.endsWith(".meta.json"))
+    .sort()
+    .reverse();
+
+  const results: Array<{ sessionId: string; snippet: string; updated: string }> = [];
+  const queryLower = query.toLowerCase();
+
+  for (const metaFile of metaFiles) {
+    if (results.length >= limit) break;
+    try {
+      const metaPath = path.join(sessionsDir, metaFile);
+      const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+      const sessionId = meta.id || metaFile.replace(".meta.json", "");
+
+      // Search summary field or read first few JSONL lines
+      const summary = meta.summary || meta.name || "";
+      if (summary.toLowerCase().includes(queryLower)) {
+        results.push({
+          sessionId,
+          snippet: summary.slice(0, 200),
+          updated: meta.updated || meta.created || "",
+        });
+        continue;
+      }
+
+      // Try searching JSONL file
+      const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
+      if (fs.existsSync(jsonlPath)) {
+        const content = fs.readFileSync(jsonlPath, "utf8").slice(0, 10000); // First 10KB
+        if (content.toLowerCase().includes(queryLower)) {
+          results.push({
+            sessionId,
+            snippet: summary.slice(0, 200) || `Session ${sessionId.slice(0, 8)}...`,
+            updated: meta.updated || "",
+          });
+        }
+      }
+    } catch {
+      // Skip unreadable files
+    }
+  }
+
+  return results;
+}
+
+
+// ── Extension Entry Point ───────────────────────────────────────────────────
+
+export default function (pi: ExtensionAPI) {
+  // ── Tool: scan_secrets ──
+  pi.registerTool({
     name: "scan_secrets",
+    label: "Scan Secrets",
     description:
       "Scan text for exposed credentials and redact them. Detects AWS access keys (AKIA...), " +
       "session tokens, Authorization headers, Alibaba/Tencent/Baidu Cloud AK/SK, rclone config " +
-      "secrets, private keys. Returns findings list + redacted_text. " +
-      "Call BEFORE passing any user-provided text to other tools or including it in your response.",
-    inputSchema: {
-      type: "object",
-      properties: { text: { type: "string", description: "Text to scan for secrets" } },
-      required: ["text"],
-    },
-  },
-  {
-    name: "parse_rclone_log",
-    description:
-      "Parse an rclone debug or info log. Use when evidence contains rclone output, e.g. " +
-      "'ERROR ... corrupted on transfer' or 'rclone v1.64.2'. Extracts: rclone version, " +
-      "transfer failures, ETag/checksum mismatches (multipart_etag_format_mismatch is most " +
-      "common cause of corrupted-on-transfer), retry counts, timeouts, bandwidth stats. " +
-      "Call AFTER scan_secrets.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        log_text: { type: "string", description: "Raw rclone log content (already redacted)" },
-      },
-      required: ["log_text"],
-    },
-  },
-  {
-    name: "parse_sigv4_error",
-    description:
-      "Parse an AWS SigV4 error XML response. Use when evidence contains XML with " +
-      "'<Code>SignatureDoesNotMatch</Code>' or '<Code>RequestExpired</Code>', " +
-      "InvalidSignature, AuthorizationHeaderMalformed. Extracts error code, canonical " +
-      "request diff, string-to-sign, server time (clock skew >5 min causes RequestExpired). " +
-      "Call AFTER scan_secrets; provide system_time if user ran `date -u`.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        xml_text: { type: "string", description: "Raw XML error response body" },
-        system_time: { type: "string", description: "Client system time from `date -u` for clock skew check" },
-      },
-      required: ["xml_text"],
-    },
-  },
-  {
-    name: "parse_awscli_debug",
-    description:
-      "Parse AWS CLI debug log output. Use when evidence contains AWS CLI debug lines like " +
-      "'DEBUG botocore.endpoint' or 'urllib3.connectionpool'. Also useful for s5cmd logs and " +
-      "generic HTTP traces. Extracts HTTP status codes, error codes (SignatureDoesNotMatch, " +
-      "AccessDenied, NoSuchKey), credential source, endpoint URL, request/response headers. " +
-      "Call AFTER scan_secrets.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        log_text: { type: "string", description: "Raw AWS CLI debug log content" },
-      },
-      required: ["log_text"],
-    },
-  },
-  {
-    name: "parse_lifecycle_xml",
-    description:
-      "Parse an S3 lifecycle configuration XML. Use when evidence contains XML starting with " +
-      "'<LifecycleConfiguration>' or user asks about lifecycle rules, transitions, or expiration. " +
-      "Extracts all rules, detects overlapping prefixes, warns about STANDARD_IA or GLACIER " +
-      "transitions without ObjectSizeGreaterThan filter (objects <128KB billed at 128KB minimum — " +
-      "most common lifecycle cost trap). Call BEFORE analyze_cost or generate_lifecycle_fix.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        xml_text: { type: "string", description: "S3 lifecycle configuration XML text" },
-      },
-      required: ["xml_text"],
-    },
-  },
-  {
-    name: "analyze_policy",
-    description:
-      "Trace a 403 AccessDenied through IAM and/or bucket policies. Use when user reports " +
-      "403 / AccessDenied errors. Handles: explicit Deny overriding Allow, cross-account access " +
-      "where BOTH IAM and bucket policy must allow, missing Allow, condition mismatches " +
-      "(aws:SourceVpc, aws:PrincipalOrgID), KMS key policy gaps. Supports action wildcards s3:Get*. " +
-      "If policy JSON is unavailable, pass error_text for inline text analysis. " +
-      "Call generate_policy_fix afterward if a fix statement is needed.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        principal: { type: "string", description: "ARN of the principal attempting access" },
-        action: { type: "string", description: "S3 action, e.g. s3:GetObject" },
-        resource: { type: "string", description: "ARN of the resource" },
-        iam_policy: { type: "object", description: "IAM policy JSON with Statement array" },
-        bucket_policy: { type: "object", description: "Bucket policy JSON with Statement array" },
-        error_text: { type: "string", description: "Raw 403 error text when policy JSON is unavailable" },
-      },
-    },
-  },
-  {
-    name: "analyze_cost",
-    description:
-      "Analyze per-prefix inventory data for storage cost issues. Use when user reports " +
-      "unexpectedly high bills or provides inventory with object counts, sizes, storage classes. " +
-      "Detects: minimum billable size penalty (STANDARD_IA/Glacier objects <128KB billed at 128KB), " +
-      "minimum storage duration charges (STANDARD_IA: 30 days, Glacier: 90-180 days), cost " +
-      "amplification from many small objects in tiered storage.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        storage_price_per_gb: { type: "object", description: "Price per GB per storage class (defaults used if omitted)" },
-        prefixes: {
-          type: "array",
-          description: "Per-prefix inventory data",
-          items: {
-            type: "object",
-            properties: {
-              prefix: { type: "string" },
-              storage_class: { type: "string" },
-              object_count: { type: "integer" },
-              total_size_bytes: { type: "integer" },
-              avg_object_age_days: { type: "number" },
-            },
-            required: ["prefix", "storage_class", "object_count", "total_size_bytes"],
-          },
+      "secrets, private keys, and API tokens. Returns a findings list and the redacted text. " +
+      "Always call BEFORE passing any user-provided text to other tools or including it in responses.",
+    parameters: Type.Object({
+      text: Type.String({ description: "Text to scan for secrets" }),
+    }),
+    async execute(_toolCallId, params) {
+      if (!params.text || params.text.length === 0) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ findings: [], count: 0, redacted_text: "" }) }],
+          details: {},
+        };
+      }
+
+      const { findings, redacted } = redactText(params.text);
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            findings,
+            count: findings.length,
+            redacted_text: redacted,
+          }),
+        }],
+        details: {
+          secretCount: findings.length,
+          secretTypes: [...new Set(findings.map(f => f.type))],
         },
-      },
-      required: ["prefixes"],
+      };
     },
-  },
-  {
-    name: "detect_throttling",
+  });
+
+  // ── Tool: detect_domain ──
+  pi.registerTool({
+    name: "detect_domain",
+    label: "Detect Domain",
     description:
-      "Detect S3 throttling patterns from HTTP status code and error distributions. Use when " +
-      "evidence mentions 429, SlowDown, RequestRateLimitExceeded, or intermittent poor speeds " +
-      "with retries. Returns: throttle_rate_percent, severity (low/medium/high/critical), " +
-      "affected prefixes (hot prefix detection), retry recommendations. " +
-      "Extract status_codes and errors from parse_awscli_debug or parse_rclone_log first.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        status_codes: { type: "object", description: "HTTP status code counts, e.g. {\"429\": 10, \"200\": 1000}" },
-        errors: { type: "array", description: "Array of error objects from the log", items: {} },
-        total_operations: { type: "integer", description: "Total operations in measurement window" },
-        prefix_errors: { type: "object", description: "Error counts keyed by prefix" },
-      },
+      "Analyze evidence text and classify the issue domain (e.g., security, performance, network, " +
+      "CLI/SDK, replication, lifecycle/cost, mount/filesystem, migration, data consistency, " +
+      "event notification). Returns ranked domains with confidence scores and matched subdomains. " +
+      "Use this to quickly identify which diagnostic skill to activate.",
+    parameters: Type.Object({
+      text: Type.String({ description: "Evidence text to analyze (log output, error messages, user report)" }),
+    }),
+    async execute(_toolCallId, params) {
+      if (!params.text || params.text.length === 0) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ domains: [], note: "No text provided" }) }],
+          details: {},
+        };
+      }
+
+      const domains = detectDomain(params.text);
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ domains }),
+        }],
+        details: {
+          topDomain: domains[0]?.domain || "unknown",
+          topConfidence: domains[0]?.confidence || 0,
+          domainCount: domains.length,
+        },
+      };
     },
-  },
-  {
-    name: "generate_lifecycle_fix",
-    description:
-      "Generate a corrected S3 lifecycle XML fixing issues from parse_lifecycle_xml. " +
-      "Call AFTER parse_lifecycle_xml confirmed problems (missing size filter, overlapping " +
-      "prefixes, too-short transition delay). Adds ObjectSizeGreaterThan 128KB filter to " +
-      "STANDARD_IA/Glacier transitions, enforces 30-day minimum, deduplicates overlapping rules. " +
-      "Output must be reviewed and applied manually — label as '# manual-only:'.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        xml_text: { type: "string", description: "Original lifecycle configuration XML to fix" },
-      },
-      required: ["xml_text"],
-    },
-  },
-  {
-    name: "generate_policy_fix",
-    description:
-      "Generate specific IAM or bucket policy statement(s) to fix a 403 AccessDenied. " +
-      "Call AFTER analyze_policy identified the denial source. Outputs a ready-to-paste policy " +
-      "JSON statement for the exact gap. " +
-      "Output MUST be reviewed before applying — label as '# manual-only:'.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        principal: { type: "string", description: "ARN of the denied principal" },
-        action: { type: "string", description: "S3 action, e.g. s3:GetObject" },
-        resource: { type: "string", description: "Resource ARN" },
-        iam_policy: { type: "object", description: "IAM policy JSON" },
-        bucket_policy: { type: "object", description: "Bucket policy JSON" },
-      },
-    },
-  },
-  {
+  });
+
+  // ── Tool: search_memory ──
+  pi.registerTool({
     name: "search_memory",
+    label: "Search Memory",
     description:
-      "Search past diagnosed cases by BM25 keyword similarity. " +
-      "Call this as your FIRST tool (before any parsing) to check for prior art. " +
-      "A match may reveal the root cause immediately. " +
-      "Query with symptoms + domain keywords: 'ETag mismatch multipart rclone corrupted transfer' " +
-      "or '403 AccessDenied cross-account KMS'. Always verify results against current evidence.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Keywords describing the current problem" },
-        domain: { type: "string", description: "Optional domain filter, e.g. 'cli_sdk_behavior'" },
-        top_k: { type: "integer", description: "Number of results to return (1-5, default 3)" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "parse_s5cmd_log",
-    description:
-      "Parse s5cmd debug log output into structured operation records. Use when evidence " +
-      "contains s5cmd output, e.g. lines starting with 'ERROR' or 's5cmd [0-9]'. " +
-      "Extracts: operation type (cp/sync/rm), error codes, failed keys, throughput stats, " +
-      "retry patterns. Call AFTER scan_secrets.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        log_text: { type: "string", description: "Raw s5cmd log content (already redacted)" },
-      },
-      required: ["log_text"],
-    },
-  },
-  {
-    name: "parse_cors_error",
-    description:
-      "Parse CORS error responses and preflight failures. Use when evidence contains " +
-      "'NoSuchCORSConfiguration', 'CORSForbidden', 'Access-Control-Allow-Origin missing', " +
-      "or OPTIONS preflight 403. Extracts: missing CORS headers, blocked origins/methods, " +
-      "bucket name. Call AFTER scan_secrets; then call analyze_cors to generate a fix.",
-    inputSchema: {
-      type: "object",
-      properties: { log_text: { type: "string" } },
-      required: ["log_text"],
-    },
-  },
-  {
-    name: "analyze_cors",
-    description:
-      "Generate a CORS configuration XML that fixes detected issues. " +
-      "Call AFTER parse_cors_error. Outputs ready-to-apply S3 CORS config XML. " +
-      "Must be reviewed and applied manually — label as '# manual-only:'.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        cors_data: { type: "object", description: "Output from parse_cors_error" },
-      },
-    },
-  },
-  {
-    name: "parse_replication_status",
-    description:
-      "Parse CRR/SRR replication status data. Use when evidence shows " +
-      "ReplicationStatus: FAILED/PENDING or replication lag. " +
-      "Extracts: per-object status, rule failures, failure rate.",
-    inputSchema: {
-      type: "object",
-      properties: { log_text: { type: "string" } },
-      required: ["log_text"],
-    },
-  },
-  {
-    name: "analyze_replication",
-    description:
-      "Diagnose why replication is failing. Call AFTER parse_replication_status. " +
-      "Returns likely cause (IAM/KMS/destination) and verification commands.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        replication_data: { type: "object", description: "Output from parse_replication_status" },
-      },
-    },
-  },
-  {
-    name: "parse_hadoop_s3a",
-    description:
-      "Parse Hadoop/Spark/Hive S3A filesystem errors. Use when evidence contains " +
-      "'S3AFileSystem', 's3a://', staging/magic committer errors, or HADOOP- references. " +
-      "Extracts: committer type, rename failures, credential issues.",
-    inputSchema: {
-      type: "object",
-      properties: { log_text: { type: "string" } },
-      required: ["log_text"],
-    },
-  },
-  {
-    name: "analyze_throughput",
-    description:
-      "Analyze upload/download throughput against theoretical limits given RTT and bandwidth. " +
-      "Key insight: throughput = TCP_window / RTT; 192ms RTT with 64KB TCP window limits " +
-      "single-stream to ~2.7 Mbps regardless of bandwidth. Returns: theoretical max throughput, " +
-      "actual vs expected ratio, bottleneck type (bandwidth/latency/concurrency-bound), " +
-      "multipart part size recommendation, suggested concurrency.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        object_size_mb: { type: "number", description: "Object size in MB" },
-        rtt_ms: { type: "number", description: "Round-trip time to endpoint in ms" },
-        bandwidth_mbps: { type: "number", description: "Available bandwidth in Mbps" },
-        observed_throughput_mbps: { type: "number", description: "Actual observed throughput in Mbps" },
-        concurrency: { type: "integer", description: "Number of parallel streams" },
-        part_size_mb: { type: "number", description: "Multipart upload part size in MB" },
-      },
-    },
-  },
-  {
-    name: "parse_network_diagnostics",
-    description:
-      "Parse network diagnostic output (dig, curl -v, ping, mtr, traceroute) into a structured " +
-      "dict. Use when evidence contains DNS lookup results, curl verbose output, ping stats, or " +
-      "traceroute/mtr hop data for an S3 or VPC endpoint. Extracts: DNS status (NXDOMAIN/SERVFAIL/" +
-      "resolved IPs/CNAME chain), TCP connectivity (refused/timed out/HTTP status), TLS cert errors, " +
-      "ICMP latency and packet loss, routing hops. Follow with analyze_network.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        diagnostic_text: { type: "string", description: "Raw output from dig, curl -v, ping, mtr, or traceroute" },
-      },
-      required: ["diagnostic_text"],
-    },
-  },
-  {
-    name: "analyze_network",
-    description:
-      "Root-cause network failures from parse_network_diagnostics output. Diagnoses: DNS NXDOMAIN " +
-      "(bad hostname/missing VPC endpoint DNS), DNS SERVFAIL, TLS cert errors, TCP refused " +
-      "(firewall/security group), TCP timeout (silent drop/NACL), packet loss, HTTP 403 (S3 policy). " +
-      "Returns: root_cause, severity (critical/high/medium/low/ok), confidence score, " +
-      "findings, prioritized recommendations.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parsed: { type: "object", description: "Full output dict from parse_network_diagnostics" },
-      },
-      required: ["parsed"],
-    },
-  },
-  {
-    name: "parse_httpmon_log",
-    description:
-      "Parse httpmon (https-traffic-inspector) output into StorageOps diagnostic signals. " +
-      "Handles NDJSON (from `httpmon --format json`) and HAR (from `httpmon --har output.har`). " +
-      "Extracts S3 signals: error codes (AccessDenied, SignatureDoesNotMatch, SlowDown), " +
-      "HTTP status distribution, auth type (sigv4/presigned/anonymous), CORS headers, timing. " +
-      "Auth values are never exposed — only classified.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        log_text: { type: "string", description: "Raw httpmon NDJSON output or HAR file content" },
-      },
-      required: ["log_text"],
-    },
-  },
-];
+      "Search past StorageOps diagnostic sessions for similar issues. Returns matching session IDs, " +
+      "summaries, and timestamps. Use this to find prior diagnoses of similar problems, learn from " +
+      "past fixes, or provide continuity across sessions.",
+    parameters: Type.Object({
+      query: Type.String({ description: "Search query (error code, symptom, tool name, etc.)" }),
+      limit: Type.Optional(Type.Number({ description: "Maximum results (default 5)", default: 5 })),
+    }),
+    async execute(_toolCallId, params) {
+      const query = params.query || "";
+      const limit = typeof params.limit === "number" ? params.limit : 5;
 
-// ── Extension Entry Point ────────────────────────────────────────────────────
+      if (!query.trim()) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ results: [], note: "Empty query" }) }],
+          details: {},
+        };
+      }
 
-export default function (pi: {
-  registerTool(tool: {
-    name: string;
-    description: string;
-    inputSchema: Record<string, unknown>;
-    execute: (args: Record<string, unknown>) => Promise<unknown>;
-  }): void;
-}): void {
-  for (const tool of TOOLS) {
-    const { name, description, inputSchema } = tool;
-    pi.registerTool({
-      name,
-      description,
-      inputSchema,
-      execute: async (args) => callTool(name, args),
-    });
-  }
+      const results = searchMemory(query, limit);
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ results, query }),
+        }],
+        details: {
+          resultCount: results.length,
+        },
+      };
+    },
+  });
+
+  // ── Session startup: log available skills ──
+  pi.on("session_start", async (_event, ctx) => {
+    const skillsDir = path.resolve(__dirname, "..", "..", "skills");
+    if (fs.existsSync(skillsDir)) {
+      const skillNames = fs.readdirSync(skillsDir)
+        .filter(f => fs.statSync(path.join(skillsDir, f)).isDirectory())
+        .sort();
+      ctx.logger?.log(`StorageOps: ${skillNames.length} skill packs loaded (${skillNames.join(", ")})`);
+    }
+  });
 }

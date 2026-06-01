@@ -1,131 +1,65 @@
-# StorageOps Skill Registry v2.0
+# StorageOps Skill Registry v0.4
 
 # Machine-readable metadata for all StorageOps skills.
-# Pi Coding Agent discovers runtime skills from ./agents/skills;
-# this registry drives documentation, eval, safety checks, and agent routing.
+# Skills are auto-discovered by Pi from the skills/ directory.
+# This registry drives documentation routing and skill metadata.
 
-version: "2.0"
-contract: "StorageOps Skill Contract v2"
-
-# Maturity levels: core | mature | beta | experimental
-# Mode:           light_only | heavy_only | light_heavy
+version: "0.4"
+contract: "StorageOps Skill Contract v3"
 
 skills:
   - name: storageops-triage
-    path: agents/skills/storageops-triage/SKILL.md
+    path: skills/storageops-triage/SKILL.md
     maturity: core
     mode: light_heavy
-    estimated_tokens: 2000
-    priority: 0  # Always runs first
+    priority: 0
     auto_route: true
     description: >
       First-contact triage for any object storage issue. Classifies the
       problem domain, assesses severity and evidence completeness, and
-      routes to the appropriate specialist Skill.
+      routes to the appropriate specialist skill.
     trigger_keywords:
       - "object storage"
       - "S3 error"
       - "storage issue"
-      - "storage problem"
       - "bucket issue"
     domains: [triage]
-    recommended_tools: [scan_secrets, parse_httpmon_log, search_memory]
-    routes_to:
-      - storageops-s3-protocol-compatibility
-      - storageops-cli-sdk-diagnosis
-      - storageops-performance-diagnosis
-      - storageops-mount-filesystem-workspace
-      - storageops-network-endpoint-access
-      - storageops-security-iam-policy
-      - storageops-lifecycle-cost
-      - storageops-replication-versioning
-      - storageops-data-consistency
-      - storageops-migration-sync
-      - storageops-bigdata-pipeline
-      - storageops-event-notification
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
   - name: storageops-security-iam-policy
-    path: agents/skills/storageops-security-iam-policy/SKILL.md
+    path: skills/storageops-security-iam-policy/SKILL.md
     maturity: core
     mode: light_heavy
-    estimated_tokens: 3000
-    description: >
-      Diagnose permission and security: 403 AccessDenied, IAM/bucket
-      policy analysis, ACL, STS temporary credentials, KMS key access,
-      SSE configuration, public access risk, credential leakage.
     trigger_keywords:
       - "403"
       - "AccessDenied"
-      - "Access Denied"
-      - "Forbidden"
-      - "permission"
       - "IAM"
-      - "bucket policy"
-      - "STS"
-      - "session token"
       - "KMS"
-      - "SSE"
-      - "encryption"
-      - "public access"
-    domains: [security_iam_policy, permission_access_denied]
-    recommended_tools: [scan_secrets, analyze_policy, generate_policy_fix, search_memory]
+      - "permission"
+      - "bucket policy"
+      - "Unauthorized"
+    domains: [security]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
   - name: storageops-performance-diagnosis
-    path: agents/skills/storageops-performance-diagnosis/SKILL.md
+    path: skills/storageops-performance-diagnosis/SKILL.md
     maturity: core
     mode: light_heavy
-    estimated_tokens: 2500
-    description: >
-      Diagnose performance bottlenecks: slow upload/download, small file
-      latency, multipart tuning, prefix hotspots, 429/SlowDown throttling,
-      5xx errors, timeout patterns.
     trigger_keywords:
-      - "slow upload"
-      - "slow download"
-      - "timeout"
       - "429"
       - "SlowDown"
-      - "throttl"
-      - "throughput"
-      - "bandwidth"
-      - "performance"
       - "slow"
-      - "latency"
-      - "RequestRateLimitExceeded"
-    domains: [performance_throughput, small_file_metadata]
-    recommended_tools: [detect_throttling, analyze_throughput, parse_rclone_log, scan_secrets]
-
-  - name: storageops-s3-protocol-compatibility
-    path: agents/skills/storageops-s3-protocol-compatibility/SKILL.md
-    maturity: core
-    mode: light_heavy
-    estimated_tokens: 2500
-    description: >
-      Diagnose S3 protocol-level issues: SigV4 signatures, ETag/checksum
-      mismatches, ListObjects V1/V2 behavior, Multipart Upload lifecycle,
-      CopyObject/HeadObject/DeleteObject provider differences.
-    trigger_keywords:
-      - "SignatureDoesNotMatch"
-      - "InvalidSignature"
-      - "ETag mismatch"
-      - "ListObjects"
-      - "CompleteMultipartUpload"
-      - "InvalidPart"
-      - "checksum"
-      - "S3 compatible"
-      - "S3 protocol"
-    domains: [s3_protocol_compatibility, sigv4, list_objects, multipart_upload, checksum_etag]
-    recommended_tools: [parse_sigv4_error, parse_awscli_debug, parse_cors_error, analyze_cors, parse_httpmon_log, scan_secrets]
+      - "timeout"
+      - "bandwidth"
+      - "throughput"
+      - "throttl"
+    domains: [performance]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
   - name: storageops-cli-sdk-diagnosis
-    path: agents/skills/storageops-cli-sdk-diagnosis/SKILL.md
+    path: skills/storageops-cli-sdk-diagnosis/SKILL.md
     maturity: mature
     mode: light_heavy
-    estimated_tokens: 2500
-    description: >
-      Diagnose client tool and SDK behavioral issues: awscli, boto3,
-      rclone, s5cmd, bcecmd, obsutil debug logs, corrupted-on-transfer,
-      tool-specific configuration problems.
     trigger_keywords:
       - "awscli"
       - "boto3"
@@ -134,237 +68,148 @@ skills:
       - "bcecmd"
       - "obsutil"
       - "corrupted on transfer"
-      - "size diff"
-      - "debug log"
-      - "--debug"
-      - "aws sdk"
-    domains: [cli_sdk_behavior]
-    recommended_tools: [parse_rclone_log, parse_awscli_debug, parse_s5cmd_log, scan_secrets]
+    domains: [cli-sdk]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
   - name: storageops-network-endpoint-access
-    path: agents/skills/storageops-network-endpoint-access/SKILL.md
-    maturity: mature
+    path: skills/storageops-network-endpoint-access/SKILL.md
+    maturity: core
     mode: light_heavy
-    estimated_tokens: 2000
-    description: >
-      Diagnose network, DNS, and endpoint connectivity: public/VPC/private
-      endpoints, DNS resolution, TLS handshake, MTU, cross-cloud routing,
-      dedicated line, proxy/NAT interference.
     trigger_keywords:
-      - "endpoint unreachable"
       - "DNS"
-      - "TLS error"
+      - "TLS"
+      - "connect"
+      - "endpoint"
+      - "VPC"
       - "certificate"
-      - "VPC endpoint"
-      - "PrivateLink"
-      - "专线"
-      - "cross-cloud"
-      - "connection refused"
-      - "host header"
-      - "MTU"
-      - "proxy"
-    domains: [network_endpoint_access]
-    recommended_tools: [parse_network_diagnostics, analyze_network, scan_secrets]
+      - "host unreachable"
+    domains: [network]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
   - name: storageops-lifecycle-cost
-    path: agents/skills/storageops-lifecycle-cost/SKILL.md
+    path: skills/storageops-lifecycle-cost/SKILL.md
     maturity: mature
     mode: light_heavy
-    estimated_tokens: 2000
-    description: >
-      Diagnose lifecycle and cost: transition/expiration rules,
-      storage class selection, intelligent tiering, minimum duration
-      charges, retrieval costs, request fees, small-object cost
-      amplification, prefix-level cost attribution.
     trigger_keywords:
       - "lifecycle"
       - "cost"
-      - "storage class"
-      - "Standard-IA"
+      - "billing"
+      - "IA"
       - "Glacier"
-      - "Archive"
-      - "Intelligent Tiering"
-      - "retrieval cost"
-      - "bill"
-      - "计费"
-      - "费用"
-    domains: [lifecycle_cost]
-    recommended_tools: [parse_lifecycle_xml, analyze_cost, generate_lifecycle_fix, scan_secrets]
-
-  - name: storageops-mount-filesystem-workspace
-    path: agents/skills/storageops-mount-filesystem-workspace/SKILL.md
-    maturity: mature
-    mode: light_heavy
-    estimated_tokens: 2000
-    description: >
-      Diagnose mount and workspace issues: s3fs, rclone mount, ossfs,
-      bosfs, gcsfuse, Mountpoint for S3 hangs, metadata storms,
-      POSIX semantic mismatches, git/package-manager slowdowns,
-      agent workspace degradation.
-    trigger_keywords:
-      - "mount"
-      - "s3fs"
-      - "rclone mount"
-      - "ossfs"
-      - "FUSE"
-      - "workspace slow"
-      - "git slow"
-      - "node_modules"
-      - "agent sandbox"
-    domains: [mount_filesystem_workspace]
-    recommended_tools: [scan_secrets, search_memory]
-
-  - name: storageops-evidence-reporting
-    path: agents/skills/storageops-evidence-reporting/SKILL.md
-    maturity: core
-    mode: heavy_only
-    estimated_tokens: 1500
-    description: >
-      Produce structured diagnostic reports: customer-facing, internal
-      engineering notes, reproduction checklists, standardized diagnosis
-      reports with evidence tables and root cause ranking.
-    trigger_keywords:
-      - "report"
-      - "write up"
-      - "document"
-      - "customer summary"
-      - "诊断报告"
-      - "reproduction steps"
-    domains: [reporting]
-    recommended_tools: []
+      - "storage class"
+    domains: [lifecycle, cost]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
   - name: storageops-replication-versioning
-    path: agents/skills/storageops-replication-versioning/SKILL.md
-    maturity: beta
+    path: skills/storageops-replication-versioning/SKILL.md
+    maturity: core
     mode: light_heavy
-    estimated_tokens: 2500
-    description: >
-      Diagnose S3 cross-region replication (CRR/SRR) failures, replication lag,
-      object versioning issues (delete markers, version lifecycle), and Object Lock
-      WORM policy conflicts.
     trigger_keywords:
-      - "replication failed"
-      - "cross-region replication"
+      - "replicat"
+      - "versioning"
       - "CRR"
       - "SRR"
-      - "replication lag"
-      - "versioning"
-      - "delete marker"
+      - "DeleteMarker"
       - "Object Lock"
-      - "WORM"
-      - "ReplicationStatus FAILED"
-    domains: [replication_versioning, object_lock]
-    recommended_tools: [parse_replication_status, analyze_replication, scan_secrets]
+    domains: [replication]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
-  - name: storageops-bigdata-pipeline
-    path: agents/skills/storageops-bigdata-pipeline/SKILL.md
-    maturity: beta
+  - name: storageops-mount-filesystem-workspace
+    path: skills/storageops-mount-filesystem-workspace/SKILL.md
+    maturity: mature
     mode: light_heavy
-    estimated_tokens: 2500
-    description: >
-      Diagnose big data processing on S3-compatible storage: Spark/Hive/Flink
-      S3A filesystem issues, committer protocol failures, partition discovery
-      problems, Iceberg/Delta Lake/Hudi table format issues on S3.
     trigger_keywords:
-      - "Spark S3 error"
-      - "Hive partition"
-      - "ETL failed"
-      - "committer"
-      - "s3a"
-      - "FileNotFoundException"
-      - "Iceberg commit failed"
-      - "Delta Lake conflict"
-      - "大数据"
-    domains: [bigdata_pipeline]
-    recommended_tools: [parse_hadoop_s3a, parse_httpmon_log, scan_secrets, search_memory]
-
-  - name: storageops-data-consistency
-    path: agents/skills/storageops-data-consistency/SKILL.md
-    maturity: beta
-    mode: light_heavy
-    estimated_tokens: 1500
-    description: >
-      Diagnose object storage data consistency symptoms: stale reads, missing
-      replica objects, delayed event visibility, migration drift, and versioning
-      or replication timing issues.
-    trigger_keywords:
-      - "object missing from replica"
-      - "stale data"
-      - "event notification delay"
-      - "consistency"
-      - "replica mismatch"
-    domains: [data_consistency]
-    recommended_tools: [analyze_replication, scan_secrets]
+      - "mount"
+      - "FUSE"
+      - "s3fs"
+      - "goofys"
+      - "filesystem"
+      - "workspace"
+    domains: [mount, filesystem]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
   - name: storageops-migration-sync
-    path: agents/skills/storageops-migration-sync/SKILL.md
+    path: skills/storageops-migration-sync/SKILL.md
+    maturity: mature
+    mode: light_heavy
+    trigger_keywords:
+      - "migrat"
+      - "sync"
+      - "transfer"
+      - "跨云"
+    domains: [migration]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
+
+  - name: storageops-data-consistency
+    path: skills/storageops-data-consistency/SKILL.md
     maturity: beta
     mode: light_heavy
-    estimated_tokens: 2000
-    description: >
-      Plan and validate cross-provider, cross-region, and cross-account data
-      migration and synchronization between S3-compatible object storage providers.
     trigger_keywords:
-      - "migrate"
-      - "migration"
-      - "sync bucket"
-      - "copy data between"
-      - "cross-provider"
-      - "数据迁移"
-      - "跨云迁移"
-    domains: [migration_sync]
-    recommended_tools: [scan_secrets, search_memory]
+      - "consistency"
+      - "stale"
+      - "mismatch"
+      - "ETag"
+      - "checksum"
+    domains: [consistency]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
+
+  - name: storageops-bigdata-pipeline
+    path: skills/storageops-bigdata-pipeline/SKILL.md
+    maturity: alpha
+    mode: light_heavy
+    trigger_keywords:
+      - "Spark"
+      - "Hive"
+      - "Hadoop"
+      - "S3A"
+      - "EMR"
+    domains: [bigdata]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
 
   - name: storageops-event-notification
-    path: agents/skills/storageops-event-notification/SKILL.md
-    maturity: experimental
+    path: skills/storageops-event-notification/SKILL.md
+    maturity: beta
     mode: light_heavy
-    estimated_tokens: 2000
-    description: >
-      Diagnose S3 event notification configuration and delivery: S3→Lambda,
-      S3→SQS, S3→SNS trigger failures, event type mismatches, filter rule
-      misconfiguration, IAM permission gaps.
     trigger_keywords:
-      - "Lambda not triggered"
-      - "S3 event"
-      - "notification not working"
-      - "SQS not receiving"
-      - "SNS not publishing"
-      - "event notification"
-      - "missing events"
-      - "duplicate events"
-      - "事件通知"
-    domains: [event_notification]
-    recommended_tools: [scan_secrets, analyze_policy]
+      - "notification"
+      - "event"
+      - "SQS"
+      - "Lambda"
+    domains: [notification]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
+
+  - name: storageops-s3-protocol-compatibility
+    path: skills/storageops-s3-protocol-compatibility/SKILL.md
+    maturity: core
+    mode: light_heavy
+    trigger_keywords:
+      - "SignatureDoesNotMatch"
+      - "CORS"
+      - "SigV4"
+      - "AuthorizationHeaderMalformed"
+      - "RequestExpired"
+    domains: [protocol, compatibility]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
+
+  - name: storageops-evidence-reporting
+    path: skills/storageops-evidence-reporting/SKILL.md
+    maturity: core
+    mode: light_heavy
+    trigger_keywords:
+      - "report"
+      - "总结"
+      - "诊断报告"
+    domains: [reporting]
+    recommended_tools: [scan_secrets, search_memory]
 
   - name: storageops-eval-golden-cases
-    path: agents/skills/storageops-eval-golden-cases/SKILL.md
+    path: skills/storageops-eval-golden-cases/SKILL.md
     maturity: core
-    mode: heavy_only
-    estimated_tokens: 1000
-    description: >
-      Evaluate diagnostic quality using golden test cases. Validates
-      category accuracy, confidence, evidence keywords, recommendation
-      safety, and unsafe output detection.
+    mode: light_heavy
     trigger_keywords:
-      - "evaluate"
-      - "golden case"
-      - "regression test"
-      - "quality check"
-      - "validate diagnosis"
+      - "eval"
+      - "regression"
+      - "验证"
+      - "质量"
     domains: [eval]
-    recommended_tools: []
-
-# Safety rules apply to ALL skills
-global_safety:
-  - treat_all_inputs_as_untrusted: true
-  - redact_secrets: true
-  - default_read_only: true
-  - no_destructive_actions: true
-  - evidence_based_only: true
-  - no_cloud_connections: true
-
-# Output contract: all skills must produce YAML frontmatter with at minimum:
-#   category, confidence, confidence_factors, severity, evidence_quality,
-#   evidence_quality_score, limitations, next_actions
-output_contract: "Output Envelope v2"
+    recommended_tools: [scan_secrets, search_memory]

@@ -2,218 +2,105 @@
 
 ## Quick Start (5 minutes)
 
-### Step 1 — Install and set up
+### Step 1 — Install
 
 ```bash
-pip install storageops
-storageops setup
+# Install Pi Coding Agent
+curl -fsSL https://raw.githubusercontent.com/hxddh/storageops/main/scripts/install-pi.sh | bash
+
+# Clone StorageOps
+git clone https://github.com/hxddh/storageops.git ~/.pi/storageops
 ```
 
-`setup` downloads Pi Coding Agent, asks for your LLM provider and API key, and saves
-them to `~/.storageops/config.json`.
-
 ### Step 2 — Start the REPL
+
+```bash
+cd ~/.pi/storageops
+pi --skills ./skills
+```
+
+Or use the thin CLI:
 
 ```bash
 storageops
 ```
 
-Describe your problem in plain language. No need to know skill names — the agent routes automatically.
+### Step 3 — Describe your issue
+
+Just type naturally:
 
 ```
-StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit
-  Session  a3f2b1c8
-
-> rclone reports "corrupted on transfer" after copying large files to S3
+> I'm getting 403 AccessDenied on my bucket. The bucket policy is:
+> {
+>   "Version": "2012-10-17",
+>   "Statement": [...]
+> }
 ```
 
-### Step 3 — Provide evidence
+### Step 4 — Read the diagnosis
 
-The agent tells you what evidence it needs and how to collect it. Paste log output directly,
-or reference a file with `@`:
-
-```
-> here is the rclone debug log @/tmp/rclone-vv.log
-```
-
-### Step 4 — Read the report
-
-The agent outputs a structured diagnosis:
-
-```markdown
----
-category: s3_protocol_compatibility
-root_cause_type: multipart_etag_format_mismatch
-confidence: 0.92
-severity: high
----
-## Summary
-rclone's multipart ETag is an MD5 of part-MD5s (not the full object MD5),
-which doesn't match the server's ETag on verification.
-
-## Remediation
-# manual-only: rclone --s3-upload-cutoff 5G copy src remote:bucket
-```
-
----
+The agent will produce a structured diagnosis with:
+- Root cause classification
+- Evidence from provided logs/policies
+- Severity assessment
+- Actionable recommendations
 
 ## Scenario Walkthroughs
 
-### 403 AccessDenied on GetObject
+### Scenario 1: s5cmd 429 SlowDown
 
+**Symptom**: s5cmd sync returns 429 SlowDown, then slows down
+
+**Ask**:
 ```
-> s3://my-bucket/data/file.csv — AccessDenied, but my IAM role has s3:GetObject
-```
-
-What StorageOps checks:
-- Does the policy grant `s3:GetObject` on the **bucket ARN** but miss the `/*` suffix
-  for objects?
-- Is there a bucket policy with an explicit `Deny`?
-- Is there an SCP at the organization level?
-- Is a VPC endpoint condition restricting access?
-
-Typical output: corrected policy snippet with the missing resource qualifier added.
-
-### Slow uploads — throttling or bandwidth?
-
-```
-> AWS S3 uploads only hitting 20 MB/s, expected 200 MB/s
-> here's the rclone log @rclone-vv.log
+> My s5cmd sync is getting 429 errors when syncing to BOS.
+> [paste s5cmd log output]
 ```
 
-What StorageOps checks:
-1. 429/SlowDown errors → throttling from prefix hotspot
-2. Multipart part size and concurrency settings vs bandwidth-delay product
-3. Client CPU or disk I/O as bottleneck
-4. TLS handshake overhead on small files
+**What happens**:
+1. `scan_secrets` redacts any credentials in the log
+2. `detect_domain` matches "performance-throttling" domain (429, SlowDown keywords)
+3. `storageops-performance-diagnosis` skill activates
+4. Agent analyzes the log pattern and recommends: reduce concurrency, adjust part-size, add --max-retries
 
-### SignatureDoesNotMatch on MinIO
+### Scenario 2: rclone corrupted on transfer
 
+**Symptom**: rclone mount shows "corrupted on transfer" for large files
+
+**Ask**:
 ```
-> MinIO returns SignatureDoesNotMatch but the same command works on AWS S3
-```
-
-What StorageOps checks:
-- Clock skew (request timestamp vs server time)
-- Path-style vs virtual-hosted-style endpoint mismatch
-- SigV4 region in the credential scope vs the endpoint region
-- Provider quirks documented in `references/provider-quirks/minio.md`
-
-### rclone corrupted on transfer
-
-```
-> rclone copy to BOS says "corrupted on transfer" for files > 5 GB
+> rclone mount keeps failing with "corrupted on transfer" when syncing big files > 500MB.
+> [paste rclone -vv log]
 ```
 
-Root cause (most common): rclone uses multipart upload for large files; the resulting ETag
-is `MD5(part-MD5s)-N`, not `MD5(full-object)`. If BOS is returning the object MD5, the
-comparison fails.
+**What happens**:
+1. Credentials redacted
+2. Domain detected as "cli-sdk" (rclone + corrupted keywords)
+3. `storageops-cli-sdk-diagnosis` skill activates
+4. Agent identifies ETag mismatch pattern caused by multipart copy on different providers
+5. Recommendation: add `--s3-use-multipart-etag` or `--no-check-certificate`
 
-Fix:
-```bash
-# manual-only: set upload cutoff above the largest file to force single-part upload
-rclone copy src bos:bucket --s3-upload-cutoff 10G
+### Scenario 3: IAM Policy Denied
 
-# Or: disable ETag verification (loses integrity check)
-# manual-only: rclone copy src bos:bucket --checksum=false
+**Symptom**: KMS-encrypted object access returns AccessDenied
+
+**Ask**:
+```
+> I'm getting AccessDenied when accessing a KMS-encrypted object. Here's my IAM policy:
+> [paste policy JSON]
 ```
 
-### VPC endpoint unreachable
+**What happens**:
+1. Credentials redacted
+2. Domain detected as "security-iam-policy"
+3. `storageops-security-iam-policy` skill activates
+4. Agent finds missing `kms:Decrypt` permission
+5. Recommendation: add KMS key policy allowing decryption
 
-```
-> inside our VPC, aws s3 ls times out — works fine from my laptop
-```
+## Tips
 
-What StorageOps checks:
-- Does the VPC endpoint have Private DNS enabled? (If not, DNS resolves to a public IP)
-- Is there a route table entry for the endpoint?
-- Does the security group allow HTTPS (443) to the endpoint?
-
-### Browser CORS error
-
-```
-> JavaScript in the browser gets "No 'Access-Control-Allow-Origin' header" on PutObject
-```
-
-What StorageOps checks:
-- Does the bucket CORS configuration list the request origin in `AllowedOrigins`?
-- Does it include `PUT` in `AllowedMethods`?
-- Is the S3 CORS preflight (OPTIONS) returning the correct headers?
-
----
-
-## Using httpmon for Wire-Level Evidence
-
-[httpmon](https://github.com/hxddh/https-traffic-inspector) wraps any CLI command and
-captures full HTTP/HTTPS traffic. Pipe the output to StorageOps for the most precise diagnosis.
-
-```bash
-# Install httpmon
-go install github.com/hxddh/https-traffic-inspector@latest
-
-# Capture and pipe directly to StorageOps
-httpmon --format json aws s3 cp s3://bucket/key . 2>&1 | storageops
-
-# Capture to HAR, then diagnose
-httpmon --har capture.har rclone copy remote:bucket/ ./local/
-storageops @capture.har
-```
-
-httpmon reveals what tool logs hide: the full error XML body, exact Authorization header
-format, per-request TTFB timing, and complete CORS preflight headers.
-
----
-
-## Session Resume
-
-StorageOps saves every session automatically to `~/.storageops/sessions/`.
-Type `/resume` inside a session to see a numbered list of past sessions and load one.
-
----
-
-## One-Shot and CI Mode
-
-```bash
-# Pipe a log file
-storageops < error.log
-
-# CI: exit 1 on high/critical severity
-storageops diagnose error.log --exit-code
-
-# JSON output for scripting
-storageops triage error.log --format json
-```
-
----
-
-## FAQ
-
-**Q: Where do I start?**
-Describe your symptom to the REPL (`storageops`). The agent routes to the correct skill.
-If uncertain, it runs triage first.
-
-**Q: What evidence should I provide?**
-At minimum: error message/status code + tool + provider/endpoint. More is better.
-The agent tells you what it needs to increase confidence.
-
-**Q: Why is confidence only 0.5?**
-Insufficient evidence. The agent lists what's missing. Provide more evidence and the
-confidence goes up. Low confidence = honest, not wrong.
-
-**Q: Will StorageOps modify my bucket?**
-No. All dangerous operations are labeled `manual-only` and require your explicit action.
-StorageOps is purely read-only and diagnostic.
-
-**Q: Which providers are supported?**
-AWS S3 (baseline), Alibaba Cloud OSS, Baidu Cloud BOS, Tencent Cloud COS, Volcengine TOS,
-MinIO, Ceph, Wasabi, and other S3-compatible endpoints.
-
-**Q: Which tools are supported?**
-rclone, AWS CLI, s5cmd, boto3/botocore, MinIO Client (mc), s3cmd. Each has a dedicated parser.
-
-**Q: What are the absolute limits?**
-1. Never reads credential files  
-2. Never recommends public access  
-3. Never disables TLS  
-4. Never executes write operations automatically  
-5. Never fabricates evidence
+- **Paste logs directly**: No need to pre-parse or format — the AI reads raw log output
+- **Multi-line input**: Use `\` at the end of a line to continue input, or use `/editor`
+- **Shell commands**: Prefix commands with `$` to run them inline: `$ ls -la ~/logs/`
+- **File references**: Use `@filename` to reference log files: `@s5cmd-debug.log`
+- **Session resume**: `pi --resume <session-id>` to continue a previous session

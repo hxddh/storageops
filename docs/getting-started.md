@@ -1,40 +1,28 @@
 # Getting Started
 
-This guide walks through installation, setup, and your first diagnosis.
+## Step 1 — Install Pi Coding Agent
 
----
-
-## Step 1 — Install
+StorageOps runs on top of Pi Coding Agent. Install Pi first:
 
 ```bash
-pip install storageops
+curl -fsSL https://raw.githubusercontent.com/hxddh/storageops/main/scripts/install-pi.sh | bash
 ```
 
-If `storageops` is not found after install, add pip's bin directory to PATH:
+Or install Pi manually:
 
 ```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+npm install -g @earendil-works/pi-coding-agent
 ```
 
-Or use a virtual environment:
+## Step 2 — Install StorageOps
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install storageops
+git clone https://github.com/hxddh/storageops.git
+cd storageops
+pip install -e .   # thin CLI shim (optional)
 ```
 
----
-
-## Step 2 — Run setup
-
-```bash
-storageops setup
-```
-
-This downloads Pi Coding Agent and asks for your API key. Paste your key — provider
-is auto-detected from the prefix (`sk-ant-` → Anthropic, `sk-` → OpenAI). That's it.
-
----
+This gives you the `storageops` command which forwards to `pi` with StorageOps skills loaded.
 
 ## Step 3 — Start a session
 
@@ -42,123 +30,41 @@ is auto-detected from the prefix (`sk-ant-` → Anthropic, `sk-` → OpenAI). Th
 storageops
 ```
 
-Type your problem in plain language and press Enter. Type `/` to see all commands.
-
-```
-StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit
-  Session  a3f2b1c8
-
-> Got 403 from boto3 on GetObject, but my IAM role has s3:GetObject
-```
-
-Reference a local file by prefixing with `@`:
-
-```
-> here's the error trace @/var/log/s3-error.log
-```
-
-### Slash commands
-
-| Command | Action |
-|---------|--------|
-| `/help` | Show available commands |
-| `/resume` | Pick a past session to continue |
-| `/clear` | Start a fresh session |
-| `/status` | Show session ID, Pi and API key status |
-| `/config` | View or change configuration |
-| `/memory` | Browse past diagnosed cases |
-| `/update` | Download latest Pi binary and reinstall skills |
-| `/doctor` | Check environment health |
-| `/setup` | Re-run setup (API key, Pi install) |
-| `/verbose` | Toggle verbose output (shows tool calls) |
-| `/exit` | Quit |
-
-Sessions are saved automatically to `~/.storageops/sessions/`.
-
----
-
-## Common Workflows
-
-### 403 access denied
+Or directly with Pi:
 
 ```bash
-storageops
-> s3://my-bucket/data/file.csv — AccessDenied, but my IAM role has s3:GetObject
+pi --skills ./skills
 ```
 
-### Slow transfers — is it throttling?
+## Step 4 — Describe your issue
 
-```bash
-storageops < slow-transfer.log
-```
-
-### Capture wire-level traffic with httpmon
-
-Wrap any storage command with [httpmon](https://github.com/hxddh/https-traffic-inspector)
-to give StorageOps full HTTP evidence:
-
-```bash
-httpmon --format json aws s3 cp s3://bucket/key . 2>&1 | storageops
-```
-
-### Multi-turn investigation
-
-Add evidence progressively across turns — context accumulates:
+Just type naturally:
 
 ```
-> access denied on GetObject
-> here's my bucket policy: @policy.json
-> and the IAM role: @role.json
+> I'm getting 429 SlowDown errors with s5cmd sync. Here's the log: [paste log]
+> My rclone mount keeps dropping with "corrupted on transfer" for files > 100MB
+> DNS resolution is failing for my VPC endpoint — nslookup shows NXDOMAIN
 ```
 
----
+The AI agent will:
+1. Call `scan_secrets` to redact any credentials
+2. Call `detect_domain` to classify the issue
+3. Activate the appropriate skill pack(s)
+4. Diagnose root cause and provide recommendations
 
-## Configuration
+## Slash commands (in REPL)
 
-Inside a session:
-```
-/config                          # show current config
-/config set provider openai      # change provider
-/config set api_key sk-...       # set API key
-```
+During an interactive session, you can use Pi's slash commands:
 
-Config is stored at `~/.storageops/config.json`.
-
----
-
-## Offline commands (no API key needed)
-
-Rule-based triage, analysis, and eval work without Pi or an API key:
-
-```bash
-storageops triage error.log
-storageops analyze security_iam_policy policy.json
-storageops scan logs/*.log
-storageops eval --all           # fast triage eval of all 20 golden cases
-```
-
----
-
-## Troubleshooting
-
-### `storageops: command not found`
-
-```bash
-python3 -m site --user-base          # shows e.g. /home/you/.local
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
-```
-
-### Pi not found
-
-Run `/setup` inside a session, or `storageops setup` at the terminal.
-
-### API key missing or wrong
-
-Use `/config set api_key sk-...` inside a session, or `storageops setup` to re-configure.
-
----
+| Command | Description |
+|---------|-------------|
+| `/editor` | Open editor to write long prompts |
+| `/view` | View last report in pager |
+| `/history` | Show command history |
+| `/exit` | Quit session |
 
 ## Next Steps
 
-- **[CLI Reference](cli-reference.md)** — all commands, flags, and output formats
-- **[Architecture Guide](../ARCHITECTURE.md)** — tool registry, skill loading, Pi RPC internals
+- Read the [Tutorial](tutorial.md) for scenario walkthroughs
+- See the [Quick Reference](quick-reference.md) for one-line reference
+- Read the [CLI Reference](cli-reference.md) for advanced usage

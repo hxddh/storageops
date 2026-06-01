@@ -1,74 +1,114 @@
-# Contributing to StorageOps
+# Contributing
 
-StorageOps is a diagnostic agent for S3-compatible object storage, powered by Pi Coding Agent.
+StorageOps is a Pi Coding Agent extension + skill pack. Contributing is simple — you don't need to write Python agent code.
 
-## Development Setup
+## How to Contribute
+
+### Add a New Diagnostic Domain
+
+1. Create a new directory under `skills/`:
+   ```bash
+   mkdir -p skills/storageops-<new-domain>/references
+   ```
+
+2. Write `skills/storageops-<new-domain>/SKILL.md`:
+   ```yaml
+   ---
+   name: storageops-new-domain
+   description: >
+     Brief description of the diagnostic domain.
+   maturity: alpha
+   mode: light_heavy
+   trigger_keywords:
+     - keyword1
+     - keyword2
+   recommended_tools:
+     - scan_secrets
+     - detect_domain
+     - search_memory
+   ---
+
+   # Diagnosis Title
+
+   ## When to Use This Skill
+   ...
+
+   ## Light Diagnosis
+   ...
+
+   ## Deep Diagnosis
+   ...
+   ```
+
+3. Test with Pi:
+   ```bash
+   pi --skills ./skills "test scenario"
+   ```
+
+No code changes needed.
+
+### Improve the Extension
+
+Edit `.pi/extensions/storageops.ts` to add or improve tools. Tools run inline in TypeScript:
+
+```typescript
+pi.registerTool({
+  name: "my_tool",
+  label: "My Tool",
+  description: "What this tool does",
+  parameters: Type.Object({ input: Type.String() }),
+  async execute(_toolCallId, params) {
+    return { content: [{ type: "text", text: JSON.stringify({ result: params.input }) }] };
+  },
+});
+```
+
+### Update Skills
+
+Edit existing SKILL.md files:
+- Add or improve trigger keywords
+- Refine diagnostic instructions
+- Add reference materials
+
+### Project Structure
+
+```
+storageops/
+├── .pi/extensions/storageops.ts   ← Pi extension (edit to add tools)
+├── skills/                        ← Skill packs (edit to add domains)
+│   └── storageops-*/SKILL.md
+├── docs/                          ← Documentation
+├── scripts/                       ← Utility scripts
+├── AGENTS.md                      ← Agent instructions
+├── README.md
+└── CONTRIBUTING.md
+```
+
+### Setup
 
 ```bash
 git clone https://github.com/hxddh/storageops.git
 cd storageops
-pip install -e ".[dev]"
+npm install -g @earendil-works/pi-coding-agent   # if not already installed
 ```
 
-Or with make:
-```bash
-make install-dev
-source .venv/bin/activate
-```
-
-## Project Layout
-
-```
-storageops/
-├── session.py           ← append-only JSONL event log
-├── agent.py             ← stateless conversation loop
-├── pi_runtime.py        ← Pi subprocess manager
-├── context.py           ← prompt construction
-├── display.py           ← ANSI streaming renderer
-├── repl.py              ← interactive REPL
-├── picker.py            ← session selector UI
-├── cli.py               ← all CLI commands
-├── config.py            ← configuration management
-├── tool_registry.py     ← 21 tool definitions + dispatch
-├── action_tools.py      ← Pi extension tool wrappers
-├── tool_bridge.py       ← stdin/stdout bridge for Pi extension
-├── diagnostics.py       ← domain classification + analysis pipeline
-├── pi_installer.py      ← Pi auto-installer
-├── audit_logger.py      ← audit trail logger
-├── audit_reader.py      ← audit trail reader
-├── api_server.py        ← FastAPI REST server
-├── mcp_server.py        ← MCP stdio server
-├── parsers/             ← 12 log parsers (zero-dependency)
-├── analyzers/           ← 10 diagnostic analyzers
-├── utils/               ← secret_scanner, signatures
-├── tests_core/          ← unit + smoke tests
-└── prompts/
-    └── identity.md      ← single identity prompt (~200 tokens)
-```
-
-## Testing
+### Testing
 
 ```bash
-make test          # Run all tests
-ruff check .       # Lint
+# Test a skill
+pi --skills ./skills "test question for the skill"
+
+# Test with golden cases
+cd skills/storageops-eval-golden-cases/cases/<case-name>
+cat input/* | pi --skills ../../../ "diagnose this"
 ```
 
-## Architecture Principles
+### Commit Guidelines
 
-1. **Append-only session** — JSONL event log is never read-then-rewritten
-2. **Pi events as raw JSON** — zero translation, zero custom types
-3. **Stateless agent** — `converse()` is a pure function
-4. **No mode switching** — the model decides chat vs diagnose
-5. **Flat package** — no `core/`, `ui/`, `cli/`, `runtime/` nesting
+- Keep commits small and focused
+- Prefix with `feat:`, `fix:`, `docs:`, or `skill:` for skill pack changes
+- Update CHANGELOG.md for user-facing changes
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.
+## Code of Conduct
 
-## Adding a New Tool
-
-1. Add a parser or analyzer module in `storageops/parsers/` or `storageops/analyzers/`
-2. Register it in `tool_registry.py` (tool definition + dispatch handler)
-3. Add the Pi extension definition in `.pi/extensions/storageops.ts`
-
-## License
-
-MIT
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)

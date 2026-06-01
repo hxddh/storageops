@@ -7,39 +7,77 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.11', '3.12', '3.13']
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install
+      - name: Validate skills
         run: |
-          pip install -e .
-          pip install ruff pytest
+          echo "=== Checking skill count ==="
+          skill_count=$(ls -d skills/storageops-*/ | wc -l)
+          echo "Skills found: $skill_count"
+          test "$skill_count" -ge 10 || { echo "ERROR: Expected >= 10 skills, found $skill_count"; exit 1; }
 
-      - name: Lint (ruff)
-        run: ruff check storageops/
-
-      - name: Unit tests (pytest)
-        run: pytest storageops/tests_core/ -v
-
-      - name: Smoke tests
-        run: python storageops/tests_core/smoke_test.py
-
-      - name: Import check
+      - name: Validate SKILL.md files
         run: |
-          python -c "from storageops.session import Session; print('session OK')"
-          python -c "from storageops.agent import converse; print('agent OK')"
-          python -c "from storageops.pi_runtime import PiRuntime; print('pi_runtime OK')"
-          python -c "from storageops.parsers.parse_rclone_log import parse; print('parsers OK')"
-          python -c "from storageops.analyzers.detect_throttling import detect; print('analyzers OK')"
-          python -c "import storageops; print(storageops.__version__)"
+          echo "=== Checking SKILL.md files ==="
+          for skill in skills/*/SKILL.md; do
+            name=$(basename $(dirname $skill))
+            if ! grep -q "^name:" "$skill"; then
+              echo "ERROR: $name SKILL.md missing 'name:' field"
+              exit 1
+            fi
+            if ! grep -q "scan_secrets" "$skill"; then
+              echo "ERROR: $name SKILL.md missing scan_secrets reference"
+              exit 1
+            fi
+            echo "  OK: $name"
+          done
+          echo "All skills validated."
+
+  check-extension:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate extension
+        run: |
+          echo "=== Checking extension file ==="
+          if [ ! -f .pi/extensions/storageops.ts ]; then
+            echo "ERROR: Extension file not found"
+            exit 1
+          fi
+          if ! grep -q "scan_secrets" .pi/extensions/storageops.ts; then
+            echo "ERROR: scan_secrets tool not found in extension"
+            exit 1
+          fi
+          if ! grep -q "detect_domain" .pi/extensions/storageops.ts; then
+            echo "ERROR: detect_domain tool not found in extension"
+            exit 1
+          fi
+          if ! grep -q "search_memory" .pi/extensions/storageops.ts; then
+            echo "ERROR: search_memory tool not found in extension"
+            exit 1
+          fi
+          echo "Extension validated."
+
+  check-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate documentation
+        run: |
+          echo "=== Checking document files ==="
+          for doc in README.md AGENTS.md CONTRIBUTING.md docs/getting-started.md docs/tutorial.md docs/cli-reference.md docs/quick-reference.md docs/ARCHITECTURE.md; do
+            if [ ! -f "$doc" ]; then
+              echo "ERROR: $doc not found"
+              exit 1
+            fi
+            echo "  OK: $doc ($(wc -l < $doc) lines)"
+          done
+          echo "All docs validated."

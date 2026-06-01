@@ -1,236 +1,87 @@
 # CLI Reference
 
-## Interactive session — `storageops`
+StorageOps v0.4.0 is a Pi Coding Agent extension + skill pack. All interaction is natural-language conversation through Pi's REPL or API.
 
-Run `storageops` to start an interactive session. That's the primary interface.
-
-```bash
-storageops                                         # start a session
-storageops "getting 429 SlowDown on S3 uploads"   # start with a description
-storageops @error.log                              # start with a file reference
-storageops < error.log                             # pipe via stdin
-aws s3 cp s3://bucket/key . 2>&1 | storageops      # pipe CLI output directly
-```
-
-Inside a session, type `/` to see all available commands:
-
-| Command | Action |
-|---------|--------|
-| `/help` | Show available commands |
-| `/history` | Show command history (`/history <N>` for last N) |
-| `/resume` | Pick a past session to continue |
-| `/clear` | Start a fresh session |
-| `/status` | Show session ID, Pi and API key status |
-| `/config` | View or change configuration (`/config set <key> <value>`) |
-| `/editor` | Open `$EDITOR` (vim/nano) to write a long prompt |
-| `/view` | Open last report in a pager (`less -R`) for full-screen browsing |
-| `/memory` | Browse past diagnosed cases (`/memory search <query>`) |
-| `/update` | Download latest Pi binary and reinstall skills |
-| `/doctor` | Check environment health |
-| `/setup` | Re-run setup (API key, Pi install) |
-| `/verbose` | Toggle verbose output (shows tool calls) |
-| `/exit` | Quit |
-
-**Tips for the prompt line (`›`):**
-- `$ cmd` — run a shell command and add its output as session evidence
-- `@file` — attach a file by path, glob, or fuzzy prefix (e.g., `@*.log`, `@s5cmd*`)
-- `\` at end of line — continue input on the next line (multi-line prompts)
-- Paste detection — multi-line clipboard content is auto-detected
-- `↑`/`↓` (or `Ctrl+R`) — browse command history
-
-Sessions are saved automatically to `~/.storageops/sessions/`.
-
----
-
-## First-time setup — `storageops setup`
-
-Run once after installing:
+## Usage
 
 ```bash
-storageops setup
+# Interactive REPL (with StorageOps skills loaded)
+storageops
+
+# Equivalent Pi invocation
+pi --skills ~/.pi/storageops/skills
+
+# Single-turn diagnosis
+pi --skills ~/.pi/storageops/skills "s5cmd 429 SlowDown 报错"
+
+# Resume a previous session
+pi --resume <session-id>
 ```
 
-Downloads Pi Coding Agent, asks for your API key, and saves configuration to `~/.storageops/config.json`. Provider is auto-detected from key prefix (`sk-ant-` → Anthropic, `sk-` → OpenAI).
+## Slash Commands (in REPL)
 
----
+| Command | Description |
+|---------|-------------|
+| `/editor` | Open $EDITOR for multi-line prompt input |
+| `/view` | Open last assistant response in pager |
+| `/history` | Show command history |
+| `/exit` | Exit REPL |
+| `/reload` | Reload extensions and skills |
 
-## Server commands
+## Prompt-Line Tips
 
-### `storageops mcp`
+| Input | Effect |
+|-------|--------|
+| `$ <command>` | Run shell command; output added to session evidence |
+| `@<filename>` | Resolve file path; file content read into prompt |
+| `\` at line end | Continue input on next line |
+| `Tab` | File path completion (after @) |
 
-Start the MCP (Model Context Protocol) stdio server for **Claude Desktop** and other MCP clients.
+## Environment
+
+StorageOps uses Pi's native configuration. Configure provider and API key in Pi:
 
 ```bash
-storageops mcp
+pi --provider deepseek --api-key sk-...
 ```
 
-**Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-```json
-{
-  "mcpServers": {
-    "storageops": {
-      "command": "storageops",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-> **Note:** `storageops mcp` is for Claude Desktop / external MCP clients.
-> **Pi Coding Agent does not use MCP.** Pi receives tools via the TypeScript Extension at
-> `.pi/extensions/storageops.ts`, which is auto-discovered on startup. No extra command needed.
-
-### `storageops serve`
-
-Start the FastAPI HTTP API server and web UI.
+Or set environment variables:
 
 ```bash
-storageops serve [--host 127.0.0.1] [--port 8080] [--reload]
+export ANTHROPIC_API_KEY=sk-ant-...
+export DEEPSEEK_API_KEY=sk-...
 ```
 
-Requires: `pip install "storageops[api]"` (FastAPI + uvicorn).
+## Skills
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /` | Web UI |
-| `POST /triage` | `{"text": "..."}` → triage result |
-| `POST /analyze` | `{"text": "...", "domain": "..."}` → analysis |
-| `GET /stream/triage` | SSE stream of triage progress events |
-| `POST /analyze/stream` | SSE stream of analysis progress events |
-| `GET /domains` | List all supported diagnostic domains |
-| `GET /memory` | List recent cases |
-| `GET /memory/search?q=…` | BM25 keyword search |
-| `GET /health` | `{"ok": true, "version": "0.3.0"}` |
+15 skill packs in `skills/`. Pi auto-loads them via `--skills` flag. Each skill has trigger keywords that auto-activate when the conversation matches a specific domain.
 
----
+To add a new domain, create a new directory under `skills/` with a `SKILL.md` file. No code changes required.
 
-## CI / scripting commands
-
-These are hidden from `--help` but fully supported for automation pipelines.
-
-### `storageops diagnose <file|->`
-
-Run Pi Coding Agent for full AI diagnosis of a single evidence file.
+## Health Check
 
 ```bash
-storageops diagnose error.log
-storageops diagnose error.log --stream
-storageops diagnose error.log --exit-code    # exit 1 if severity high/critical
-cat error.log | storageops diagnose -
+# Pi doctor check
+pi doctor
 ```
 
-`agent` is a hidden alias (identical behavior).
+## API Server
 
-**How Pi receives tools:** StorageOps registers all 21 diagnostic tools in Pi via a TypeScript
-Extension (`.pi/extensions/storageops.ts`). Pi discovers this extension automatically from
-`.pi/settings.json`. The extension bridges tool calls to Python via `runtime/tool_bridge.py`.
+StorageOps does not include a standalone API server (removed in v0.4.0). Pi Coding Agent provides APIs through its SDK. See [Pi SDK documentation](https://github.com/earendil-works/pi/blob/main/docs/sdk.md).
 
-**Options:**
-```
---stream                 Stream Pi output token-by-token
---max-turns N            Max Pi turns (default: 8)
---timeout-seconds N      Timeout in seconds (default: 600)
---format human|json      Output format (default: human)
---exit-code              Exit 1 if severity is high or critical
---verbose, -v            Print pre-flight details to stderr
-```
+## Previous Commands (removed in v0.4.0)
 
-**Output:** Markdown diagnostic report with YAML frontmatter:
-```markdown
----
-category: cli_sdk_behavior
-root_cause_type: multipart_etag_format_mismatch
-confidence: 0.92
-severity: high
----
-## Summary
-...
-## Remediation
-- manual-only: aws s3api ...
-```
+The following standalone CLI commands were removed when StorageOps was redesigned as a Pi extension:
 
-### `storageops triage <file|->`
-
-Rule-based domain classification. No LLM, no Pi required. Instant.
-
-```bash
-storageops triage error.log
-storageops triage error.log --format json
-cat error.log | storageops triage -
-```
-
-**JSON output:**
-```json
-{
-  "ok": true,
-  "primary_domain": "performance_throughput",
-  "all_domains": ["performance_throughput", "cli_sdk_behavior"],
-  "scores": {"performance_throughput": 0.55, "cli_sdk_behavior": 0.25},
-  "evidence_quality": "partial",
-  "recommended_next_command": "storageops analyze performance_throughput <file>"
-}
-```
-
-### `storageops analyze <domain> <file|->`
-
-Domain-specific parser + analyzer pipeline. No Pi required.
-
-```bash
-storageops analyze security_iam_policy policy.json
-storageops analyze performance_throughput s3-access.log
-storageops analyze cli_sdk_behavior rclone.log
-storageops analyze network_endpoint_access dig-output.txt
-```
-
-**Domains:** `s3_protocol_compatibility`, `cors_configuration`, `replication_versioning`,
-`bigdata_pipeline`, `cli_sdk_behavior`, `performance_throughput`, `security_iam_policy`,
-`lifecycle_cost`, `mount_filesystem_workspace`, `network_endpoint_access`
-
-### `storageops eval` (offline — no Pi required)
-
-Run golden case evaluation. Without `--outputs-dir`, runs **fast triage eval**: loads
-`input/` files from each case, runs rule-based `auto_detect()`, and checks the top domain
-against `expected_category` in `expected.json`. No LLM or Pi needed.
-
-```bash
-storageops eval --all                         # fast triage eval, 20/20 pass out of the box
-storageops eval --case rclone-corrupted-transfer   # fast eval for one case
-storageops eval --all --outputs-dir ./diagnoses/   # compare pre-generated LLM outputs
-```
-
-**Options:**
-```
---cases-dir <path>     Golden cases directory (default: agents/skills/.../cases)
---outputs-dir <path>   Dir with pre-generated <case>.md files (omit for fast eval)
---case <name>          Evaluate a single case
---all                  Evaluate all cases
-```
-
----
-
-### `storageops scan <files…>`
-
-Triage multiple files at once and print a summary table.
-
-```bash
-storageops scan logs/*.log
-storageops scan error1.log error2.log --output report.md
-```
-
-### `storageops report <analysis.json>`
-
-Render a saved analysis JSON as Markdown.
-
-```bash
-storageops report analysis.json
-```
-
----
-
-## Environment Variables
-
-| Variable | Purpose |
-|----------|---------|
-| `STORAGEOPS_EMIT_METRICS` | Write triage confidence to `storageops-eval-metrics.json` after pytest |
-| `GITHUB_ACTIONS` | Auto-enables metric emission in CI |
-| `RUN_REAL_PI_SMOKE` | Set to `1` to run real Pi smoke tests in CI (disabled by default) |
+- `storageops diagnose` — replaced by natural conversation in Pi REPL
+- `storageops triage` — replaced by `detect_domain` tool
+- `storageops analyze` — replaced by skill-pack instructions
+- `storageops serve` — removed; use Pi SDK
+- `storageops mcp` — removed; use Pi SDK
+- `storageops config` — use Pi configuration
+- `storageops setup` — use Pi setup + git clone
+- `storageops doctor` — use `pi doctor`
+- `storageops eval` — use golden cases manually
+- `storageops audit` — use Pi session replay
+- `storageops memory` — use Pi session list
+- `storageops resume` — use `pi --resume`

@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.4.0 — 2026-06-01: Lightweight Pi Extension Redesign
+
+**Zero Python agent code** — the entire 48-file Python agent package has been deleted.
+StorageOps is now a pure Pi Coding Agent extension + skill pack.
+
+### Removed
+- **storageops/** Python package (48 files) — all agent loop, session management,
+  tool dispatch, CLI, REPL, API server, MCP server, config, audit, diagnostics
+- **parsers/**, **analyzers/**, **utils/** directories — 21 files deleted.
+  LLM reads raw logs directly; no pre-parsing needed.
+- **tool_bridge.py** + `spawnSync` — tools now run inline in TypeScript extension
+- **docs/review/** — 7 old review documents removed
+
+### Added
+- **`.pi/extensions/storageops.ts`** — rewritten as standalone TypeScript extension
+  with 3 inline tools: `scan_secrets`, `detect_domain`, `search_memory`
+- **`storageops_cli.py`** — thin CLI shim that forwards to `pi`
+
+### Changed
+- **skills/** moved to root (was `agents/skills/`)
+- **All SKILL.md files** updated — `recommended_tools` reduced to 3 tools
+- **README, AGENTS.md, docs/** — completely rewritten for new architecture
+- **pyproject.toml** — slimmed to optional thin CLI, no heavy deps
+
+### Architecture
+- **Agent loop**: Pi Coding Agent (was custom agent.py)
+- **Session**: Pi session manager (was custom session.py)
+- **Tools**: Pi Extension API (was tool_bridge.py + if-elif dispatch)
+- **Diagnostic logic**: SKILL.md instructions (was parsers/analyzers)
+- **UI**: Pi TUI (was custom display.py + repl.py)
+
 ## v0.3.0 — 2026-06-01: Complete architecture rebuild
 
 **Unified package** — merged `storageops-cli` + `storageops-core` into single `storageops` package.
