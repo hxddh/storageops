@@ -590,7 +590,6 @@ def _init_readline() -> None:
     hist_file.parent.mkdir(parents=True, exist_ok=True)
     try:
         readline.read_history_file(str(hist_file))
-        # Load into in-memory tracker too
         for i in range(readline.get_current_history_length()):
             _HISTORY_LINES.append(readline.get_history_item(i + 1))
     except (OSError, FileNotFoundError):
@@ -605,19 +604,64 @@ def _init_readline() -> None:
             pass
     atexit.register(_save)
 
-    # ── Tab completion for slash commands ────────────────────────
+    # ── Tab completion: slash commands + @file paths ────────────
+    def _path_completer(prefix: str, state: int) -> str | None:
+        """Complete file paths after @ prefix."""
+        # Separate the @ prefix and the actual path
+        at_idx = prefix.find("@")
+        path_str = prefix[at_idx + 1:] if at_idx >= 0 else prefix
+        path_str = os.path.expanduser(path_str) if path_str.startswith("~") else path_str
+
+        basedir = os.path.dirname(path_str) or "."
+        partial = os.path.basename(path_str)
+
+        try:
+            entries = []
+            for name in os.listdir(basedir):
+                if name.startswith(partial) and not name.startswith("."):
+                    full = os.path.join(basedir, name)
+                    suffix = "/" if os.path.isdir(full) else ""
+                    entries.append(full + suffix)
+            # Sort: directories first, then alphabetically
+            entries.sort(key=lambda e: (0 if e.endswith("/") else 1, e.lower()))
+            if state < len(entries):
+                # Return just the path part (caller prepends @)
+                return entries[state]
+            return None
+        except OSError:
+            return None
+
     def _completer(text: str, state: int) -> str | None:
         if text.startswith("/"):
             matches = [c + " " for c in _SLASH_CMDS if c.startswith(text)]
             return matches[state] if state < len(matches) else None
+        if "@" in text:
+            # Complete the path portion after the last @
+            at_pos = text.rfind("@")
+            prefix = text[at_pos:]  # includes @
+            path = _path_completer(prefix, state)
+            if path is not None:
+                return text[:at_pos] + "@" + path
+            return None
         return None
 
     def _display_matches(substitution: str, matches: list[str], longest: int) -> None:
         print()
-        for m in matches:
-            cmd = m.strip()
-            desc = _SLASH_CMD_HELP.get(cmd, "")
-            print(f"  {_cyan(cmd):<22}  {_dim(desc)}")
+        if substitution and "@" in substitution:
+            # Show file metadata for @ matches
+            for m in matches[:20]:
+                try:
+                    st = os.stat(m)
+                    kind = _dim("dir ") if os.path.isdir(m) else ""
+                    size = _dim(f"{st.st_size}B") if os.path.isfile(m) else ""
+                    print(f"  {_cyan(m)}  {kind}{size}")
+                except OSError:
+                    print(f"  {_cyan(m)}")
+        else:
+            for m in matches:
+                cmd = m.strip()
+                desc = _SLASH_CMD_HELP.get(cmd, "")
+                print(f"  {_cyan(cmd):<22}  {_dim(desc)}")
         print()
         readline.redisplay()
 
@@ -625,6 +669,62 @@ def _init_readline() -> None:
     readline.set_completion_display_matches_hook(_display_matches)
     readline.parse_and_bind("tab: complete")
     readline.set_completer_delims(" \t\n")
+
+
+# ── Ghost-text auto-suggestions (optional, prompt_toolkit) ───────────
+
+_PTK_AVAILABLE = False
+_PTK_SESSION: Any = None
+
+
+def _init_ptk() -> bool:
+    """Initialize prompt_toolkit for ghost-text suggestions. Returns True if available."""
+    global _PTK_AVAILABLE
+    try:
+        __import__("prompt_toolkit")
+        _PTK_AVAILABLE = True
+    except ImportError:
+        _PTK_AVAILABLE = False
+    return _PTK_AVAILABLE
+
+
+def _read_input_ptk(prompt: str | None = None) -> str | None:
+    """
+    Read input with prompt_toolkit: ghost-text history suggestions + multi-line paste.
+    Falls back to readline-based _read_input if prompt_toolkit is not installed.
+    """
+    if not _PTK_AVAILABLE or not _PTK_SESSION:
+        return _read_input(prompt)
+
+    try:
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.history import FileHistory
+        from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+        from prompt_toolkit.styles import Style
+
+        style = Style.from_dict({
+            "prompt": "#00aaaa bold",
+            "": "",
+            "auto-suggestion": "#555555",
+        })
+
+        _prompt = prompt if prompt else f"  ›  "
+        hist_file = str(_history_file())
+        _history_file().parent.mkdir(parents=True, exist_ok=True)
+
+        session = PromptSession(
+            history=FileHistory(hist_file),
+            auto_suggest=AutoSuggestFromHistory(),
+            style=style,
+            completer=None,  # readline handles completion separately
+        )
+
+        text = session.prompt(_prompt)
+        return text if text and text.strip() else text
+    except (EOFError, KeyboardInterrupt):
+        return None
+    except Exception:
+        return _read_input(prompt)
 
 
 # ── Input reading ─────────────────────────────────────────────────────
@@ -1170,6 +1270,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
     """Start the interactive diagnostic session (Pi Coding Agent style)."""
     _init_readline()
     _init_highlighting()
+    _init_ptk()
 
     # Load or create session
     if resume_session:
@@ -1219,7 +1320,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
     _empty_hint_shown = False
     while True:
         try:
-            text = _read_input(_make_prompt(session.session_id))
+            text = _read_input_ptk(_make_prompt(session.session_id))
         except KeyboardInterrupt:
             print(f"\n  {_dim('/exit to quit')}\n")
             continue
