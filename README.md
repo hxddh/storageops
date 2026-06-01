@@ -1,172 +1,127 @@
 # StorageOps
 
-S3-compatible object storage diagnostic toolkit. A **Pi Coding Agent extension + skill pack** — StorageOps teaches AI agents to diagnose object storage issues across security, performance, network, lifecycle, replication, and more.
+**S3 兼容对象存储 AI 诊断工具** — 一个 [Pi Coding Agent](https://github.com/earendil-works/pi-coding-agent) 的扩展包。
 
-## What is StorageOps?
-
-StorageOps is a set of **15 diagnostic skill packs** and **3 tools** that run as a Pi Coding Agent extension. It teaches the AI agent how to:
-
-- 🔍 **Triage** storage issues by scanning logs, errors, and user reports
-- 🛡️ **Detect and redact credentials** before analysis
-- 📊 **Diagnose** root causes across 12+ domains (IAM, throttling, TLS, replication, cost...)
-- 📝 **Generate** structured diagnosis reports with evidence and recommendations
-- 🧪 **Validate** diagnosis quality with golden test cases
-
-StorageOps is **not a standalone agent** — it runs on top of Pi Coding Agent, which handles the agent loop, session management, tool dispatch, and UI.
-
-## Architecture
-
-```
-User → pi (Pi Coding Agent)
-         │
-         ├─ .pi/extensions/storageops.ts  ← 3 tools (scan_secrets, detect_domain, search_memory)
-         │
-         └─ skills/  ← 15 diagnostic skill packs
-              ├─ storageops-triage/
-              ├─ storageops-security-iam-policy/
-              ├─ storageops-performance-diagnosis/
-              ├─ storageops-network-endpoint-access/
-              ├─ ... (11 more)
-              └─ storageops-eval-golden-cases/
-```
-
-**Zero Python agent code.** The old 48-file Python agent package has been removed. StorageOps is now a pure Pi extension + skill pack.
-
-## Install
+遇到 `AccessDenied`、`SlowDown`、`SignatureDoesNotMatch`、`corrupted on transfer` 之类的 S3 错误？直接把错误信息丢给 StorageOps，AI 帮你诊断根因。
 
 ```bash
-# Install Pi Coding Agent
-curl -fsSL https://raw.githubusercontent.com/hxddh/storageops/main/scripts/install-pi.sh | bash
-
-# Clone StorageOps skill pack
-git clone https://github.com/hxddh/storageops.git ~/.pi/storageops
-
-# Configure Pi to use StorageOps
-ln -sf ~/.pi/storageops/.pi/extensions/storageops.ts ~/.pi/agent/extensions/storageops.ts
-ln -sf ~/.pi/storageops/skills ~/.pi/agent/skills/storageops
-
-# Or use the thin CLI shim
-cd ~/.pi/storageops && pip install -e .
+pip install storageops    # 安装
+storageops install         # 初始化
+storageops 's5cmd sync 报 429 SlowDown'  # 诊断
 ```
 
-Requires:
-- **Pi Coding Agent** (>= v0.78.0) — `which pi`
-- **Node.js** (>= 18) — for running Pi
-- **Python** (>= 3.11) — optional, for the thin CLI shim
+## 为什么选 StorageOps
 
-## Quick Start
+| | 传统排查 | StorageOps |
+|---|---------|------------|
+| 504/403/429 诊断 | Google → 论坛 → 工单 | 一个命令，30 秒出结果 |
+| 跨服务商差异 | 逐个查文档 | 15 个技能包覆盖 AWS/BOS/OSS/COS/MinIO |
+| 安全 | 手动脱敏 | `scan_secrets` 自动扫描 + 脱敏 |
+| 安装 | 克隆仓库 + 8 步配置 | `pip install` + `storageops install` |
+
+## 快速开始
+
+### 1. 安装
 
 ```bash
-# Start Pi with StorageOps skills loaded
-pi --skills ~/.pi/storageops/skills
+pip install storageops
+storageops install
+```
 
-# Or use the thin CLI wrapper
+> 如果你已经在用 Pi Coding Agent，安装时会检测到 `~/.pi/` 并询问是否合并。
+
+### 2. 配置 API Key
+
+```bash
+export ANTHROPIC_API_KEY=sk-xxx
+```
+
+### 3. 诊断
+
+```bash
+# 交互式（推荐）
 storageops
+
+# 单次诊断
+storageops --print 's5cmd sync 报 429 SlowDown 错误，快速诊断'
+
+# 分析日志文件
+storageops --print @/path/to/rclone-debug.log '这个 rclone 日志分析一下'
 ```
 
-Then just start talking:
+## 支持的诊断场景
 
-```
-> I have a 403 AccessDenied error in my S3 bucket. Here's my IAM policy: ...
-> rclone sync is failing with "corrupted on transfer" for large files
-> My s5cmd sync is getting 429 SlowDown errors
-```
+| 技能包 | 领域 |
+|--------|------|
+| `storageops-triage` | 入口分流 |
+| `storageops-security-iam-policy` | 403 / KMS / Bucket Policy |
+| `storageops-performance-diagnosis` | 429 / 限流 / 性能瓶颈 |
+| `storageops-s3-protocol-compatibility` | SigV4 / CORS / 协议兼容 |
+| `storageops-cli-sdk-diagnosis` | rclone / s5cmd / awscli / boto3 |
+| `storageops-network-endpoint-access` | DNS / TLS / VPC Endpoint |
+| `storageops-lifecycle-cost` | 生命周期 / 成本分析 |
+| `storageops-replication-versioning` | CRR / SRR / DeleteMarker |
+| `storageops-mount-filesystem-workspace` | s3fs / FUSE / 工作空间 |
+| `storageops-migration-sync` | 数据迁移 / 同步 |
+| `storageops-data-consistency` | ETag / Checksum |
+| `storageops-bigdata-pipeline` | Spark / Hive / S3A |
+| `storageops-event-notification` | SQS / Lambda 通知 |
+| `storageops-evidence-reporting` | 诊断报告生成 |
+| `storageops-eval-golden-cases` | 质量验证 |
 
-The AI agent automatically:
-1. Runs `scan_secrets` to redact credentials
-2. Runs `detect_domain` to classify the issue
-3. Activates the relevant skill pack(s)
-4. Diagnoses root cause and recommends fixes
+## 内置工具
 
-## Skill Packs
+| 工具 | 用途 |
+|------|------|
+| `scan_secrets` | 扫描 + 脱敏 AK/SK/token 等凭据 |
+| `detect_domain` | 签名识别错误类别（403/429/SigV4 等） |
+| `search_memory` | 搜索历史 Session 中的诊断记录 |
 
-| Skill | Domain |
-|-------|--------|
-| `storageops-triage` | Auto-classify issue domain from evidence |
-| `storageops-security-iam-policy` | 403, AccessDenied, IAM, KMS, bucket policy |
-| `storageops-performance-diagnosis` | 429, SlowDown, throughput, throttling |
-| `storageops-network-endpoint-access` | DNS, TLS, VPC endpoint, connectivity |
-| `storageops-cli-sdk-diagnosis` | awscli, boto3, rclone, s5cmd, bcecmd, obsutil |
-| `storageops-lifecycle-cost` | Lifecycle rules, storage class, cost optimization |
-| `storageops-replication-versioning` | CRR, SRR, versioning, replication lag |
-| `storageops-migration-sync` | Cross-cloud migration, data sync |
-| `storageops-mount-filesystem-workspace` | FUSE mount, rclone mount, s3fs |
-| `storageops-data-consistency` | Stale reads, replica mismatch, ETag mismatch |
-| `storageops-bigdata-pipeline` | Spark, Hive, Hadoop S3A connector |
-| `storageops-event-notification` | S3 event notifications, SQS, Lambda |
-| `storageops-s3-protocol-compatibility` | SigV4, CORS, ETag, API compatibility |
-| `storageops-evidence-reporting` | Structured diagnosis report generation |
-| `storageops-eval-golden-cases` | Golden-case regression testing |
+## 安装详情
 
-## Tools
-
-| Tool | Purpose |
-|------|---------|
-| `scan_secrets` | Scan and redact credentials (AWS keys, tokens, rclone secrets) |
-| `detect_domain` | Classify evidence into diagnostic domains |
-| `search_memory` | Search past sessions for similar issues |
-
-## CLI Commands
-
-The thin CLI shim forwards to Pi:
+### 独立安装（默认）
 
 ```bash
-storageops                    # Interactive REPL (same as `pi`)
-storageops "diagnose 403..."  # Single-turn diagnosis
+storageops install
+```
+→ 安装到 `~/.storageops/`，不影响你已有的 Pi 配置。
+
+### 合并安装
+
+```bash
+storageops install --merge
+```
+→ 安装到 `~/.pi/`，融入现有的 Pi 环境。自动备份 `settings.json`。
+
+### 强制重装
+
+```bash
+storageops install --force
 ```
 
-All diagnostic work happens through Pi's agent loop. There are no separate CLI subcommands for each diagnosis type — just describe the problem naturally.
+## 架构
 
-## Supported Providers
+```
+User → storageops CLI (25 行)
+         └→ pi (Pi Coding Agent, 原生)
+               ├→ storageops.ts (3 inline TypeScript 扩展工具)
+               └→ skills/*.SKILL.md (15 个诊断技能包)
+```
 
-- AWS S3
-- Alibaba Cloud OSS
-- Tencent Cloud COS
-- Baidu BOS
-- MinIO
-- Ceph RGW
-- GCP Cloud Storage (S3-compatible)
-- Any S3-compatible endpoint
+- **零 Python agent 代码** — 所有 agent loop / session / tool dispatch 由 Pi 原生处理
+- **零子进程** — 工具在 Pi TypeScript 运行时内联执行
+- **零配置** — `storageops install` 一键完成
 
-## Development
+## 开发
 
 ```bash
 git clone https://github.com/hxddh/storageops.git
 cd storageops
-
-# Edit the extension
-vim .pi/extensions/storageops.ts
-
-# Edit skill packs
-vim skills/storageops-triage/SKILL.md
-
-# Test with Pi
-pi --skills ./skills
+pip install -e .
+storageops install
 ```
 
-### Project Structure
-
-```
-storageops/
-├── .pi/
-│   ├── extensions/storageops.ts   ← Pi extension (3 tools)
-│   └── settings.json
-├── skills/                        ← 15 diagnostic skill packs
-│   ├── storageops-triage/
-│   ├── storageops-security-iam-policy/
-│   └── ...
-├── docs/                          ← Documentation
-├── scripts/                       ← Utility scripts
-├── AGENTS.md                      ← Agent instruction file
-├── README.md
-├── CONTRIBUTING.md
-├── pyproject.toml                 ← Thin CLI shim build
-└── storageops_cli.py              ← Pi forwarding shim
-```
-
-## Security
-
-StorageOps never connects to real cloud accounts, executes write operations, or exposes credentials. The `scan_secrets` tool redacts all credentials before any analysis. See [SECURITY.md](SECURITY.md) for details.
+贡献方式：修改 `skills/` 下的 SKILL.md 或 `storageops_cli/extensions/storageops.ts`，提交 PR。
 
 ## License
 

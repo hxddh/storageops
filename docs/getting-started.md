@@ -1,70 +1,57 @@
-# Getting Started
+# 快速上手
 
-## Step 1 — Install Pi Coding Agent
+2 分钟上手 StorageOps。
 
-StorageOps runs on top of Pi Coding Agent. Install Pi first:
+## 1. 安装
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hxddh/storageops/main/scripts/install-pi.sh | bash
+pip install storageops
+storageops install
 ```
 
-Or install Pi manually:
+> **前提**：机器上需有 Node.js ≥ 20，用于运行 Pi Coding Agent。
+> 如果没有：`curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs`
+
+## 2. 配置 API Key
 
 ```bash
-npm install -g @earendil-works/pi-coding-agent
+# 环境变量（推荐）
+export ANTHROPIC_API_KEY=sk-xxx
+
+# 或在 Pi REPL 中登录
+pi /login
 ```
 
-## Step 2 — Install StorageOps
+## 3. 第一次诊断
 
 ```bash
-git clone https://github.com/hxddh/storageops.git
-cd storageops
-pip install -e .   # thin CLI shim (optional)
-```
-
-This gives you the `storageops` command which forwards to `pi` with StorageOps skills loaded.
-
-## Step 3 — Start a session
-
-```bash
+# 交互模式
 storageops
+
+# 单次诊断
+storageops --print 's5cmd sync 报了大量 429 SlowDown，帮我分析原因'
 ```
 
-Or directly with Pi:
+## 4. 分析日志
 
 ```bash
-pi --skills ./skills
+# 用 @ 前缀传入文件
+storageops --print @/path/to/rclone-debug.log '分析这个 rclone 日志'
 ```
 
-## Step 4 — Describe your issue
+## 5. 查看帮助
 
-Just type naturally:
-
-```
-> I'm getting 429 SlowDown errors with s5cmd sync. Here's the log: [paste log]
-> My rclone mount keeps dropping with "corrupted on transfer" for files > 100MB
-> DNS resolution is failing for my VPC endpoint — nslookup shows NXDOMAIN
+```bash
+storageops --help
+storageops --version
 ```
 
-The AI agent will:
-1. Call `scan_secrets` to redact any credentials
-2. Call `detect_domain` to classify the issue
-3. Activate the appropriate skill pack(s)
-4. Diagnose root cause and provide recommendations
+## 常见问题
 
-## Slash commands (in REPL)
+**Q: 我已经有 Pi Coding Agent，会有冲突吗？**
 
-During an interactive session, you can use Pi's slash commands:
+A: 不会。默认安装到 `~/.storageops/`，与 `~/.pi/` 完全隔离。如需合并，运行 `storageops install --merge`。
 
-| Command | Description |
-|---------|-------------|
-| `/editor` | Open editor to write long prompts |
-| `/view` | View last report in pager |
-| `/history` | Show command history |
-| `/exit` | Quit session |
+**Q: 诊断时需要我提供 AK/SK 吗？**
 
-## Next Steps
-
-- Read the [Tutorial](tutorial.md) for scenario walkthroughs
-- See the [Quick Reference](quick-reference.md) for one-line reference
-- Read the [CLI Reference](cli-reference.md) for advanced usage
+A: 不需要！StorageOps 不会连接你的云账户。`scan_secrets` 工具会自动扫描并脱敏日志中的凭据。

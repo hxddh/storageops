@@ -1,114 +1,39 @@
 # Contributing
 
-StorageOps is a Pi Coding Agent extension + skill pack. Contributing is simple — you don't need to write Python agent code.
+StorageOps 欢迎贡献！本项目是一个 Pi Coding Agent 扩展包，贡献方式很简单。
 
-## How to Contribute
+## 贡献方式
 
-### Add a New Diagnostic Domain
+### 贡献诊断技能
 
-1. Create a new directory under `skills/`:
-   ```bash
-   mkdir -p skills/storageops-<new-domain>/references
-   ```
+1. 在 `skills/` 下创建 `storageops-<domain>/SKILL.md`
+2. 在 `skill-registry.yaml` 中注册
+3. 提交 PR
 
-2. Write `skills/storageops-<new-domain>/SKILL.md`:
-   ```yaml
-   ---
-   name: storageops-new-domain
-   description: >
-     Brief description of the diagnostic domain.
-   maturity: alpha
-   mode: light_heavy
-   trigger_keywords:
-     - keyword1
-     - keyword2
-   recommended_tools:
-     - scan_secrets
-     - detect_domain
-     - search_memory
-   ---
+### 贡献工具
 
-   # Diagnosis Title
+编辑 `storageops_cli/extensions/storageops.ts`，使用 `pi.registerTool()` 注册新工具。
 
-   ## When to Use This Skill
-   ...
+### 改进 CLI
 
-   ## Light Diagnosis
-   ...
+编辑 `storageops_cli/__init__.py`。
 
-   ## Deep Diagnosis
-   ...
-   ```
-
-3. Test with Pi:
-   ```bash
-   pi --skills ./skills "test scenario"
-   ```
-
-No code changes needed.
-
-### Improve the Extension
-
-Edit `.pi/extensions/storageops.ts` to add or improve tools. Tools run inline in TypeScript:
-
-```typescript
-pi.registerTool({
-  name: "my_tool",
-  label: "My Tool",
-  description: "What this tool does",
-  parameters: Type.Object({ input: Type.String() }),
-  async execute(_toolCallId, params) {
-    return { content: [{ type: "text", text: JSON.stringify({ result: params.input }) }] };
-  },
-});
-```
-
-### Update Skills
-
-Edit existing SKILL.md files:
-- Add or improve trigger keywords
-- Refine diagnostic instructions
-- Add reference materials
-
-### Project Structure
-
-```
-storageops/
-├── .pi/extensions/storageops.ts   ← Pi extension (edit to add tools)
-├── skills/                        ← Skill packs (edit to add domains)
-│   └── storageops-*/SKILL.md
-├── docs/                          ← Documentation
-├── scripts/                       ← Utility scripts
-├── AGENTS.md                      ← Agent instructions
-├── README.md
-└── CONTRIBUTING.md
-```
-
-### Setup
+## 开发设置
 
 ```bash
 git clone https://github.com/hxddh/storageops.git
 cd storageops
-npm install -g @earendil-works/pi-coding-agent   # if not already installed
+pip install -e .
+storageops install
 ```
 
-### Testing
+## 文档
 
-```bash
-# Test a skill
-pi --skills ./skills "test question for the skill"
+- `README.md` — 用户文档
+- `AGENTS.md` — AI Agent 开发指南
+- `docs/` — 详细文档
+- `skill-registry.yaml` — 技能注册表
 
-# Test with golden cases
-cd skills/storageops-eval-golden-cases/cases/<case-name>
-cat input/* | pi --skills ../../../ "diagnose this"
-```
+## License
 
-### Commit Guidelines
-
-- Keep commits small and focused
-- Prefix with `feat:`, `fix:`, `docs:`, or `skill:` for skill pack changes
-- Update CHANGELOG.md for user-facing changes
-
-## Code of Conduct
-
-See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+MIT

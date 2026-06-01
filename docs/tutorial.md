@@ -1,106 +1,91 @@
-# StorageOps Tutorial
+# 教程
 
-## Quick Start (5 minutes)
+## 场景 1：s5cmd sync 报 429 SlowDown
 
-### Step 1 — Install
-
-```bash
-# Install Pi Coding Agent
-curl -fsSL https://raw.githubusercontent.com/hxddh/storageops/main/scripts/install-pi.sh | bash
-
-# Clone StorageOps
-git clone https://github.com/hxddh/storageops.git ~/.pi/storageops
+**输入**：
+```
+s5cmd sync s3://my-bucket/data/ /local/backup/
+ERROR SlowDown (429) for objects bigfile1.dat, bigfile2.dat...
 ```
 
-### Step 2 — Start the REPL
+**诊断**：
 
 ```bash
-cd ~/.pi/storageops
-pi --skills ./skills
+storageops --print 's5cmd sync 报 429 SlowDown 错误，帮我诊断'
 ```
 
-Or use the thin CLI:
+**输出示例**：
+
+```
+根因: s5cmd 默认并发 256 过高，触发服务端前缀限流
+建议: --numworkers 16 --retry-count 10
+```
+
+## 场景 2：rclone 报 corrupted on transfer
+
+**输入**：
+```
+rclone copy s3:bucket/ /local/
+ERROR corrupted on transfer: md5 hash mismatch
+```
+
+**诊断**：
+
+```bash
+storageops --print @rclone-debug.log 'rclone corrupted on transfer，分析原因'
+```
+
+**输出示例**：
+
+```
+根因: 分块上传中断/网络不稳定导致的校验和不匹配
+建议: --checkers 1 --transfers 1 --retries 10
+```
+
+## 场景 3：BOS 报 SignatureDoesNotMatch
+
+**输入**：
+```
+<Error>
+  <Code>SignatureDoesNotMatch</Code>
+  <Message>The request signature we calculated does not match</Message>
+</Error>
+```
+
+**诊断**：
+
+```bash
+storageops --print 'BOS AccessDenied: SignatureDoesNotMatch 错误，帮我分析'
+```
+
+**输出示例**：
+
+```
+根因: 客户端时钟偏差或 AK/SK 不匹配
+建议: ntpdate 同步时钟；检查 endpoint 和 region
+```
+
+## 场景 4：交互式排查
 
 ```bash
 storageops
 ```
 
-### Step 3 — Describe your issue
-
-Just type naturally:
+进入交互模式，可以多轮对话深入排查：
 
 ```
-> I'm getting 403 AccessDenied on my bucket. The bucket policy is:
-> {
->   "Version": "2012-10-17",
->   "Statement": [...]
-> }
+你: rclone 挂载 OSS 很慢
+Ai: 请提供更多信息：并发参数？对象数量？文件大小分布？
+你: --transfers 4，大概 10 万个小文件
+Ai: 小文件过多。建议：--transfers 16 --checkers 32，并考虑先 tar 再传...
 ```
 
-### Step 4 — Read the diagnosis
+## 场景 5：输出诊断报告
 
-The agent will produce a structured diagnosis with:
-- Root cause classification
-- Evidence from provided logs/policies
-- Severity assessment
-- Actionable recommendations
-
-## Scenario Walkthroughs
-
-### Scenario 1: s5cmd 429 SlowDown
-
-**Symptom**: s5cmd sync returns 429 SlowDown, then slows down
-
-**Ask**:
-```
-> My s5cmd sync is getting 429 errors when syncing to BOS.
-> [paste s5cmd log output]
+```bash
+storageops --print \
+  '分析附件中的日志，输出完整的诊断报告' \
+  @error.log > diagnosis.md
 ```
 
-**What happens**:
-1. `scan_secrets` redacts any credentials in the log
-2. `detect_domain` matches "performance-throttling" domain (429, SlowDown keywords)
-3. `storageops-performance-diagnosis` skill activates
-4. Agent analyzes the log pattern and recommends: reduce concurrency, adjust part-size, add --max-retries
-
-### Scenario 2: rclone corrupted on transfer
-
-**Symptom**: rclone mount shows "corrupted on transfer" for large files
-
-**Ask**:
-```
-> rclone mount keeps failing with "corrupted on transfer" when syncing big files > 500MB.
-> [paste rclone -vv log]
-```
-
-**What happens**:
-1. Credentials redacted
-2. Domain detected as "cli-sdk" (rclone + corrupted keywords)
-3. `storageops-cli-sdk-diagnosis` skill activates
-4. Agent identifies ETag mismatch pattern caused by multipart copy on different providers
-5. Recommendation: add `--s3-use-multipart-etag` or `--no-check-certificate`
-
-### Scenario 3: IAM Policy Denied
-
-**Symptom**: KMS-encrypted object access returns AccessDenied
-
-**Ask**:
-```
-> I'm getting AccessDenied when accessing a KMS-encrypted object. Here's my IAM policy:
-> [paste policy JSON]
-```
-
-**What happens**:
-1. Credentials redacted
-2. Domain detected as "security-iam-policy"
-3. `storageops-security-iam-policy` skill activates
-4. Agent finds missing `kms:Decrypt` permission
-5. Recommendation: add KMS key policy allowing decryption
-
-## Tips
-
-- **Paste logs directly**: No need to pre-parse or format — the AI reads raw log output
-- **Multi-line input**: Use `\` at the end of a line to continue input, or use `/editor`
-- **Shell commands**: Prefix commands with `$` to run them inline: `$ ls -la ~/logs/`
-- **File references**: Use `@filename` to reference log files: `@s5cmd-debug.log`
-- **Session resume**: `pi --resume <session-id>` to continue a previous session
+输出格式化的诊断报告，可直接发给客户或归档。
