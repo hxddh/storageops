@@ -79,13 +79,20 @@ storageops/
 3. Create `cases/<case-name>/expected.json`:
    ```json
    {
-     "category": "cli_sdk_behavior",
-     "root_cause_types": ["multipart_etag_format_mismatch"],
-     "keywords": ["corrupted", "ETag"],
-     "confidence_min": 0.7,
+     "expected_category": "cli_sdk_behavior",
+     "expected_root_cause_types": ["multipart_etag_format_mismatch"],
+     "expected_min_confidence": 0.7,
+     "must_include_evidence_keywords": ["ETag", "corrupted"],
+     "should_include_evidence_keywords": ["multipart", "checksum"],
+     "must_include_recommendation_keywords": ["--checksum", "etag"],
+     "must_not_include": ["delete", "make public"],
+     "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
      "severity": "high"
    }
    ```
+   Fast eval (`storageops eval --all`) checks `expected_category` using rule-based
+   triage only. The full scored eval (confidence, keywords, sections) requires a
+   pre-generated diagnosis output passed via `--outputs-dir`.
 4. Create `cases/<case-name>/description.md` with a human-readable summary.
 
 ## Testing

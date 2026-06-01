@@ -40,7 +40,7 @@ jobs:
 
       - name: Triage — classifies SignatureDoesNotMatch correctly
         run: |
-          result=$(storageops triage agents/skills/storageops-eval-golden-cases/cases/signature-clock-skew/input/error-response.xml)
+          result=$(storageops triage agents/skills/storageops-eval-golden-cases/cases/signature-clock-skew/input/error-response.xml --format json)
           echo "$result" | python -c "import sys,json; d=json.load(sys.stdin); assert d['primary_domain'] == 's3_protocol_compatibility', f'Expected s3_protocol_compatibility, got {d[\"primary_domain\"]}'"
           echo "✓ Triage correctly classified s3_protocol_compatibility"
 
