@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-02 — v0.4.11: Baseline eval and package quality gates
+
+- **Eval baseline**: added compact baseline outputs for six high-value golden cases and an `eval_all.py --only-with-outputs` mode for subset scoring.
+- **Size gates**: added `scripts/repo_size_gate.py` to reject generated artifacts, oversized fixtures, oversized golden cases, and baseline corpus growth.
+- **Package check**: added `scripts/package_check.py` and CI coverage for wheel/sdist skill assets, extension presence, and Python cache exclusion.
+- **CI/docs**: wired baseline eval, repo size gates, and package checks into CI and contributor documentation.
+
 ## 2026-06-02 — v0.4.10: Review bug fixes and real CI gates
 
 - **CI**: GitHub Actions now installs dev dependencies, runs skill integrity checks, validates golden cases, and runs pytest.

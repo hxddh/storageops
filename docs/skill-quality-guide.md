@@ -71,6 +71,9 @@ The integrity check enforces:
 
 Large logs belong outside the repository. Commit reduced, synthetic, redacted samples.
 
+`scripts/repo_size_gate.py` also rejects generated artifacts, Python caches,
+oversized baseline outputs, oversized test fixtures, and runaway corpus growth.
+
 ## Eval Scripts
 
 ```bash
@@ -83,10 +86,18 @@ python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
   --outputs diagnoses \
   --json-out eval-current.json
 
+python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
+  --cases skills/storageops-eval-golden-cases/cases \
+  --outputs skills/storageops-eval-golden-cases/baseline-outputs \
+  --only-with-outputs
+
 python3 skills/storageops-eval-golden-cases/scripts/regression_reporter.py \
   --baseline eval-baseline.json \
   --current eval-current.json
 ```
+
+Baseline outputs should be compact and synthetic. Prefer route, confidence,
+evidence, recommendations, and safety sections over full narrative reports.
 
 ## Maturity
 

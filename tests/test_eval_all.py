@@ -60,3 +60,29 @@ Recommendation: inspect endpoint region.
     assert report["summary"]["counts"]["MISSING"] == 1
     assert report["summary"]["by_category"]["s3_protocol_compatibility"]["PASS"] == 1
     assert report["summary"]["by_category"]["security_iam_policy"]["MISSING"] == 1
+
+
+def test_evaluate_all_can_score_only_cases_with_outputs(tmp_path):
+    eval_all = load_eval_all_module()
+    cases = tmp_path / "cases"
+    outputs = tmp_path / "outputs"
+    cases.mkdir()
+    outputs.mkdir()
+    write_case(cases, "sigv4", "s3_protocol_compatibility", "SignatureDoesNotMatch", "endpoint")
+    write_case(cases, "missing", "security_iam_policy", "AccessDenied", "policy")
+    (outputs / "sigv4.md").write_text(
+        """
+# Routing
+Route to storageops-s3-protocol-compatibility.
+Confidence: 0.8
+Evidence: SignatureDoesNotMatch from endpoint.
+Recommendation: inspect endpoint region.
+""",
+        encoding="utf-8",
+    )
+
+    report = eval_all.evaluate_all(cases, outputs, ".md", only_with_outputs=True)
+
+    assert report["summary"]["total"] == 1
+    assert report["summary"]["counts"]["PASS"] == 1
+    assert report["summary"]["counts"]["MISSING"] == 0
