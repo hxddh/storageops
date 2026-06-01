@@ -1,6 +1,8 @@
 """Pi Coding Agent JSONL RPC runtime for StorageOps."""
 from __future__ import annotations
 
+import fcntl
+import os as _os_mod  # for O_NONBLOCK with pipes
 import json
 import os
 import re
@@ -238,6 +240,11 @@ class PiSession:
         events: list[dict[str, Any]] = []
         saw_final = False
 
+        # Set stdout to non-blocking — select() has false negatives on Linux pipes
+        stdout_fd = self.proc.stdout.fileno()
+        stdout_flags = fcntl.fcntl(stdout_fd, fcntl.F_GETFL)
+        fcntl.fcntl(stdout_fd, fcntl.F_SETFL, stdout_flags | _os_mod.O_NONBLOCK)
+
         try:
             self.proc.stdin.write(json.dumps(
                 {"type": "prompt", "message": prompt}, ensure_ascii=False
@@ -247,54 +254,15 @@ class PiSession:
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    self.proc.kill()
-                    self.proc = None
-                    return AgentRunResult(
-                        False,
-                        self.runtime_name,
-                        raw_events=events,
-                        error=f"Pi RPC timed out after {self.options.timeout_seconds} seconds",
-                    )
-                ready, _, _ = select.select([self.proc.stdout], [], [], min(0.1, remaining))
-                if not ready:
-                    if self.proc.poll() is not None:
-                        break
-                    continue
-                line = self.proc.stdout.readline()
-                if not line:
-                    if self.proc.poll() is not None:
-                        break
-                    continue
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    event = {"type": "raw_line", "text": line.strip()}
-                safe = _safe_event(event)
-                events.append(safe)
-                self._events.append(safe)
-                if event_callback:
-                    try:
-                        event_callback(safe)
-                    except Exception:
-                        pass
-                elif stream:
-                    # No callback: stream text_delta to stdout directly
-                    typ = str(safe.get("type") or "").lower()
-                    if typ == "message_update":
-                        ae = safe.get("assistantMessageEvent", {})
-                        if isinstance(ae, dict) and ae.get("type") == "text_delta":
-                            delta = ae.get("delta", "")
-                            if delta:
-                                print(delta, end="", flush=True)
-                if _event_is_final(event):
-                    saw_final = True
                     break
 
-            if not saw_final:
-                # Drain remaining stdout
-                try:
-                    remaining_out = self.proc.stdout.read() if self.proc.stdout else ""
-                    for line in remaining_out.splitlines():
+                # Read all available lines in non-blocking mode
+                while True:
+                    try:
+                        line = self.proc.stdout.readline()
+                        if not line:
+                            break
+                        line = line.rstrip("\n")
                         if not line.strip():
                             continue
                         try:
@@ -304,68 +272,81 @@ class PiSession:
                         safe = _safe_event(event)
                         events.append(safe)
                         self._events.append(safe)
+                        if event_callback:
+                            try:
+                                event_callback(safe)
+                            except Exception:
+                                pass
+                        elif stream:
+                            typ = str(safe.get("type") or "").lower()
+                            if typ == "message_update":
+                                ae = safe.get("assistantMessageEvent", {})
+                                if isinstance(ae, dict) and ae.get("type") == "text_delta":
+                                    delta = ae.get("delta", "")
+                                    if delta:
+                                        print(delta, end="", flush=True)
                         if _event_is_final(event):
                             saw_final = True
-                except OSError:
-                    pass
+                            break
+                    except (IOError, OSError):
+                        # EAGAIN / EWOULDBLOCK — no more data right now
+                        break
 
-                stderr_raw = ""
-                try:
-                    self.proc.wait(timeout=2)
-                    stderr_raw = self.proc.stderr.read() if self.proc.stderr else ""
-                except subprocess.TimeoutExpired:
-                    self.proc.kill()
-                    self.proc.wait()
-                except OSError:
-                    pass
+                if saw_final:
+                    break
 
-                if self.proc.returncode not in (0, None) and not saw_final:
-                    err = redact_for_pi(stderr_raw or "Pi RPC failed")[0]
-                    self.proc = None
-                    return AgentRunResult(False, self.runtime_name, raw_events=events, error=err)
+                if self.proc.poll() is not None:
+                    break
 
-                # Pi process finished the turn but stdin is closed — restart for next turn
-                self.proc.stdin.close() if self.proc.stdin else None
-                self.proc.wait()
-                self.proc = None
-                # Auto-restart Pi on next send()
-                err = self.start()
-                if err is not None:
-                    return AgentRunResult(
-                        False, self.runtime_name, raw_events=events, error=err.error or "Failed to restart Pi"
-                    )
+                # Wait for more data with select
+                ready, _, _ = select.select(
+                    [self.proc.stdout], [], [], min(0.5, remaining)
+                )
+                if not ready and self.proc.poll() is not None:
+                    break
 
-            report = reconstruct_report_from_events(events)
+        finally:
+            try:
+                fcntl.fcntl(stdout_fd, fcntl.F_SETFL, stdout_flags)
+            except OSError:
+                pass
 
-            # Safety lint: scan for secrets and dangerous recommendations
-            if report:
-                lint = safety_lint(report)
-                if lint["issues"]:
-                    # Append safety notes as a gentle reminder instead of blocking
-                    report += "\n\n---\n\n⚠️  Safety note: " + "; ".join(lint["issues"])
-
-                # Auto-save to memory on success (best-effort)
-                try:
-                    from storageops.memory_store import save_case
-                    save_case(
-                        self._session_id,
-                        "diagnosis",
-                        "general",
-                        report[:400],
-                        keywords=[],
-                    )
-                except Exception:
-                    pass
-
+        if not saw_final:
+            self.proc.kill()
+            self.proc.wait()
+            self.proc = None
             return AgentRunResult(
-                True,
+                False,
                 self.runtime_name,
-                report_markdown=report,
                 raw_events=events,
+                error=f"Pi RPC did not send agent_end within {self.options.timeout_seconds}s",
             )
 
-        except Exception as exc:
-            return AgentRunResult(False, self.runtime_name, raw_events=events, error=str(exc))
+        report = reconstruct_report_from_events(events)
+
+        if report:
+            lint = safety_lint(report)
+            if lint["issues"]:
+                report += "\n\n---\n\n⚠️  Safety note: " + "; ".join(lint["issues"])
+
+            try:
+                from storageops.memory_store import save_case
+                save_case(
+                    self._session_id,
+                    "diagnosis",
+                    "general",
+                    report[:400],
+                    keywords=[],
+                )
+            except Exception:
+                pass
+
+        return AgentRunResult(
+            True,
+            self.runtime_name,
+            report_markdown=report,
+            raw_events=events,
+        )
 
     def stop(self) -> None:
         """Cleanly terminate the Pi subprocess."""
