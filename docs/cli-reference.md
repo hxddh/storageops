@@ -36,7 +36,7 @@ The installer backs up merged settings to `settings.json.storageops-backup`.
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.11  (pi: 0.78.0)
+StorageOps v0.4.12  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```

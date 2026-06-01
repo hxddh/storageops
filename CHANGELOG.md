@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-02 — v0.4.12: Routing contract alignment
+
+- **Routing contract**: extended `docs/skill-taxonomy.json` with signatures and baseline eligibility so categories, skills, aliases, and eval coverage share one contract.
+- **Validation**: added `scripts/routing_contract_check.py` and CI coverage for taxonomy, registry, golden cases, baseline outputs, and deterministic domain signatures.
+- **Baseline coverage**: added compact outputs for big-data small-file and event-notification prefix-filter cases, bringing baseline eval to 8 cases.
+- **Docs**: updated taxonomy and quality guidance for maintaining routing contract alignment.
+
 ## 2026-06-02 — v0.4.11: Baseline eval and package quality gates
 
 - **Eval baseline**: added compact baseline outputs for six high-value golden cases and an `eval_all.py --only-with-outputs` mode for subset scoring.

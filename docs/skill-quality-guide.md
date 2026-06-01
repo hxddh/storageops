@@ -31,6 +31,7 @@ Run:
 python3 scripts/skill_integrity_check.py
 python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
   skills/storageops-eval-golden-cases/cases
+python3 scripts/routing_contract_check.py
 make validate
 .venv/bin/python -m pytest
 ```
@@ -56,6 +57,16 @@ cases/<case>/
 - `required_report_sections`
 
 Use canonical categories from `docs/skill-taxonomy.json`.
+
+## Routing Contract
+
+`docs/skill-taxonomy.json` is the routing contract. When adding a category,
+skill, domain signature, golden case, or baseline output:
+
+- map the category to one real `storageops-*` skill,
+- keep aliases and signatures compact,
+- set `baseline` only for categories with compact synthetic outputs,
+- run `python3 scripts/routing_contract_check.py`.
 
 ## Size Budgets
 

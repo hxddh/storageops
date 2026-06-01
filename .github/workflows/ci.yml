@@ -26,6 +26,9 @@ jobs:
       - name: Validate golden cases
         run: python skills/storageops-eval-golden-cases/scripts/golden_case_validator.py skills/storageops-eval-golden-cases/cases
 
+      - name: Validate routing contract
+        run: python scripts/routing_contract_check.py
+
       - name: Check repository size gates
         run: python scripts/repo_size_gate.py
 

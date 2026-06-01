@@ -1,5 +1,8 @@
 # Skill Routing Flowchart
 
+The canonical routing contract is `docs/skill-taxonomy.json`. This flowchart is
+a human-readable view of that contract.
+
 ```text
 user evidence
   |
