@@ -52,6 +52,12 @@ storageops --help
 storageops --version
 ```
 
+## 6. 保持更新
+
+```bash
+pip install --upgrade storageops && storageops install --force
+```
+
 ## 常见问题
 
 **Q: 我已经有 Pi Coding Agent，会有冲突吗？**

@@ -309,31 +309,36 @@ def cmd_install(force: bool = False, merge: bool = False):
             print(f"  如需重装: storageops install --force")
             return
 
-        print()
-        print("━" * 60)
-        print("检测到你已经在使用 Pi Coding Agent (~/.pi/)。")
-        print()
-        print("StorageOps 支持两种安装模式:")
-        print()
-        print("  1. 独立安装 (推荐) — 安装到 ~/.storageops/")
-        print("     不影响你已有的 Pi 配置，两个环境互不干扰。")
-        print()
-        print("  2. 合并安装 — 安装到 ~/.pi/")
-        print("     将 StorageOps 的 skills 和 extension 融入你现有的 Pi。")
-        print("     你的 settings.json 会被自动备份。")
-        print("━" * 60)
-        print()
-        try:
-            choice = input("选择安装模式 [回车=独立安装 / m=合并安装]: ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            choice = ""
-        print()
-        if choice == "m":
-            target_agent = PI_DEFAULT_AGENT
-            if is_installed(target_agent) and not force:
-                print("StorageOps 已合并安装，无需重复。")
-                print("  如需重装: storageops install --merge --force")
-                return
+        if force:
+            # --force 时自动延续当前模式，不询问
+            if is_installed(PI_DEFAULT_AGENT):
+                target_agent = PI_DEFAULT_AGENT
+        else:
+            print()
+            print("━" * 60)
+            print("检测到你已经在使用 Pi Coding Agent (~/.pi/)。")
+            print()
+            print("StorageOps 支持两种安装模式:")
+            print()
+            print("  1. 独立安装 (推荐) — 安装到 ~/.storageops/")
+            print("     不影响你已有的 Pi 配置，两个环境互不干扰。")
+            print()
+            print("  2. 合并安装 — 安装到 ~/.pi/")
+            print("     将 StorageOps 的 skills 和 extension 融入你现有的 Pi。")
+            print("     你的 settings.json 会被自动备份。")
+            print("━" * 60)
+            print()
+            try:
+                choice = input("选择安装模式 [回车=独立安装 / m=合并安装]: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                choice = ""
+            print()
+            if choice == "m":
+                target_agent = PI_DEFAULT_AGENT
+                if is_installed(target_agent) and not force:
+                    print("StorageOps 已合并安装，无需重复。")
+                    print("  如需重装: storageops install --merge --force")
+                    return
 
     # --- Step 2: 安装 ---
     data = _package_data_dir()

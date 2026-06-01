@@ -32,6 +32,9 @@ storageops install --merge    # 合并到已有 Pi
 storageops install --force    # 重装
 storageops --version          # 版本 + 安装状态
 
+# 更新升级
+pip install --upgrade storageops && storageops install --force
+
 # 会话管理（Pi 原生）
 storageops -c                 # 恢复上次会话
 storageops -r                 # 选择历史会话

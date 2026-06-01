@@ -53,6 +53,14 @@ storageops --print 's5cmd sync 报 429 SlowDown 错误，快速诊断'
 storageops --print @/path/to/rclone-debug.log '这个 rclone 日志分析一下'
 ```
 
+### 4. 更新升级
+
+```bash
+pip install --upgrade storageops && storageops install --force
+```
+
+> 两条命令，无交互阻塞，CLI + 技能包一起更新。
+
 ## 支持的诊断场景
 
 | 技能包 | 领域 |
