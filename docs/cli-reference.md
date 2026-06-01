@@ -17,16 +17,26 @@ Inside a session, type `/` to see all available commands:
 | Command | Action |
 |---------|--------|
 | `/help` | Show available commands |
+| `/history` | Show command history (`/history <N>` for last N) |
 | `/resume` | Pick a past session to continue |
 | `/clear` | Start a fresh session |
 | `/status` | Show session ID, Pi and API key status |
 | `/config` | View or change configuration (`/config set <key> <value>`) |
+| `/editor` | Open `$EDITOR` (vim/nano) to write a long prompt |
+| `/view` | Open last report in a pager (`less -R`) for full-screen browsing |
 | `/memory` | Browse past diagnosed cases (`/memory search <query>`) |
 | `/update` | Download latest Pi binary and reinstall skills |
 | `/doctor` | Check environment health |
 | `/setup` | Re-run setup (API key, Pi install) |
 | `/verbose` | Toggle verbose output (shows tool calls) |
 | `/exit` | Quit |
+
+**Tips for the prompt line (`›`):**
+- `$ cmd` — run a shell command and add its output as session evidence
+- `@file` — attach a file by path, glob, or fuzzy prefix (e.g., `@*.log`, `@s5cmd*`)
+- `\` at end of line — continue input on the next line (multi-line prompts)
+- Paste detection — multi-line clipboard content is auto-detected
+- `↑`/`↓` (or `Ctrl+R`) — browse command history
 
 Sessions are saved automatically to `~/.storageops/sessions/`.
 

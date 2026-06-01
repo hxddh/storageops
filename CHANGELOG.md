@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## 2026-06-01 — Amp-style slash commands + command history + syntax highlighting
+
+- **`/editor` command**: open `$EDITOR` (vim/nano) to write long prompts or paste large logs.
+  Comment lines (`#`) are stripped; save-and-exit sends the prompt to Pi.
+- **Shell mode (`$ cmd`)**: run shell commands inline; stdout (first 200 chars) is captured
+  and added to session evidence for context-aware diagnosis.
+- **Fuzzy `@file` matching**: glob patterns (`@*.log`, `@/tmp/my-log*`) and prefix matching
+  (`@s5cmd` → most recent `s5cmd*` file by mtime). Absolute paths supported.
+- **`/view` command**: opens the last assistant report in `less -R` pager for full-screen
+  browsing; falls back to first 50 lines if less is unavailable. Applies pygments syntax
+  highlighting when installed (YAML/JSON/bash/code blocks).
+- **`/history` command**: shows last N interactive commands (`/history <N>`); defaults to 20.
+  Readline history persists to `~/.storageops/history` with `↑`/`↓` and `Ctrl+R` search.
+- **Progress timestamps**: elapsed seconds shown on each tool call result during streaming.
+- **Streaming fix**: `_StreamDisplay` event handlers updated for actual Pi JSONL format
+  (`tool_execution_start`/`tool_execution_end` replacing `tool_use`/`tool_result`;
+  `text_start` supplementing `text_delta`).
+- **`cli.py` fix**: removed stale `_LiveProgress` reference → `_StreamDisplay`.
+
 ## 2026-06-01 — Pi Extension + RPC protocol fix
 
 - **Pi Extension** (`.pi/extensions/storageops.ts`): all 21 StorageOps diagnostic tools are
