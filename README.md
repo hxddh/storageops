@@ -51,7 +51,15 @@ StorageOps  anthropic  ·  type / for commands  ·  Ctrl+C to interrupt  ·  /ex
 ## Install
 
 ```bash
-pip install storageops
+# From source
+pip install -e storageops-cli/
+
+# Optional: enhanced REPL with ghost-text suggestions
+pip install -e "storageops-cli/[repl]"
+
+# Optional: syntax highlighting in /view
+pip install pygments
+
 storageops setup
 ```
 
@@ -88,16 +96,27 @@ Type `/` inside the session to see the full list:
 | Command | What it does |
 |---|---|
 | `/help` | Show the command list |
+| `/history` | Show command history (`/history <N>` for last N) |
 | `/resume` | Pick a past session to continue |
 | `/clear` | Start a fresh session |
 | `/status` | Show session ID, turn count, Pi and API key status |
 | `/config` | View or change configuration (`/config set <key> <value>`) |
+| `/editor` | Open `$EDITOR` (vim/nano) to write a long prompt or paste a large log |
+| `/view` | Open last report in a pager (`less -R`) for full-screen browsing |
 | `/memory` | Browse past diagnosed cases (`/memory search <query>`) |
 | `/update` | Download latest Pi binary and reinstall skills |
 | `/verbose` | Toggle verbose mode — shows each tool call and result |
 | `/doctor` | Run environment health check |
 | `/setup` | Re-run setup (API key, Pi install) |
 | `/exit` | Quit (`Ctrl+C` also works) |
+
+**Prompt-line tips:**
+- `$ cmd` — run a shell command; output is added as session evidence
+- `@file` — attach a file by path (`@/var/log/err.log`), glob (`@*.log`), or fuzzy prefix (`@s5cmd`)
+- `↓` at end of line — continue input on the next line (multi-line prompts)
+- `↑`/`↓` or `Ctrl+R` — browse readline history
+- `Tab` — complete slash commands or `@` file paths
+- `prompt_toolkit` (optional, `pip install storageops[repl]`) — ghost-text history auto-suggestions
 
 Sessions are saved automatically to `~/.storageops/sessions/`.
 
@@ -152,7 +171,7 @@ Requires: `pip install "storageops[api]"` (FastAPI + uvicorn).
 | `GET /domains` | List all supported diagnostic domains |
 | `GET /memory` | List recent diagnosed cases |
 | `GET /memory/search?q=…` | BM25 search past cases |
-| `GET /health` | `{"status": "ok", "version": "…"}` |
+| `GET /health` | `{"ok":true}` |
 
 ---
 
@@ -284,6 +303,8 @@ diagnosis workflows.
 - Pi Coding Agent (auto-installed by `storageops setup`)
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (configured during setup)
 - Optional: [httpmon](https://github.com/hxddh/https-traffic-inspector) for wire-level traffic capture
+- Optional: `pygments` for syntax-highlighted `/view` reports
+- Optional: `prompt_toolkit>=3.0` for ghost-text history suggestions (`pip install "storageops[repl]"`)
 
 ---
 
