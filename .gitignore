@@ -1,31 +1,33 @@
-# Python
+### Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.egg-info/
+*.egg
 dist/
 build/
+storageops.egg-info/
 .venv/
-venv/
 
-# macOS
+### macOS
 .DS_Store
 
-# IDE
+### IDE
 .vscode/
 .idea/
 
-# Secrets — never commit credential files
+### Secrets — never commit credential files
+credentials.env
+*.secret
+*-secret.yaml
 *.pem
 *.key
-credentials
-*.env
 
-# Temp files
+### Temp files
 *.tmp
 *.swp
 *.swo
 *~
 
-# Claude Code session metadata
+### Claude Code session metadata
 .claude/
+.CLAUDE_SESSION_METADATA*

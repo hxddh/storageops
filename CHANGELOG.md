@@ -1,6 +1,24 @@
 # Changelog
 
-## [Unreleased]
+## v0.3.0 — 2026-06-01: Complete architecture rebuild
+
+**Unified package** — merged `storageops-cli` + `storageops-core` into single `storageops` package.
+No more sys.path hacks or dual-package coordination.
+
+**Append-only session** — JSONL event log + meta.json sidecar.
+Session is NEVER read-then-rewritten. Resume works correctly on every turn.
+
+**Stateless agent** — `converse(session, input, display)`. No class, no modes, no global state.
+Model decides when to use tools vs chat.
+
+**Flat architecture** — `core/`, `ui/`, `cli/`, `runtime/` directories deleted.
+All modules at package root. Import depth ≤ 2.
+
+**Pi events as raw JSON** — zero translation layer. Pi upgrades require zero changes.
+
+**Net**: ~4500 lines deleted, ~2000 new, -56% code, -60% directories.
+
+---
 
 ## 2026-06-01 — Architecture refactor: natural conversational agent
 

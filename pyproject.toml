@@ -5,8 +5,42 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "storageops"
 version = "0.3.0"
-description = "StorageOps — S3-compatible object storage diagnostic toolkit"
+description = "StorageOps — S3-compatible object storage diagnostic agent powered by Pi Coding Agent"
 requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Internet :: Log Analysis",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.3",
+]
+api = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
+]
+mcp = [
+    "fastmcp>=2.0",
+]
+
+[project.scripts]
+storageops = "storageops.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -14,7 +48,7 @@ include = ["storageops", "storageops.*"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
-pythonpath = ["storageops-cli"]
+testpaths = ["storageops/tests_core"]
 
 [tool.ruff]
 line-length = 100

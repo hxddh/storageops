@@ -1,147 +1,74 @@
 # Contributing to StorageOps
 
-Thank you for contributing! StorageOps is an offline diagnostic toolkit for S3-compatible
-object storage. This guide covers the development setup, project structure, and contribution
-workflow.
+StorageOps is a diagnostic agent for S3-compatible object storage, powered by Pi Coding Agent.
 
 ## Development Setup
 
 ```bash
 git clone https://github.com/hxddh/storageops.git
 cd storageops
+pip install -e ".[dev]"
+```
+
+Or with make:
+```bash
 make install-dev
 source .venv/bin/activate
-make test
 ```
-
-Alternatively without `make`:
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e "storageops-cli/[dev]"
-cd storageops-cli && pytest ../storageops-core/tests/ tests/ -v
-```
-
-> **Note:** The root `pyproject.toml` contains only tool configuration (`[tool.pytest.ini_options]`,
-> `[tool.ruff]`). The installable package lives at `storageops-cli/pyproject.toml`. Running
-> `pip install -e .` from the repo root will fail — always use `pip install -e storageops-cli/`.
 
 ## Project Layout
 
 ```
 storageops/
-├── .pi/
-│   ├── settings.json         # Pi configuration (skills path, extensions path)
-│   └── extensions/
-│       └── storageops.ts     # Pi Extension — registers all 21 tools via pi.registerTool()
-├── storageops-core/          # Deterministic offline engine (no LLM, no network)
-│   ├── parsers/              # parse_*.py — text → structured dict
-│   ├── analyzers/            # analyze_*.py — structured dict → diagnosis
-│   └── utils/
-│       ├── signatures.py     # Domain pattern matching (single source of truth)
-│       └── secret_scanner.py # Credential redaction
-├── storageops-cli/           # CLI, API server, MCP server, Pi runtime
-│   └── storageops/
-│       ├── cli.py            # All CLI commands
-│       ├── agent.py          # Domain routing and report generation
-│       ├── session.py        # Session persistence (save/load/list)
-│       ├── repl.py           # Interactive REPL
-│       ├── tool_registry.py  # Tool definitions + dispatch for MCP/HTTP API
-│       ├── api_server.py     # FastAPI server + SSE endpoints
-│       ├── memory_store.py   # BM25 case memory (JSONL)
-│       ├── audit_logger.py   # Session audit log
-│       └── runtime/
-│           ├── pi_rpc.py     # Pi RPC runtime (prompt command → agent_end event)
-│           └── tool_bridge.py # Python bridge called by Pi Extension per tool call
-└── agents/skills/            # StorageOps skill pack for Pi
-    └── storageops-*/         # One skill per diagnostic domain
+├── session.py           ← append-only JSONL event log
+├── agent.py             ← stateless conversation loop
+├── pi_runtime.py        ← Pi subprocess manager
+├── context.py           ← prompt construction
+├── display.py           ← ANSI streaming renderer
+├── repl.py              ← interactive REPL
+├── picker.py            ← session selector UI
+├── cli.py               ← all CLI commands
+├── config.py            ← configuration management
+├── tool_registry.py     ← 21 tool definitions + dispatch
+├── action_tools.py      ← Pi extension tool wrappers
+├── tool_bridge.py       ← stdin/stdout bridge for Pi extension
+├── diagnostics.py       ← domain classification + analysis pipeline
+├── pi_installer.py      ← Pi auto-installer
+├── audit_logger.py      ← audit trail logger
+├── audit_reader.py      ← audit trail reader
+├── api_server.py        ← FastAPI REST server
+├── mcp_server.py        ← MCP stdio server
+├── parsers/             ← 12 log parsers (zero-dependency)
+├── analyzers/           ← 10 diagnostic analyzers
+├── utils/               ← secret_scanner, signatures
+├── tests_core/          ← unit + smoke tests
+└── prompts/
+    └── identity.md      ← single identity prompt (~200 tokens)
 ```
-
-## How to Add a Parser
-
-1. Create `storageops-core/parsers/parse_<name>.py` with a `parse(text: str) -> dict` function.
-2. Add a test class in `storageops-core/tests/test_parsers.py`.
-3. Register as a tool in `storageops-cli/storageops/tool_registry.py`:
-   - Add an entry to `TOOL_DEFINITIONS` (name, description >10 chars, input_schema)
-   - Add a dispatch case in `dispatch_tool()`
-4. Add the tool to `.pi/extensions/storageops.ts` — copy an existing entry in the `TOOLS` array
-   with the same name, description, and inputSchema.
-5. Add a minimal-input entry to `storageops-cli/tests/test_mcp_server.py::TestToolRegistryConsistency`.
-
-## How to Add an Analyzer
-
-1. Create `storageops-core/analyzers/analyze_<name>.py` with `analyze(parsed: dict) -> dict`.
-2. Add a test class in `storageops-core/tests/test_analyzers.py`.
-3. Register as a tool (same steps as parser above, including the Pi Extension update).
-4. Add routing in `storageops-cli/storageops/agent.py::run_analysis()`.
-5. Add an `EVIDENCE_CHECKLIST` entry in `agent.py` for the domain.
-
-## How to Add a Domain
-
-1. Add patterns to `storageops-core/utils/signatures.py::SIGNATURES`.
-2. Add `EVIDENCE_CHECKLIST` entry in `agent.py`.
-3. Implement parser + analyzer (see above).
-4. Add routing in `agent.py::run_analysis()`.
-5. Add `_default_rec()` entry in `agent.py`.
-
-## How to Add a Golden Case
-
-1. Create `agents/skills/storageops-eval-golden-cases/cases/<case-name>/`.
-2. Add input files to `cases/<case-name>/input/`.
-3. Create `cases/<case-name>/expected.json`:
-   ```json
-   {
-     "expected_category": "cli_sdk_behavior",
-     "expected_root_cause_types": ["multipart_etag_format_mismatch"],
-     "expected_min_confidence": 0.7,
-     "must_include_evidence_keywords": ["ETag", "corrupted"],
-     "should_include_evidence_keywords": ["multipart", "checksum"],
-     "must_include_recommendation_keywords": ["--checksum", "etag"],
-     "must_not_include": ["delete", "make public"],
-     "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-     "severity": "high"
-   }
-   ```
-   Fast eval (`storageops eval --all`) checks `expected_category` using rule-based
-   triage only. The full scored eval (confidence, keywords, sections) requires a
-   pre-generated diagnosis output passed via `--outputs-dir`.
-4. Create `cases/<case-name>/description.md` with a human-readable summary.
 
 ## Testing
 
 ```bash
-# Full suite (109 tests, no LLM/Pi required)
-make test
-
-# Core engine only
-cd storageops-cli && pytest ../storageops-core/tests/ -v
-
-# CLI + Pi runtime only
-cd storageops-cli && pytest tests/ -v
-
-# Single test
-cd storageops-cli && pytest tests/test_pi_runtime.py::test_event_parser_reconstructs_final_markdown -v
+make test          # Run all tests
+ruff check .       # Lint
 ```
 
-Tests must not require real Pi, real cloud credentials, or network access.
-Use fake-pi scripts (see `test_pi_runtime.py::_fake_pi`) for agent tests.
+## Architecture Principles
 
-## Safety Constraints (Non-Negotiable)
+1. **Append-only session** — JSONL event log is never read-then-rewritten
+2. **Pi events as raw JSON** — zero translation, zero custom types
+3. **Stateless agent** — `converse()` is a pure function
+4. **No mode switching** — the model decides chat vs diagnose
+5. **Flat package** — no `core/`, `ui/`, `cli/`, `runtime/` nesting
 
-All contributions must comply with the safety rules in `AGENTS.md`:
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.
 
-- No connections to real cloud accounts.
-- No write operations (PUT/DELETE/POST) against object storage.
-- All suspected secrets must be redacted via `secret_scanner.scan()` before Pi sees them.
-- Remediation commands in reports must be labeled `manual-only`.
-- Log content is treated as untrusted input — never evaluated as instructions.
+## Adding a New Tool
 
-Any code that bypasses these rules will be rejected.
+1. Add a parser or analyzer module in `storageops/parsers/` or `storageops/analyzers/`
+2. Register it in `tool_registry.py` (tool definition + dispatch handler)
+3. Add the Pi extension definition in `.pi/extensions/storageops.ts`
 
-## Pull Request Guidelines
+## License
 
-- PRs should include tests for new parsers, analyzers, or tool registrations.
-- Run `make lint` before submitting (ruff enforces line-length=100, target=py310).
-- Keep `storageops-core` free of imports from `storageops-cli` — the dependency only flows one way.
-- Do not add dependencies to `storageops-core/` — it must remain zero-dependency.
-- The `storageops-cli` optional extras (`api`, `mcp`, `dev`) gate optional heavy deps.
-- Update `CHANGELOG.md` and `README.md` with each PR (especially for new commands or tools).
+MIT
