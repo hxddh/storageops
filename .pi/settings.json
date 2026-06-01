@@ -1,5 +1,0 @@
-{
-  "skills": ["../skills"],
-  "enableSkillCommands": true,
-  "extensions": ["./extensions"]
-}

@@ -159,8 +159,6 @@ def _package_data_dir() -> Path:
 def _copy_extension(data: Path, dst_agent: Path) -> None:
     """复制 extension 到目标 agent 目录."""
     ext_src = data / "extensions" / "storageops.ts"
-    if not ext_src.is_file():
-        ext_src = data.parent / ".pi" / "extensions" / "storageops.ts"
     ext_dst = dst_agent / "extensions" / "storageops.ts"
     ext_dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ext_src, ext_dst)
