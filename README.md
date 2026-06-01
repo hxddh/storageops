@@ -227,7 +227,7 @@ storageops mcp     # start MCP stdio server
 | `generate_lifecycle_fix` | Generate corrected lifecycle XML from identified rule issues |
 | `search_memory` | Search past diagnosed cases by BM25 keyword similarity |
 
-**Report format** — every Pi report includes machine-readable YAML frontmatter:
+**Report format** — Pi produces natural responses: casual for greetings, structured analysis for logs and diagnostics. All outputs are safety-linted for secrets and dangerous operations.
 
 ```markdown
 ---
