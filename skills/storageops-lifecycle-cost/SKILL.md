@@ -73,7 +73,22 @@ Breakdown: storage cost (GB-month per class), request cost (PUT/GET/LIST), retri
 ### Step 5: Estimate Savings
 Monthly savings = current cost − projected cost after lifecycle. Include minimum duration risk in calculation.
 
-## Output Format
+### Step 6: Feedback Loop
+Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantify the small-object penalty with precision — it flags every object below the 128 KB IA threshold and computes the total waste. If the savings estimate has more than 30% uncertainty after analysis, go back to Step 1 and ask the user: *"Can you provide actual billing data (per-bucket per-class cost breakdown) so I can calibrate the estimate?"*
+
+## User Interaction
+
+### When to ask the user
+- *"How many objects are in the bucket, and what is the approximate size distribution (P10 / P50 / P90)?"*
+- *"Do you have an S3 Inventory report or a CSV with key, size, and storage class?"*
+- *"Is versioning enabled? How many noncurrent versions exist?"*
+- *"Can you share the lifecycle XML configuration currently applied to this bucket?"*
+
+### When to inform the user
+- Before recommending a lifecycle change: *"This rule will apply to ALL objects matching the prefix. Noncurrent versions will also be affected if versioning is on."*
+- After cost projection: *"These are estimates based on storage class pricing only. Request costs (PUT/GET/LIST) and data transfer are NOT included unless you provide access logs."*
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Cost Analysis: [one-line]
@@ -114,8 +129,13 @@ Monthly savings = current cost − projected cost after lifecycle. Include minim
 **Recommendation**: Add lifecycle rule: `AbortIncompleteMultipartUpload` after 7 days. Immediate savings: 300GB/month.
 
 ## References
-- `references/storage-class.md` — Per-class pricing (STANDARD, IA, ARCHIVE, DEEP_ARCHIVE)
-- `references/lifecycle.md` — Lifecycle rule schema, transition constraints
-- `references/inventory-cost-analysis.md` — How to get object inventory for cost analysis
-- `references/request-cost.md` — PUT/GET/LIST/HEAD per-request pricing
-- `references/provider-pricing.md` — Per-provider pricing differences (BOS/OSS/COS/AWS)
+- `references/storage-class.md` — Per-class pricing (STANDARD, IA, ARCHIVE, DEEP_ARCHIVE)  
+  **Read when:** user needs to compare storage class costs for a specific provider, or asks "what does IA cost vs STANDARD?"
+- `references/lifecycle.md` — Lifecycle rule schema, transition constraints  
+  **Read when:** user provides a lifecycle XML configuration to parse, or asks "what lifecycle options do I have?"
+- `references/inventory-cost-analysis.md` — How to get object inventory for cost analysis  
+  **Read when:** user doesn't have an inventory report but needs cost analysis — this explains how to generate one
+- `references/request-cost.md` — PUT/GET/LIST/HEAD per-request pricing  
+  **Read when:** user's cost concern is about API request charges (e.g., high-frequency LIST operations) rather than storage
+- `references/provider-pricing.md` — Per-provider pricing differences (BOS/OSS/COS/AWS)  
+  **Read when:** user mentions a specific cloud provider other than AWS, or asks about multi-cloud cost comparison

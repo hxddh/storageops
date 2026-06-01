@@ -86,7 +86,21 @@ curl -w "DNS: %{time_namelookup}s TCP: %{time_connect}s TLS: %{time_appconnect}s
 - **PrivateLink**: Ensure endpoint is `accepted` (not `pendingAcceptance`)
 - **Cross-cloud**: Dedicated line (ExpressRoute/FastConnect), check BGP, MTU 1500 vs 9001
 
-## Output Format
+### Step 6: Feedback Loop
+If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"Run `curl -w 'DNS: %{time_namelookup}s TCP: %{time_connect}s TLS: %{time_appconnect}s Total: %{time_total}s' -o /dev/null -s https://<endpoint>` and share the results."** This breaks down latency by network layer (DNS, TCP, TLS). If timeout is the issue: **"Test with `nc -zv -w 5 <endpoint> 443` to check basic TCP reachability."** If confidence < medium, go back to Step 1 and reclassify the endpoint type.
+
+## User Interaction
+
+### When to ask the user:
+- **"What endpoint URL are you using (virtual-hosted style `bucket.endpoint.com` or path-style `endpoint.com/bucket`)?"** — DNS and URL format are the root cause of most connectivity issues
+- **"Are you on a public subnet, private subnet, or behind a corporate proxy?"** — determines available diagnostic paths
+- **"Can you run `curl -v --connect-timeout 5 https://<endpoint> 2>&1 | head -30` and share the output?"** — raw HTTPS output reveals the failing layer
+
+### When to inform the user:
+- **"If you're on a private subnet, you MUST use a VPC endpoint or NAT gateway to reach public S3 endpoints."**
+- **"Path-style URLs always work. Virtual-hosted style requires DNS and may not be supported by all providers."**
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -124,9 +138,9 @@ curl -w "DNS: %{time_namelookup}s TCP: %{time_connect}s TLS: %{time_appconnect}s
 **Recommendation**: Add S3 endpoint to `NO_PROXY`. Or configure proxy to pass-through Authorization header.
 
 ## References
-- `references/dns-host-header.md` — Virtual-hosted vs path-style, provider support matrix
-- `references/tls-certificate-guide.md` — TLS SNI, CA bundles, certificate validation
-- `references/vpc-endpoint-setup.md` — VPC endpoint configuration and troubleshooting
-- `references/proxy-diagnosis.md` — Proxy interference patterns
-- `references/mtu-path-discovery.md` — MTU and fragmentation analysis
-- `references/cross-cloud-dedicated-line.md` — FastConnect/ExpressRoute diagnostics
+- `references/dns-host-header.md` — Virtual-hosted vs path-style, provider support matrix | **Read when:** user reports DNS errors, NameResolutionError, or endpoint URL construction issues
+- `references/tls-certificate-guide.md` — TLS SNI, CA bundles, certificate validation | **Read when:** user reports TLS/SSL/certificate errors
+- `references/vpc-endpoint-setup.md` — VPC endpoint configuration and troubleshooting | **Read when:** user mentions VPC endpoints, private subnets, or PrivateLink
+- `references/proxy-diagnosis.md` — Proxy interference patterns | **Read when:** user is behind a corporate proxy or reports proxy-related errors
+- `references/mtu-path-discovery.md` — MTU and fragmentation analysis | **Read when:** user reports intermittent timeouts or MTU-related issues
+- `references/cross-cloud-dedicated-line.md` — FastConnect/ExpressRoute diagnostics | **Read when:** user mentions cross-cloud dedicated lines, ExpressRoute, or FastConnect

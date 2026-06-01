@@ -80,7 +80,28 @@ curl -I https://<endpoint>/<bucket>/<key>
 # Check: Last-Modified, ETag, Content-Length
 ```
 
-## Output Format
+### Step 6: Feedback Loop
+If the root cause is still unclear after Step 5:
+
+- **Request timeline** from the user: "Can you provide the exact timestamps of: (1) upload start, (2) upload completion, (3) first read attempt, (4) when stale data was first observed?"
+- **If confidence < medium**: Go back to **Step 2** and ask: "Can you describe the exact sequence of operations that led to the inconsistent state? Were any operations concurrent across multiple clients?"
+- **Re-verify**: After each recommendation, suggest the user run `curl -I https://<endpoint>/<bucket>/<key>` to confirm the fix took effect.
+
+## User Interaction
+
+### When to ask the user:
+- "Which object key and bucket are you experiencing the issue with?"
+- "What tool/CLI/SDK are you using to access the storage?"
+- "Is there a CDN, cache layer, or mount between your application and the object storage?"
+- "Have you tried a direct HEAD request to the object?"
+- "Were any uploads concurrent from multiple clients?"
+
+### When to inform the user:
+- "Modern object storage (S3/BOS/OSS/COS/GCS) is strongly consistent for read-after-write since ~2020. Consistency issues are almost always client-side."
+- "Multipart uploads are NOT objects until CompleteMultipartUpload is called."
+- "Last writer wins — if two clients write to the same key simultaneously, there is no locking."
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -120,8 +141,8 @@ curl -I https://<endpoint>/<bucket>/<key>
 **Recommendation**: CloudFront invalidation: `aws cloudfront create-invalidation --distribution-id <ID> --paths /path/to/image.jpg`. Long-term: use versioned filenames or shorter Cache-Control.
 
 ## References
-- `references/cache-layers.md` — Complete cache layer inventory across SDK, mount, CDN
-- `references/etag-format.md` — ETag formats by upload type and provider
-- `references/multipart-consistency.md` — Multipart upload lifecycle and consistency
-- `references/concurrent-writes.md` — Lock-free object storage write semantics
-- `references/cdn-invalidation.md` — CDN cache invalidation patterns
+- `references/cache-layers.md` — Complete cache layer inventory across SDK, mount, CDN | **Read when:** user reports stale reads, outdated data, or mount filesystem inconsistencies
+- `references/etag-format.md` — ETag formats by upload type and provider | **Read when:** user mentions ETag mismatch, checksum errors, or cross-provider copy with corrupted files
+- `references/multipart-consistency.md` — Multipart upload lifecycle and consistency | **Read when:** user reports objects not appearing after large upload, or incomplete multipart uploads consuming storage
+- `references/concurrent-writes.md` — Lock-free object storage write semantics | **Read when:** user reports objects being overwritten unexpectedly, or race conditions between multiple uploaders
+- `references/cdn-invalidation.md` — CDN cache invalidation patterns | **Read when:** user reports stale content via browser/CDN, updated files not reflecting, or caching TTL concerns

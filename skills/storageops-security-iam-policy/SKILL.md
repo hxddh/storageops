@@ -62,7 +62,24 @@ Evaluate in order: Explicit Deny → SCP → IAM Policy → Bucket Policy → AC
 ### Step 5: Credential Scanning
 If logs are provided, scan for exposed credentials: AK/SK pairs, session tokens, signed URLs with credentials, Authorization headers. Report any findings as `[CREDENTIAL_LEAK]`.
 
-## Output Format
+### Step 6: Feedback Loop
+If the user provides a policy JSON document, run `python3 scripts/policy_analyzer.py --file <policy.json>` to automatically identify explicit Deny statements, overly broad permissions, and public access risks. After diagnosis, ask user to test: 'Run `aws s3 ls s3://<bucket> --profile <profile>` to confirm the issue persists. If the fix works, also test a secondary action like `aws s3 cp`.' If confidence < medium or root cause is unclear, go back to Step 3 (Permission Chain) and request the IAM policy document or bucket policy JSON from the user.
+
+## User Interaction
+
+### When to ask the user:
+- 'What is the exact error message and HTTP status code? (Share complete error XML/JSON)'
+- 'What IAM role or user are you using? (ARN if available)'
+- 'Can you share the IAM policy or bucket policy document? (Redact account IDs and sensitive ARNs)'
+- 'Are you accessing cross-account? If yes, what are the source and target account IDs?'
+- 'Is there a VPC endpoint involved? What is the endpoint policy?'
+
+### When to inform the user:
+- Before suggesting policy changes: 'This is a recommended policy change. Please review with your security team before applying.'
+- For credential leaks: '⚠️ CRITICAL: Rotate exposed credentials immediately. Redact logs containing these secrets.'
+- After diagnosis: 'Please validate the fix in a staging/test environment before applying to production.'
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -107,8 +124,8 @@ If logs are provided, scan for exposed credentials: AK/SK pairs, session tokens,
 **Recommendation**: Immediately rotate key. Redact all logs containing this key. Set `--no-sign-request` or redact before sharing logs.
 
 ## References
-- `references/policy-evaluation.md` — Full permission evaluation order with examples
-- `references/cross-account.md` — Cross-account setup patterns
-- `references/kms-permissions.md` — KMS key policy requirements
-- `references/vpc-endpoints.md` — VPC endpoint policy diagnosis
-- `references/provider-differences.md` — IAM model differences (BOS/OSS/COS vs AWS)
+- `references/policy-evaluation.md` — Full permission evaluation order with examples | **Read when:** user reports 403/401 and has IAM/bucket policy documents to share
+- `references/cross-account.md` — Cross-account setup patterns | **Read when:** user mentions multiple AWS accounts, cross-account access, or ARNs from different account IDs
+- `references/kms-permissions.md` — KMS key policy requirements | **Read when:** user mentions KMS, encryption keys, kms:Decrypt, or server-side encryption errors
+- `references/vpc-endpoints.md` — VPC endpoint policy diagnosis | **Read when:** user mentions VPC endpoints, private subnets, or access from within AWS network
+- `references/provider-differences.md` — IAM model differences (BOS/OSS/COS vs AWS) | **Read when:** user uses non-AWS S3 providers (Alibaba OSS, Baidu BOS, Tencent COS, GCS)

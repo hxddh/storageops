@@ -63,7 +63,21 @@ See `references/reporting-best-practices.md` for scoring methodology.
 ### Step 5: Quality Gates
 Before finalizing: every recommendation marked manual-only if destructive, no credentials in report, confidence matches evidence quality, report matches audience needs.
 
-## Output Format
+### Step 6: Feedback Loop
+Before delivering any report, run `scan_secrets` on the full report text. If credentials are found: **"⚠️ CREDENTIAL_LEAK: The report contains credentials that MUST be redacted before sharing."** — do not deliver the report until redacted. After report generation, ask: **"Does this report match your audience and format expectations? Would you like me to regenerate with a different template?"** If the report is for a customer and contains technical speculation: go back to Step 2 and switch to Customer Report template.
+
+## User Interaction
+
+### When to ask the user:
+- **"Who is the audience for this report? (Customer, internal engineering, QA for reproduction, or formal record?)"** — determines template selection
+- **"Should I include complete technical details, or a non-technical summary?"** — customer vs engineering level
+- **"Should I append the raw diagnostic output as an appendix?"** — for internal reports
+
+### When to inform the user:
+- Before including any output: **"I will run a credential scan and redact any sensitive information before finalizing."**
+- After report generation: **"Review the report carefully before sharing. All sensitive internal details (account IDs, IPs, ARNs) have been redacted."**
+
+## Output Format — ALWAYS use this exact template
 
 Varies by template. Core Diagnosis Report structure:
 
@@ -112,8 +126,8 @@ Varies by template. Core Diagnosis Report structure:
 **Output**: Step-by-step: (1) rclone v1.65.0, (2) BOS bucket bj, (3) `rclone copy 50MB-file BOS:bucket --s3-upload-concurrency 4`, (4) expected MD5=X, actual MD5=Y, (5) workaround `--s3-use-multipart-etag=false` resolves.
 
 ## References
-- `references/reporting-best-practices.md` — Confidence scoring methodology, evidence rules
-- `templates/customer-report.md` — Customer-facing report template
-- `templates/internal-engineering-note.md` — Internal engineering note template
-- `templates/reproduction-checklist.md` — Reproduction checklist template
-- `templates/diagnosis-report.md` — Formal diagnosis report template
+- `references/reporting-best-practices.md` — Confidence scoring methodology, evidence rules | **Read when:** computing confidence scores or evaluating evidence quality
+- `templates/customer-report.md` — Customer-facing report template | **Read when:** audience is external/customer, need non-technical summary
+- `templates/internal-engineering-note.md` — Internal engineering note template | **Read when:** audience is internal engineering team, need full technical details
+- `templates/reproduction-checklist.md` — Reproduction checklist template | **Read when:** QA or engineering needs exact step-by-step reproduction steps
+- `templates/diagnosis-report.md` — Formal diagnosis report template | **Read when:** need a formal documented diagnosis for record-keeping or escalation

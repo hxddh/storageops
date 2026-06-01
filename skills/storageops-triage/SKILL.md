@@ -76,7 +76,22 @@ Assess what evidence is present and what's missing for the target specialist ski
 ### Step 5: Route
 Output the recommended specialist skill(s) and what evidence to gather before invoking it.
 
-## Output Format
+### Step 6: Feedback Loop
+If the routed specialist skill fails to diagnose, the user may return with enhanced evidence. Re-run triage with the new evidence set — the decision tree may now match a different domain. If evidence is still insufficient after 2 rounds, escalate with: *"This issue requires deeper investigation. Can you provide: (1) full error log with timestamps, (2) exact tool + version, (3) approximate timeline of when the issue started?"*
+
+## User Interaction
+
+### Ask the user (in this order):
+1. **Error message first** — *"What exact error message or status code are you seeing?"*
+2. **Then tool** — *"What tool and version are you using (rclone, aws s3, s5cmd, SDK)?"*
+3. **Then timeline** — *"When did this start? Is it persistent or intermittent?"*
+
+### Inform the user:
+- Before routing: *"This looks like a [domain] issue. I'm routing you to the specialist skill for deep diagnosis."*
+- If evidence insufficient: *"I need more information before I can route this correctly. Here's what would help…"*
+- After 2 rounds: *"We may need to escalate this. Would you like me to suggest next steps for manual investigation?"*
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Triage: [one-line classification]
@@ -94,6 +109,9 @@ Output the recommended specialist skill(s) and what evidence to gather before in
 
 ## Evidence Gaps
 - [ ] [missing item] — ask user for [specific request]
+
+## Re-triage Check
+After Step 6: if re-triaging, note what changed — new evidence? new symptom? different domain match?
 ```
 
 ## Examples
@@ -115,8 +133,8 @@ Output the recommended specialist skill(s) and what evidence to gather before in
 **Route**: 1→**storageops-security-iam-policy** (403 errors), 2→**storageops-performance-diagnosis** (slow)
 
 ## References
-- `references/triage-questions.md` — Clarifying questions for each domain
-- `references/domain-signatures.md` — Error code → domain mapping
-- `references/severity-rubric.md` — Detailed severity criteria
-- `references/confidence-rubric.md` — How to compute confidence from evidence
-- `references/provider-domains.md` — Provider-specific domain lookup (BOS/OSS/COS endpoints)
+- `references/triage-questions.md` — Clarifying questions for each domain | **Read when:** user description is vague or missing key details (no error code / no tool name)
+- `references/domain-signatures.md` — Error code → domain mapping | **Read when:** user provides an HTTP status code or error code string
+- `references/severity-rubric.md` — Detailed severity criteria | **Read when:** classifying severity, especially if data loss or outage is mentioned
+- `references/confidence-rubric.md` — How to compute confidence from evidence | **Read when:** multiple domains match with similar likelihood
+- `references/provider-domains.md` — Provider-specific domain lookup (BOS/OSS/COS endpoints) | **Read when:** user mentions a specific provider (BOS/OSS/COS/GCS) or uses a provider-specific error format

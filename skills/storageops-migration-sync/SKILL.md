@@ -76,7 +76,24 @@ Before full migration, test with 1000 representative objects:
 ### Step 6: Integrity Verification
 Post-migration: compare object count, total size, and sample checksums. For strict consistency, verify every object (rclone `--checksum`).
 
-## Output Format
+### Step 7: Feedback Loop
+Run `python3 scripts/migration_cost_estimator.py` with object count and size to validate time/cost estimates against actuals. If the dry-run fails or stalls, ask the user: "Did you run a dry-run with `--dry-run`? What error messages did you see? What is your current transfer rate?" If confidence < medium after diagnosis, go back to Step 3 (Time & Cost Estimation) and request more detailed bandwidth/topology data.
+
+## User Interaction
+
+### Ask the user for:
+- Source and destination providers, regions, and approximate data volume
+- Available bandwidth and any time window constraints
+- Whether this is a one-time migration or ongoing sync
+- Dry-run results: error messages, transfer rate, ETag mismatch patterns
+
+### Inform the user that:
+- Cross-provider egress fees can dominate total cost (typically $0.05–$0.12/GB)
+- ETag format differences between providers may cause false checksum failures on multipart objects
+- A dry-run with 1000 representative objects is strongly recommended before committing to the full migration
+- For >100TB, offline transfer (appliance) is often cheaper and faster than network transfer
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Migration Plan: [one-line]
@@ -122,8 +139,8 @@ Post-migration: compare object count, total size, and sample checksums. For stri
 **Recommendation**: Rclone with `--checksum --transfers 16`. Monitor for ETag mismatch on multipart objects.
 
 ## References
-- `references/migration-strategies.md` — Detailed comparison of all 3 strategies
-- `references/rclone-migration-guide.md` — Rclone flags for cross-provider migration
-- `references/cross-provider-compatibility.md` — ETag, metadata, ACL compatibility matrix
-- `references/integrity-verification.md` — Post-migration checksum strategies
-- `references/bandwidth-estimation.md` — Throughput calculation with overhead
+- `references/migration-strategies.md` — Detailed comparison of all 3 strategies | **Read when:** user is uncertain about which migration approach to take (server-side vs direct vs offline)
+- `references/rclone-migration-guide.md` — Rclone flags for cross-provider migration | **Read when:** user has selected rclone as the transfer tool and needs flag guidance
+- `references/cross-provider-compatibility.md` — ETag, metadata, ACL compatibility matrix | **Read when:** user reports checksum mismatches, metadata loss, or ACL/permission issues after migration
+- `references/integrity-verification.md` — Post-migration checksum strategies | **Read when:** user needs to verify migration completeness (object count, size, checksum comparison)
+- `references/bandwidth-estimation.md` — Throughput calculation with overhead | **Read when:** user asks for time/cost estimates or reports slower-than-expected transfer rates

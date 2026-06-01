@@ -76,7 +76,21 @@ A single `ls` on a directory with 1000 files = 1000 HEAD/GET requests to object 
 - **s3fs**: `-o stat_cache_expire=300 -o enable_noobj_cache -o use_cache=/tmp/s3fs`
 - **General**: Set `--attr-timeout` and `--dir-cache-time` high enough to reduce stat calls
 
-## Output Format
+### Step 6: Feedback Loop
+After tuning, ask the user to test: **"Run the same operation that was slow before and measure the time. Also: `ls -la` on the previously slow directory, and `time git status` if git was the issue."** If performance doesn't improve: **"Check if the cache directory is writable and has sufficient space (`df -h /tmp`). Mount logs often reveal cache write failures."** If the POSIX mismatch is the root cause and cannot be worked around, recommend: **"Consider JuiceFS for full POSIX compatibility, or restructure your workflow to do writes locally and sync only final output to the mount."** If confidence < medium, go back to Step 1 and ask for the exact mount command and mount logs.
+
+## User Interaction
+
+### When to ask the user:
+- **"What mount tool and version are you using? Share the exact mount command."** — mount options are the primary tuning surface
+- **"What operation is slow or failing? How many files/directories are involved?"** — quantifies metadata amplification
+- **"Are you doing writes, reads, or both on the mount?"** — determines if writes mode is needed
+
+### When to inform the user:
+- **"Object storage is NOT a POSIX filesystem. Operations like atomic rename, symlinks, and file locking are NOT supported natively."**
+- **"Mount cache tuning is a trade-off: higher cache times = better performance but potential stale data."**
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -117,8 +131,8 @@ A single `ls` on a directory with 1000 files = 1000 HEAD/GET requests to object 
 **Recommendation**: Build locally, sync output to mount. Or reduce to `make -j1`. For production: JuiceFS with full POSIX emulation.
 
 ## References
-- `references/fuse.md` — Comprehensive FUSE mount tuning guide
-- `references/posix-semantics.md` — POSIX vs object storage behavior matrix
-- `references/metadata-amplification.md` — Quantifying and reducing stat/HEAD amplification
-- `references/vfs-cache-guide.md` — rclone VFS cache modes explained
-- `references/s3fs-tuning.md` — s3fs mount options by workload
+- `references/fuse.md` — Comprehensive FUSE mount tuning guide | **Read when:** user is using any FUSE-based mount tool (rclone mount, s3fs, goofys)
+- `references/posix-semantics.md` — POSIX vs object storage behavior matrix | **Read when:** user reports git, npm, compilers, or other POSIX-dependent tools failing on mount
+- `references/metadata-amplification.md` — Quantifying and reducing stat/HEAD amplification | **Read when:** user reports slow `ls`, `git status`, or file managers on mount
+- `references/vfs-cache-guide.md` — rclone VFS cache modes explained | **Read when:** user uses rclone mount and needs cache tuning guidance
+- `references/s3fs-tuning.md` — s3fs mount options by workload | **Read when:** user uses s3fs and reports performance or corruption issues

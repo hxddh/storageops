@@ -69,7 +69,21 @@ See `references/throughput-model.md` for expected throughput by workload type.
 ### Step 4: Validate
 Suggest safe read-only validation: retry with `--dry-run`, measure improved throughput with reduced concurrency, check if error rate drops.
 
-## Output Format
+### Step 5: Feedback Loop
+If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_detector.py --file <log>` to confirm findings. If confidence < medium after diagnosis, go back to Step 1 and ask the user: *"Can you provide timing breakdown per file (use --stats in rclone, or --log debug in s5cmd)?"*
+
+## User Interaction
+
+### When to ask the user:
+- *"What tool and version are you using?"*
+- *"Can you run with --verbose/--debug and share the first 50 lines of error output?"*
+- *"What is the approximate object count and total size?"*
+
+### When to inform the user:
+- Before recommending any tool: *"I recommend running <tool> with <flags>. This is non-destructive."*
+- After diagnosis: *"Please validate this fix in a staging environment before applying to production."*
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -107,9 +121,9 @@ Suggest safe read-only validation: retry with `--dry-run`, measure improved thro
 **Recommendation**: Coalesce to 100 partitions before write, use S3A committer, expect <10 min
 
 ## References
-- `references/throttling.md` — 429/503 patterns, backoff strategies, provider limits
-- `references/small-files.md` — Metadata amplification, batching
-- `references/multipart-tuning.md` — Chunk size, concurrency, provider quirks
-- `references/prefix-hotspot.md` — Key distribution and request rate partitioning
-- `references/throughput-model.md` — Expected throughput formulas
-- `references/provider-limits.md` — Per-provider concurrency and rate limits
+- `references/throttling.md` — 429/503 patterns, backoff strategies, provider limits | **Read when:** user reports 429/503/SlowDown/Throttling errors
+- `references/small-files.md` — Metadata amplification, batching | **Read when:** workload contains many files <1MB
+- `references/multipart-tuning.md` — Chunk size, concurrency, provider quirks | **Read when:** user is uploading/downloading files >100MB
+- `references/prefix-hotspot.md` — Key distribution and request rate partitioning | **Read when:** many files share the same prefix and throughput is below expected
+- `references/throughput-model.md` — Expected throughput formulas | **Read when:** user provides timing data and asks why throughput is low
+- `references/provider-limits.md` — Per-provider concurrency and rate limits | **Read when:** user is hitting limits on a specific cloud provider

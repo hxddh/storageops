@@ -72,7 +72,21 @@ If Lambda is throttled (`TooManyRequestsException`), events are retried but may 
 ### Step 6: Delivery Reliability
 S3 event notifications are at-least-once delivery, but NOT guaranteed. For critical workflows, enable S3 event notification to SQS as a durable buffer, then have Lambda consume from SQS.
 
-## Output Format
+### Step 7: Feedback Loop
+If the notification chain appears correct but events are still missing, ask the user: **"Can you check CloudWatch metrics for Lambda throttles or SQS `NumberOfMessagesSent` vs `NumberOfMessagesReceived`?"** — this isolates whether S3 is emitting events but the target is dropping them. If Lambda is the target: **"Check the Lambda CloudWatch Logs for `TIMEOUT` or `Throttled` events."** If confidence < medium, go back to Step 1 and request the full notification configuration XML/JSON.
+
+## User Interaction
+
+### When to ask the user:
+- **"What bucket event types are configured? Share the notification configuration."** — event type mismatch is the #1 issue
+- **"Is the target a Lambda, SQS, or SNS? Has it worked before, or is this a new setup?"**
+- **"Can you check CloudWatch metrics for Lambda throttles or SQS queue depth?"** — delivery failures show up in target metrics
+
+### When to inform the user:
+- **"S3 silently drops events if the target lacks proper permissions — there is NO error returned to the caller."** — this surprises most users
+- **"S3 event notifications are at-least-once delivery, NOT exactly-once. Your target must be idempotent."**
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -111,8 +125,8 @@ S3 event notifications are at-least-once delivery, but NOT guaranteed. For criti
 **Recommendation**: Increase Lambda reserved concurrency. Or fan-out: S3→SNS→SQS (subscription filter)→Lambda. SQS acts as durable buffer.
 
 ## References
-- `references/notification-configuration.md` — Full notification schema, event types
-- `references/lambda-integration.md` — Lambda resource policy, concurrency, DLQ
-- `references/sqs-integration.md` — SQS queue policy, message attributes
-- `references/sns-integration.md` — SNS topic policy, subscription filters
-- `references/provider-compatibility.md` — Non-AWS event notification (BOS/OSS/COS event triggers)
+- `references/notification-configuration.md` — Full notification schema, event types | **Read when:** user provides notification config XML/JSON or asks about event type matching
+- `references/lambda-integration.md` — Lambda resource policy, concurrency, DLQ | **Read when:** target is Lambda, or user reports Lambda not being invoked
+- `references/sqs-integration.md` — SQS queue policy, message attributes | **Read when:** target is SQS, queue is empty despite notifications configured
+- `references/sns-integration.md` — SNS topic policy, subscription filters | **Read when:** target is SNS, or fan-out pattern is needed
+- `references/provider-compatibility.md` — Non-AWS event notification (BOS/OSS/COS event triggers) | **Read when:** user mentions non-AWS providers and event notification

@@ -71,7 +71,21 @@ See `references/provider-protocol-differences.md` for known differences per prov
 ### Step 5: Scope
 Is this a single-operation issue or a systemic compatibility problem? Test with a simple operation (ListBuckets) to isolate.
 
-## Output Format
+### Step 6: Feedback Loop
+If the root cause is unclear after scope analysis, ask the user: **"Can you provide the debug output with signature headers (`--debug` flag in aws CLI, `-vv --dump headers` in rclone)?"** For `SignatureDoesNotMatch`, compare the `StringToSign` and `CanonicalRequest` from debug output against the expected format in `references/signature-analysis.md`. If confidence < medium, go back to Step 2 and request a complete debug trace with the full authorization header (redact credentials).
+
+## User Interaction
+
+### When to ask the user:
+- **"Can you share the debug output with full request/response headers?"** — protocol issues live in the headers
+- **"What tool and version are you using? Does it use SigV2 or SigV4?"** — signature version mismatch is the #1 protocol issue
+- **"What endpoint URL are you using (virtual-hosted style or path-style)?"** — DNS and URL format affect signing
+
+### When to inform the user:
+- Before suggesting a provider-side fix: **"This is the expected behavior of this provider's S3 implementation. Here's how to work around it."**
+- After diagnosis: **"If the issue is a provider bug, please open a support ticket with the provider and reference the debug trace."**
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -110,13 +124,13 @@ Is this a single-operation issue or a systemic compatibility problem? Test with 
 **Fix**: Use `https://s3.bj.bcebos.com/bucket/obj` (path-style).
 
 ## References
-- `references/signature-analysis.md` — SigV2 vs SigV4 deep dive, StringToSign format
-- `references/aws-s3-api-reference.md` — AWS S3 baseline behavior by operation
-- `references/provider-protocol-differences.md` — BOS/OSS/COS/GCS protocol quirks
-- `references/header-reference.md` — Standard and provider-specific headers
-- `references/chunked-encoding.md` — aws-chunked, content-length, transfer-encoding
-- `references/url-styles.md` — Virtual-hosted vs path-style across providers
-- `references/xml-format.md` — Request/response XML schemas and provider differences
-- `references/error-codes.md` — Per-provider error code mapping
-- `references/endpoint-construction.md` — Endpoint URL patterns per provider
-- `references/character-encoding.md` — Unicode/encoding in keys and headers
+- `references/signature-analysis.md` — SigV2 vs SigV4 deep dive, StringToSign format | **Read when:** user reports SignatureDoesNotMatch or signature-related errors
+- `references/aws-s3-api-reference.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
+- `references/provider-protocol-differences.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** user mentions a non-AWS provider (BOS/OSS/COS/GCS)
+- `references/header-reference.md` — Standard and provider-specific headers | **Read when:** debugging header ordering or specific header issues
+- `references/chunked-encoding.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
+- `references/url-styles.md` — Virtual-hosted vs path-style across providers | **Read when:** user reports DNS errors, NameResolutionError, or endpoint construction issues
+- `references/xml-format.md` — Request/response XML schemas and provider differences | **Read when:** user reports MalformedXML or XML parsing errors
+- `references/error-codes.md` — Per-provider error code mapping | **Read when:** error code is unfamiliar or provider-specific
+- `references/endpoint-construction.md` — Endpoint URL patterns per provider | **Read when:** user is constructing endpoint URLs or troubleshooting connectivity
+- `references/character-encoding.md` — Unicode/encoding in keys and headers | **Read when:** user reports encoding issues with special characters in object keys

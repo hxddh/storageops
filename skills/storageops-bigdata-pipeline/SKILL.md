@@ -82,7 +82,25 @@ Default S3A pool is 256 connections per JVM. Exhaustion causes hangs. Check `fs.
 ### Step 7: S3Guard/DynamoDB Consistency (EMR)
 S3Guard provides consistent listing on S3. If using EMR with consistent view disabled, stale listings cause `FileNotFoundException`.
 
-## Output Format
+### Step 8: Feedback Loop
+If the diagnosis points to a committer issue:
+- **Controlled test**: Recommend testing with a different committer (e.g., V1 → magic) on a small subset of data before full redeployment.
+- If confidence is **medium or low**, ask the user: *"Can you share the Spark UI screenshot of the failed stage? What is the partition count and output file count?"* This helps distinguish committer races from partition/metadata issues.
+- If the user's fix resolves the issue, ask them to confirm so the diagnosis can be added to the knowledge base.
+
+## User Interaction
+
+### When to ask the user:
+- *"What engine and version are you using?"* (Spark/Hive/Flink/Presto + version)
+- *"What committer is configured? Share your `core-site.xml` or Spark config."*
+- *"Can you share the Spark UI screenshot of the failed stage?"*
+- *"What is the approximate partition count and output file count?"*
+
+### When to inform the user:
+- Before recommending a committer change: *"This change requires a cluster restart and should be tested in staging first."*
+- After diagnosis: *"The recommended config change only takes effect for new jobs — existing running jobs will still use the old committer."*
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -121,8 +139,8 @@ S3Guard provides consistent listing on S3. If using EMR with consistent view dis
 **Recommendation**: Use Hive catalog with BOS, test snapshot isolation under concurrent writes.
 
 ## References
-- `references/committer-guide.md` — S3A committer configuration matrix
-- `references/partition-discovery.md` — Hive/Spark partition strategies
-- `references/connection-pool.md` — S3A connection pool tuning
-- `references/table-formats.md` — Iceberg/Delta/Hudi on object storage
-- `references/provider-compatibility.md` — Non-AWS committer behavior
+- `references/committer-guide.md` — S3A committer configuration matrix | **Read when:** user reports FileNotFoundException, FileAlreadyExistsException, or mentions committer name
+- `references/partition-discovery.md` — Hive/Spark partition strategies | **Read when:** user reports stale/missing data after writes, or MSCK REPAIR TABLE slowness
+- `references/connection-pool.md` — S3A connection pool tuning | **Read when:** user reports job hangs, timeout errors, or "Unable to execute HTTP request"
+- `references/table-formats.md` — Iceberg/Delta/Hudi on object storage | **Read when:** user mentions Iceberg, Delta, or Hudi table format
+- `references/provider-compatibility.md` — Non-AWS committer behavior | **Read when:** user mentions BOS, OSS, COS, or any non-AWS S3 provider

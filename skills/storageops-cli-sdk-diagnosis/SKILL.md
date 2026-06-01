@@ -69,7 +69,22 @@ If multiple tools are mentioned: does the same operation fail with a different t
 ### Step 5: Apply Known Fix
 Consult the tool's reference file for known workarounds. These are the most reliable fixes.
 
-## Output Format
+### Step 6: Feedback Loop
+If s5cmd `--log debug` output is available, run `python3 scripts/parse_s5cmd_log.py --file <log>` to extract timing, concurrency utilization, and error distribution. If the fix does not resolve the issue, ask the user: **"Can you try the same operation with a different tool (e.g., `aws s3 cp` instead of `s5cmd`)? This isolates tool-specific bugs from service-side issues."** If confidence < medium after diagnosis, request a more complete error log (full debug/verbose output, not just the summary error line).
+
+## User Interaction
+
+### When to ask the user:
+- **"What tool and version are you using?"** — many bugs are version-specific (e.g., s5cmd v2.0.0 vs v2.2.0)
+- **"Can you share the full error output with `--debug`/`-vv` flag?"** — summary errors hide root cause details
+- **"Does the same operation succeed with a different client tool?"** — isolates tool-specific bugs
+
+### When to inform the user:
+- Before any fix: **"This is non-destructive. The suggested workaround only changes client-side behavior."**
+- After diagnosis: **"After applying the fix, validate with a small test first (e.g., 1 small file) before running at full scale."**
+- If a tool upgrade is recommended: **"Check the tool's changelog for breaking changes before upgrading."**
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [tool] — [one-line]
@@ -111,11 +126,11 @@ Consult the tool's reference file for known workarounds. These are the most reli
 **Fix**: `ntpdate -u ntp.aliyun.com` or `sudo ntpdate ntp.aliyun.com`. Verify with `date -u`.
 
 ## References
-- `references/s5cmd.md` — s5cmd-specific known issues, concurrency defaults
-- `references/rclone.md` — rclone S3 backend quirks, ETag, VFS
-- `references/awscli.md` — AWS CLI configuration, clock skew, proxy
-- `references/boto3-botocore.md` — Python SDK credential chain, retries
-- `references/s3cmd.md` — s3cmd signing and compatibility
-- `references/minio-client.md` — mc (minio client) quirks
-- `references/bcecmd.md` — Baidu BOS CLI specifics
-- `references/obsutil.md` — Huawei OBS CLI specifics
+- `references/s5cmd.md` — s5cmd-specific known issues, concurrency defaults | **Read when:** user reports s5cmd errors, 429/SlowDown, or s5cmd sync/cp issues
+- `references/rclone.md` — rclone S3 backend quirks, ETag, VFS | **Read when:** user reports rclone errors, multipart corruption, checksum mismatch, "directory not found"
+- `references/awscli.md` — AWS CLI configuration, clock skew, proxy | **Read when:** user reports aws CLI errors, SignatureDoesNotMatch, SSL/TLS errors
+- `references/boto3-botocore.md` — Python SDK credential chain, retries | **Read when:** user reports boto3/botocore errors, ClientError 403, EndpointConnectionError
+- `references/s3cmd.md` — s3cmd signing and compatibility | **Read when:** user mentions s3cmd commands or signature errors with s3cmd
+- `references/minio-client.md` — mc (minio client) quirks | **Read when:** user mentions minio client / mc commands
+- `references/bcecmd.md` — Baidu BOS CLI specifics | **Read when:** user mentions bcecmd or Baidu BOS CLI
+- `references/obsutil.md` — Huawei OBS CLI specifics | **Read when:** user mentions obsutil or Huawei OBS CLI

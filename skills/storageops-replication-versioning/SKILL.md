@@ -77,7 +77,21 @@ Delete markers replicate ONLY if `DeleteMarkerReplication` is enabled in the rul
 - GOVERNANCE mode: `s3:BypassGovernanceRetention` permission can override
 - COMPLIANCE mode: NO ONE can override (including root) until retention expires
 
-## Output Format
+### Step 6: Feedback Loop
+If replication is failing, ask the user to verify: **"Run `aws s3api get-bucket-replication --bucket <source>` and confirm the rule is Enabled (not Disabled). Check if the IAM role's trust policy includes `s3.amazonaws.com`."** If versioning state is unclear, ask: **"What is the versioning status on both buckets? Run `aws s3api get-bucket-versioning --bucket <bucket>` to confirm."** If confidence < medium, go back to Step 1 and verify ALL three prerequisites (versioning on both, replication rule, IAM role with correct permissions).
+
+## User Interaction
+
+### When to ask the user:
+- **"Is versioning enabled on BOTH the source AND destination buckets?"** — most common configuration gap
+- **"What is the replication rule configuration? Share the output of `aws s3api get-bucket-replication`."**
+- **"Was the object created before or after the replication rule was added?"** — replication is not retroactive
+
+### When to inform the user:
+- Before recommending versioning enable: **"Enabling versioning is IRREVERSIBLE — you cannot return to an unversioned bucket. This has cost implications (each version is a separate billable object)."**
+- For COMPLIANCE mode object lock: **"No one — including AWS support and the root account — can delete this object until the retention period expires."**
+
+## Output Format — ALWAYS use this exact template
 
 ```markdown
 # Diagnosis: [one-line]
@@ -115,7 +129,7 @@ Delete markers replicate ONLY if `DeleteMarkerReplication` is enabled in the rul
 **Recommendation**: Wait for retention expiry. If urgent, contact provider support (AWS can't override COMPLIANCE either). For future: use GOVERNANCE mode with s3:BypassGovernanceRetention permission.
 
 ## References
-- `references/replication-configuration.md` — Replication rule schema and permissions
-- `references/versioning-lifecycle.md` — Versioning state machine and cost implications
-- `references/object-lock-guide.md` — Retention modes, legal hold, compliance
-- `references/provider-replication.md` — Non-AWS replication (BOS/OSS/COS cross-region)
+- `references/replication-configuration.md` — Replication rule schema and permissions | **Read when:** user reports objects not replicating or replication rule questions
+- `references/versioning-lifecycle.md` — Versioning state machine and cost implications | **Read when:** user asks about versioning state changes, cost of versions, or delete marker behavior
+- `references/object-lock-guide.md` — Retention modes, legal hold, compliance | **Read when:** user mentions object lock, legal hold, retention, or cannot delete objects
+- `references/provider-replication.md` — Non-AWS replication (BOS/OSS/COS cross-region) | **Read when:** user mentions non-AWS providers (BOS/OSS/COS) and replication
