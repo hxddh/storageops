@@ -1,13 +1,13 @@
 """
 Stateless agent loop: converse() streams Pi events through a display.
 
-Pure functions — no global state, no side effects beyond session writes
-and display output. Designed for REPL, CLI, and API usage.
+Uses Pi RPC protocol via PiRuntime.stream(). The agent is a pure function
+that takes a session + user input + display, and drives the ReAct loop:
+  prompt → Pi → events → tool calls → Pi → ... → response
 """
 from __future__ import annotations
 
 import time
-import json
 from typing import Protocol
 
 from storageops.session import Session
@@ -15,23 +15,18 @@ from storageops.context import build_prompt
 from storageops.tool_registry import dispatch_tool
 
 
-# ── Display protocol ──────────────────────────────────────────────────
+# ── Display protocol ─────────────────────────────────────────
 
 class Display(Protocol):
-    """Protocol for streaming output renders."""
     def show_thinking(self, text: str) -> None: ...
     def show_text_delta(self, text: str) -> None: ...
     def show_tool_call(self, name: str, args: dict) -> None: ...
     def show_tool_result(self, name: str, summary: str) -> None: ...
     def show_result(self, elapsed_ms: float) -> None: ...
-    def show_progress(self, total: int, current: int) -> None: ...
     def show_error(self, msg: str) -> None: ...
 
 
-# ── PiRunResult ───────────────────────────────────────────────────────
-
 class PiRunResult:
-    """Result from a one-shot Pi run (converse_one_shot)."""
     def __init__(self) -> None:
         self.text: str = ""
         self.events: list[dict] = []
@@ -40,14 +35,13 @@ class PiRunResult:
         self.elapsed_ms: float = 0
 
 
-# ── Main conversation loop ────────────────────────────────────────────
+# ── Main conversation loop ───────────────────────────────────
 
 def converse(session: Session, user_input: str, display: Display) -> None:
-    """Run a streaming conversation turn with Pi.
+    """Run one conversation turn with Pi.
 
-    Writes a user_turn event to the session, builds the prompt,
-    streams Pi events, dispatches tool calls, and updates session metadata.
-    Returns nothing — all output goes through Display.
+    Writes user_turn to session, streams Pi events, dispatches tools,
+    updates session metadata. Side effects: session writes, display output.
     """
     from storageops.pi_runtime import PiRuntime
 
@@ -56,41 +50,35 @@ def converse(session: Session, user_input: str, display: Display) -> None:
     # Record user turn
     session.append({"type": "user_turn", "prompt": user_input, "ts": _now_iso()})
 
-    # Build prompt
+    # Build prompt with conversation history
     prompt = build_prompt(session, user_input)
 
-    # Start Pi
+    # Start Pi and stream events
     pi = PiRuntime()
-    pi.send_prompt(prompt)
+    accumulated = ""
 
-    turn_count = 0
-    max_turns = 20  # safety limit
+    for event in pi.stream(prompt):
+        event_type = event.get("type", "")
 
-    while turn_count < max_turns:
-        turn_count += 1
-        event = pi.read_event()
-        if event is None:
-            # No event ready, send ack and wait
-            pi.acknowledge()
-            time.sleep(0.05)
-            continue
-
-        event_type = event.get("type", "unknown")
+        # Persist every event to session (for replay / resume)
         session.append(event)
 
-        if event_type == "thinking":
-            display.show_thinking(event.get("text", ""))
+        if event_type == "think_block":
+            text = event.get("text", "")
+            if text:
+                display.show_thinking(text)
 
         elif event_type == "text_delta":
-            display.show_text_delta(event.get("text", ""))
+            delta = event.get("delta", "")
+            accumulated += delta
+            display.show_text_delta(delta)
 
         elif event_type == "tool_call":
             name = event.get("name", "unknown")
             args = event.get("arguments", {})
-            call_id = event.get("call_id", "")
+            call_id = event.get("id", "")
             display.show_tool_call(name, args)
 
-            # Dispatch the tool
             try:
                 result = dispatch_tool(name, args)
                 summary = _summarize_result(name, result)
@@ -101,18 +89,17 @@ def converse(session: Session, user_input: str, display: Display) -> None:
                 display.show_error(f"Tool {name} error: {exc}")
                 pi.send_tool_result(call_id, err)
 
+        elif event_type == "tool_result":
+            # tool_result events from Pi are informational
+            pass
+
         elif event_type == "error":
             display.show_error(event.get("message", "Unknown error"))
 
         elif event_type == "agent_end":
             break
 
-        elif event_type == "turn_end":
-            # Pi wants to continue — loop keeps going
-            continue
-
-    if turn_count >= max_turns:
-        display.show_error("Reached maximum turn limit")
+    pi.stop()
 
     elapsed = (time.monotonic() - t0) * 1000
     display.show_result(elapsed)
@@ -122,9 +109,9 @@ def converse(session: Session, user_input: str, display: Display) -> None:
 
 
 def converse_one_shot(prompt: str) -> PiRunResult:
-    """Run Pi once without session or display. Returns structured result.
+    """Run Pi once for a complete response. No session, no display.
 
-    Used by API server and CLI for quick diagnostic runs.
+    Used by API server and CLI for single-turn diagnostic runs.
     """
     from storageops.pi_runtime import PiRuntime
 
@@ -132,49 +119,42 @@ def converse_one_shot(prompt: str) -> PiRunResult:
     t0 = time.monotonic()
 
     pi = PiRuntime()
-    pi.send_prompt(prompt)
 
-    turn_count = 0
-    max_turns = 20
-
-    while turn_count < max_turns:
-        turn_count += 1
-        event = pi.read_event()
-        if event is None:
-            pi.acknowledge()
-            time.sleep(0.05)
-            continue
-
+    for event in pi.stream(prompt):
         result.events.append(event)
+        event_type = event.get("type", "")
 
-        if event.get("type") == "text_delta":
-            result.text += event.get("text", "")
+        if event_type == "text_delta":
+            delta = event.get("delta", "")
+            result.text += delta
 
-        elif event.get("type") == "tool_call":
+        elif event_type == "tool_call":
             name = event.get("name", "unknown")
             args = event.get("arguments", {})
-            call_id = event.get("call_id", "")
+            call_id = event.get("id", "")
             result.tool_calls.append({"name": name, "args": args})
 
             try:
                 tool_result = dispatch_tool(name, args)
                 pi.send_tool_result(call_id, tool_result)
             except Exception as exc:
-                err = {"error": str(exc)}
-                result.errors.append(f"Tool {name}: {exc}")
-                pi.send_tool_result(call_id, err)
+                err_msg = f"Tool {name}: {exc}"
+                result.errors.append(err_msg)
+                pi.send_tool_result(call_id, {"error": str(exc)})
 
-        elif event.get("type") == "error":
+        elif event_type == "error":
             result.errors.append(event.get("message", "Unknown error"))
 
-        elif event.get("type") == "agent_end":
+        elif event_type == "agent_end":
             break
+
+    pi.stop()
 
     result.elapsed_ms = (time.monotonic() - t0) * 1000
     return result
 
 
-# ── Helpers ───────────────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────
 
 def _now_iso() -> str:
     from datetime import datetime, timezone
@@ -182,21 +162,18 @@ def _now_iso() -> str:
 
 
 def _summarize_result(name: str, result: dict) -> str:
-    """Create a short summary of a tool result for display."""
+    """Short summary of a tool result for display."""
     if not isinstance(result, dict):
         return str(result)[:200]
     if error := result.get("error"):
         return f"error: {str(error)[:150]}"
-    # Common patterns
     for key in ("ok", "count", "status", "root_cause", "domain"):
         if key in result:
             return f"{key}={result[key]}"
-    # Try to find a meaningful summary key
     if "summary" in result:
         return str(result["summary"])[:150]
     if "findings" in result:
         cnt = result["findings"] if isinstance(result["findings"], int) else len(result["findings"])
         return f"findings={cnt}"
-    # Fallback: show keys present
     keys = list(result.keys())[:5]
     return f"keys: {', '.join(keys)}"

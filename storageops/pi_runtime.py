@@ -1,145 +1,272 @@
 """
-Thin Pi subprocess manager.
+Pi Coding Agent RPC runtime — subprocess manager and event streamer.
 
-Starts Pi in rpc mode (--rpc), communicates via stdin/stdout JSON lines.
-Uses config.py for provider/model/api_key settings.
+Protocol:
+  → stdin:  {"type": "prompt",      "message": "..."}
+  → stdin:  {"type": "tool_result",  "id": "...", "result": {...}}
+  ← stdout: {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "..."}}
+  ← stdout: {"type": "tool_execution_start", "executionId": "...", "toolName": "...", "input": {...}}
+  ← stdout: {"type": "agent_end", ...}
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
-import fcntl
+import select
 import subprocess
-import threading
 import time
+from typing import Any, Generator
 
-# Default model per provider when none specified
 _DEFAULT_MODELS: dict[str, str] = {
-    "anthropic": "anthropic/claude-sonnet-4",
-    "openai": "openai/gpt-4o",
+    "deepseek": "deepseek/deepseek-v4-flash:off",
+    "openai": "openai/gpt-4o-mini",
+    "anthropic": "anthropic/claude-sonnet-4-20250514",
+    "google": "google/gemini-3-flash-preview",
 }
 
 
+def _default_model(provider: str) -> str:
+    return _DEFAULT_MODELS.get(provider, "")
+
+
 class PiRuntime:
-    """Manage a Pi subprocess in RPC mode.
+    """Manage a Pi subprocess in RPC mode. One instance = one Pi process."""
 
-    Usage:
-        pi = PiRuntime()
-        pi.send_prompt("Hello")
-        while True:
-            event = pi.read_event()
-            if event is None: break
-            # process event
-    """
+    def __init__(
+        self,
+        max_turns: int = 10,
+        timeout_seconds: int = 600,
+        pi_command: str | None = None,
+        pi_model: str | None = None,
+        pi_provider: str | None = None,
+    ) -> None:
+        from storageops.config import get_pi_command, get_api_key, get_provider
 
-    def __init__(self, provider: str = "", model: str = "", api_key: str = "") -> None:
-        from storageops.config import get_pi_command, get_provider, get_api_key
+        self.max_turns = max_turns
+        self.timeout_seconds = timeout_seconds
+        self.pi_command = pi_command or get_pi_command()
+        self.pi_model = pi_model or _default_model(get_provider() or "deepseek")
+        self.pi_provider = pi_provider or get_provider() or ""
+        self.api_key = get_api_key() or ""
 
-        self._provider = provider or get_provider()
-        self._model = model or ""
-        api_key = api_key or get_api_key()
+        self._proc: subprocess.Popen | None = None
+        self._started: bool = False
 
-        # Resolve Pi binary path
-        pi_cmd = get_pi_command()
+    # ── Lifecycle ─────────────────────────────────────────────
 
-        # Build env with API key
+    def start(self) -> dict | None:
+        """Launch Pi subprocess. Returns error dict on failure, None on success."""
+        if self._proc is not None and self._proc.poll() is None:
+            return None  # already running
+
         env = os.environ.copy()
-        if api_key:
-            provider_upper = self._provider.upper()
-            env[f"{provider_upper}_API_KEY"] = api_key
+        if self.api_key:
+            env["DEEPSEEK_API_KEY"] = self.api_key
+            env["ANTHROPIC_API_KEY"] = self.api_key
+            env["OPENAI_API_KEY"] = self.api_key
 
-        cmd = [pi_cmd, "--rpc"]
-        if self._model:
-            # Ensure model string has provider prefix if it's just a model name
-            resolved = self._model
-            if "/" not in resolved and self._provider:
-                resolved = f"{self._provider}/{resolved}"
-            elif "/" not in resolved:
-                resolved = _DEFAULT_MODELS.get(self._provider, self._model)
-            cmd.extend(["--model", resolved])
+        cmd = [self.pi_command, "--rpc"]
+        if self.pi_model:
+            cmd.extend(["--model", self.pi_model])
 
-        self._proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            text=True,
-            bufsize=1,
-        )
+        try:
+            self._proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                text=True,
+                bufsize=1,
+            )
+        except FileNotFoundError:
+            return {"error": f"Pi not found at {self.pi_command}. Run: storageops setup"}
+        except Exception as exc:
+            return {"error": f"Failed to start Pi: {exc}"}
 
-        # Make stdout non-blocking
+        # Set stdout to non-blocking
         fd = self._proc.stdout.fileno()
         fl = fcntl.fcntl(fd, fcntl.F_GETFL)
         fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-        self._lock = threading.Lock()
-        self._last_ack = time.monotonic()
-        self._ack_thread: threading.Thread | None = None
-        self._running = True
-
-        # Start ack heartbeat
-        self._ack_thread = threading.Thread(target=self._ack_loop, daemon=True)
-        self._ack_thread.start()
-
-    def send_prompt(self, text: str) -> None:
-        """Write a prompt to Pi's stdin."""
-        # Auto-wrap with YAML header if missing
-        if not text.lstrip().startswith("---"):
-            provider_line = self._provider
-            model_line = self._model
-            text = f"---\nprovider: {provider_line}\nmodel: {model_line}\n---\n\n{text}"
-
-        msg = json.dumps({"prompt": text}, ensure_ascii=False) + "\n"
-        with self._lock:
-            self._proc.stdin.write(msg)
-            self._proc.stdin.flush()
-
-    def send_tool_result(self, call_id: str, result: dict) -> None:
-        """Send a tool result back to Pi."""
-        msg = json.dumps({"call_id": call_id, "tool_result": result}, ensure_ascii=False, default=str) + "\n"
-        with self._lock:
-            self._proc.stdin.write(msg)
-            self._proc.stdin.flush()
-
-    def read_event(self) -> dict | None:
-        """Read one JSON event from Pi's stdout. Returns None if no data available."""
-        try:
-            line = self._proc.stdout.readline()
-            if not line:
-                return None
-            line = line.strip()
-            if not line:
-                return None
-            return json.loads(line)
-        except (IOError, BlockingIOError):
-            return None
-        except json.JSONDecodeError:
-            return None
-
-    def acknowledge(self) -> None:
-        """Send an ack to prevent timeout."""
-        self._last_ack = time.monotonic()
+        self._started = True
+        return None
 
     def stop(self) -> None:
-        """Terminate the Pi subprocess gracefully."""
-        self._running = False
-        try:
-            self._proc.stdin.close()
-            self._proc.terminate()
-            self._proc.wait(timeout=5)
-        except Exception:
-            self._proc.kill()
-
-    def _ack_loop(self) -> None:
-        """Periodic ack heartbeat thread."""
-        while self._running:
-            time.sleep(10)
-            if time.monotonic() - self._last_ack > 15:
+        """Terminate the Pi subprocess."""
+        self._started = False
+        if self._proc:
+            try:
+                self._proc.stdin.close()
+                self._proc.terminate()
+                self._proc.wait(timeout=5)
+            except Exception:
                 try:
-                    with self._lock:
-                        self._proc.stdin.write('{"ack":true}\n')
-                        self._proc.stdin.flush()
-                    self._last_ack = time.monotonic()
+                    self._proc.kill()
                 except Exception:
+                    pass
+            self._proc = None
+
+    # ── Streaming ────────────────────────────────────────────
+
+    def stream(self, prompt: str) -> Generator[dict[str, Any], None, None]:
+        """Send a prompt and yield normalized events until agent_end.
+
+        Yields:
+          {"type": "text_delta", "delta": "..."}
+          {"type": "think_block", "text": "..."}
+          {"type": "tool_call", "id": "...", "name": "...", "arguments": {...}}
+          {"type": "tool_result", "id": "...", "name": "...", "ok": bool, "summary": "..."}
+          {"type": "agent_end", "messages": [...]}
+          {"type": "error", "message": "..."}
+        """
+        err = self.start()
+        if err:
+            yield {"type": "error", "message": err.get("error", "Pi failed")}
+            return
+
+        assert self._proc and self._proc.stdin and self._proc.stdout
+
+        # Write prompt
+        self._proc.stdin.write(
+            json.dumps({"type": "prompt", "message": prompt}, ensure_ascii=False) + "\n"
+        )
+        self._proc.stdin.flush()
+
+        deadline = time.monotonic() + self.timeout_seconds
+
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                yield {"type": "error", "message": f"Pi timed out after {self.timeout_seconds}s"}
+                self.stop()
+                return
+
+            # Read all available lines (non-blocking)
+            had_data = False
+            while True:
+                try:
+                    line = self._proc.stdout.readline()
+                    if not line:
+                        break
+                    had_data = True
+                    line = line.rstrip("\n")
+                    if not line.strip():
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    evt = self._normalize_event(event)
+                    if evt:
+                        yield evt
+                        if evt.get("type") == "agent_end":
+                            return
+                except (IOError, OSError):
                     break
+
+            if self._proc.poll() is not None:
+                break
+
+            # Wait for more data
+            ready, _, _ = select.select(
+                [self._proc.stdout], [], [], min(0.5, remaining)
+            )
+            if not ready and self._proc.poll() is not None:
+                break
+
+        yield {"type": "error", "message": "Pi process exited unexpectedly"}
+        self.stop()
+
+    def send_tool_result(self, tool_id: str, result: Any) -> None:
+        """Send a tool execution result back to Pi."""
+        if not self._proc or not self._proc.stdin:
+            return
+        payload = {"type": "tool_result", "id": tool_id, "result": result}
+        try:
+            self._proc.stdin.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
+            self._proc.stdin.flush()
+        except OSError:
+            pass
+
+    # ── Event normalization ──────────────────────────────────
+
+    @staticmethod
+    def _normalize_event(raw: dict) -> dict | None:
+        """Convert Pi RPC events to simplified normalized form."""
+        typ = str(raw.get("type") or "").lower()
+
+        # --- Text deltas (message_update) ---
+        if typ == "message_update":
+            ae = raw.get("assistantMessageEvent", {})
+            if isinstance(ae, dict):
+                ae_type = ae.get("type", "")
+                if ae_type == "text_delta":
+                    return {"type": "text_delta", "delta": ae.get("delta", "")}
+                if ae_type == "text_start":
+                    return {"type": "text_delta", "delta": ae.get("text", ae.get("delta", ""))}
+            return None
+
+        # --- Thinking ---
+        if typ in ("thinking_delta", "thinking"):
+            return {
+                "type": "think_block",
+                "text": raw.get("thinking", raw.get("text", "")),
+                "signature": raw.get("thinkingSignature", ""),
+            }
+
+        # --- Tool call ---
+        if typ == "tool_execution_start":
+            return {
+                "type": "tool_call",
+                "id": raw.get("executionId", raw.get("id", "")),
+                "name": raw.get("toolName", raw.get("name", "")),
+                "arguments": raw.get("input", raw.get("arguments", {})),
+            }
+
+        # --- Tool result ---
+        if typ == "tool_execution_end":
+            is_error = bool(raw.get("isError"))
+            result = raw.get("result", {})
+            content = ""
+            if isinstance(result, dict):
+                cl = result.get("content", [])
+                if isinstance(cl, list) and cl and isinstance(cl[0], dict):
+                    text = cl[0].get("text", "")
+                    if isinstance(text, str):
+                        try:
+                            data = json.loads(text)
+                            parts = []
+                            for k in ("records", "findings", "count"):
+                                v = data.get(k)
+                                if isinstance(v, list):
+                                    parts.append(f"{len(v)} {k}")
+                                elif isinstance(v, int):
+                                    parts.append(f"{v} {k}")
+                            content = "  ".join(parts[:3])
+                        except json.JSONDecodeError:
+                            content = text[:100]
+            return {
+                "type": "tool_result",
+                "id": raw.get("executionId", ""),
+                "name": raw.get("toolName", ""),
+                "ok": not is_error,
+                "summary": content,
+                "error": raw.get("error", "") if is_error else "",
+            }
+
+        # --- Terminal events ---
+        if typ in ("agent_end",):
+            return {"type": "agent_end", "messages": raw.get("messages", [])}
+
+        # --- Events we skip ---
+        if typ in (
+            "turn_start", "turn_end", "message_start", "message_end",
+            "response", "agent_start", "session",
+        ):
+            return None
+
+        # Unknown — pass through
+        return None
