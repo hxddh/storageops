@@ -197,17 +197,23 @@ def main():
         return
 
     if len(args) >= 1 and args[0] in ("--help", "-h"):
-        print("StorageOps — S3 兼容对象存储 AI 诊断工具")
+        print("🧰 StorageOps — S3 兼容对象存储 AI 诊断工具")
         print()
-        print("用法:")
-        print("  storageops install       一键安装")
-        print("  storageops [pi args]     启动诊断")
-        print("  storageops --version     版本信息")
+        print("  安装只需两步:")
+        print("    pip install storageops")
+        print("    storageops install")
         print()
-        print("示例:")
-        print("  storageops --print --api-key sk-xxx 's5cmd 报 429 错误'")
-        print("  export ANTHROPIC_API_KEY=sk-xxx")
-        print("  storageops '帮我分析 rclone 日志'")
+        print("  然后开始诊断:")
+        print("    storageops 's5cmd 报 429 SlowDown 错误'")
+        print()
+        print("  其他命令:")
+        print("    storageops install --force   强制重装")
+        print("    storageops --version          版本信息")
+        print()
+        print("  配置 API key (三选一):")
+        print("    export ANTHROPIC_API_KEY=sk-xxx")
+        print("    storageops --api-key sk-xxx ...")
+        print("    pi /login")
         return
 
     # 普通运行：检查是否已安装
