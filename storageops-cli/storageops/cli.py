@@ -508,7 +508,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
     result["module"] = "eval"
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-    if result.get("failed", 0) > 0:
+    if result.get("failed", 0) > 0 or not result.get("passed", True):
         sys.exit(1)
 
 

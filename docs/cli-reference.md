@@ -172,7 +172,7 @@ Run golden case evaluation. Without `--outputs-dir`, runs **fast triage eval**: 
 against `expected_category` in `expected.json`. No LLM or Pi needed.
 
 ```bash
-storageops eval --all                         # fast triage eval, 17/20 pass out of the box
+storageops eval --all                         # fast triage eval, 20/20 pass out of the box
 storageops eval --case rclone-corrupted-transfer   # fast eval for one case
 storageops eval --all --outputs-dir ./diagnoses/   # compare pre-generated LLM outputs
 ```

@@ -22,9 +22,13 @@ from __future__ import annotations
 
 import json
 import sys
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
 from pathlib import Path
 
-_VERSION = "0.3.0"
+try:
+    _VERSION = _pkg_version("storageops")
+except PackageNotFoundError:
+    _VERSION = "0.3.0"
 _STATIC_DIR = Path(__file__).parent / "static"
 
 # ── Optional FastAPI / Pydantic imports ───────────────────────────────
