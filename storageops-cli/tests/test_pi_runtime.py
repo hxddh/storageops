@@ -51,18 +51,30 @@ The operation was denied.
 
 
 def _fake_pi(tmp_path: Path, body: str, sleep: float = 0, deltas: list[str] | None = None) -> Path:
+    """Fake Pi binary emitting real Pi RPC protocol events."""
     script = tmp_path / "fake-pi.py"
+    # Streaming: message_update with text_delta (real Pi protocol)
     delta_lines = ""
     for delta in deltas or []:
-        delta_lines += f"print(json.dumps({{'type':'delta','text':{delta!r}}}), flush=True)\n"
+        delta_lines += (
+            f"print(json.dumps({{'type':'message_update',"
+            f"'assistantMessageEvent':{{'type':'text_delta','delta':{delta!r}}}}}), flush=True)\n"
+        )
+    # agent_end with messages array (real Pi protocol)
+    agent_end = {
+        "type": "agent_end",
+        "messages": [
+            {"role": "assistant", "content": [{"type": "text", "text": body}]},
+        ],
+    }
     script.write_text(
         "#!/usr/bin/env python3\n"
         "import json, sys, time\n"
         "req=json.loads(sys.stdin.readline())\n"
         f"time.sleep({sleep!r})\n"
-        "print(json.dumps({'type':'request_seen','prompt':req.get('prompt','')}), flush=True)\n"
+        "print(json.dumps({'type':'agent_start'}), flush=True)\n"
         f"{delta_lines}"
-        f"print(json.dumps({{'type':'final_report','markdown':{body!r}}}), flush=True)\n",
+        f"print(json.dumps({json.dumps(agent_end)}), flush=True)\n",
         encoding="utf-8",
     )
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
@@ -132,14 +144,21 @@ def test_pi_timeout_returns_structured_failure(tmp_path: Path):
 
 
 def test_event_parser_reconstructs_final_markdown():
+    # Primary path: agent_end with messages array (real Pi protocol)
     assert reconstruct_report_from_events([
-        {"type": "delta", "text": "hel"},
-        {"type": "delta", "text": "lo"},
-    ]) == "hello"
-    assert reconstruct_report_from_events([
-        {"type": "delta", "text": "draft"},
-        {"type": "final_report", "markdown": "final"},
+        {"type": "agent_start"},
+        {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "hel"}},
+        {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "lo"}},
+        {"type": "agent_end", "messages": [
+            {"role": "assistant", "content": [{"type": "text", "text": "final"}]},
+        ]},
     ]) == "final"
+
+    # Fallback path: text_delta chunks only (no agent_end)
+    assert reconstruct_report_from_events([
+        {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "hel"}},
+        {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": "lo"}},
+    ]) == "hello"
 
 
 def test_raw_secrets_never_reach_pi_prompt_or_redacted_evidence(tmp_path: Path):

@@ -1,4 +1,5 @@
 {
   "skills": ["../agents/skills"],
-  "enableSkillCommands": true
+  "enableSkillCommands": true,
+  "extensions": ["./extensions"]
 }
