@@ -315,13 +315,13 @@ class _StreamDisplay:
 
     def _emit_think_line(self, text: str) -> None:
         """Print one line of thinking output (only first 2 lines, rest suppressed)."""
-        if not text:
+        if not text or len(text) < 3:
             return
         if self._thinking_lines == 0:
             print(f"\n  {_c('▶', 'cyan')}  {_c('Thinking…', 'dim')}")
             self._thinking_header_shown = True
         if self._thinking_lines < 2:
-            print(f"     {_c(text[:100], 'dim')}")
+            print(f"     {_c(text[:120], 'dim')}")
         self._thinking_lines += 1
 
     def _flush_think_buf(self) -> None:

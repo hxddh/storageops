@@ -202,10 +202,11 @@ def _synthesise_yaml(raw: str) -> str | None:
         "dns": "network_endpoint_access",
         "tls": "network_endpoint_access",
         "endpoint": "network_endpoint_access",
-        "performance": "performance_throughput",
+        "429": "performance_throughput",
+        "slowdown": "performance_throughput",
+        "slow down": "performance_throughput",
         "throughput": "performance_throughput",
         "throttl": "performance_throughput",
-        "latency": "performance_throughput",
         "s3 protocol": "s3_protocol_compatibility",
         "sigv4": "s3_protocol_compatibility",
         "signature": "s3_protocol_compatibility",
@@ -225,10 +226,10 @@ def _synthesise_yaml(raw: str) -> str | None:
         "diagnosis": "evidence_reporting",
     }
     severity_pattern = re.compile(
-        r"(?:severity|Severity|SEVERITY)[:\s]+(critical|high|medium|low)\\b", re.IGNORECASE
+        r"(?:severity|Severity|SEVERITY)[:\s]+(critical|high|medium|low)\b", re.IGNORECASE
     )
     confidence_pattern = re.compile(
-        r"(?:confidence|Confidence|CONFIDENCE)[:\s]+([0-9]+(?:\\.[0-9]+)?)\\b", re.IGNORECASE
+        r"(?:confidence|Confidence|CONFIDENCE)[:\s]+([0-9]+(?:\.[0-9]+)?)\b", re.IGNORECASE
     )
 
     sev_match = severity_pattern.search(raw)
