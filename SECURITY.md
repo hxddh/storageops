@@ -5,7 +5,7 @@
 StorageOps is a Pi Coding Agent extension + skill pack. It contains **zero Python agent code** — no subprocess execution, no shell access, no network calls from StorageOps code.
 
 - **Extension** (`storageops_cli/extensions/storageops.ts`): 3 inline TypeScript tools — `scan_secrets`, `detect_domain`, `search_memory`
-- **Skills** (`skills/`): 15 markdown files with YAML frontmatter — pure instructions, no code execution
+- **Skills** (`skills/`): 16 markdown files with YAML frontmatter — pure instructions, no code execution
 
 All tool execution happens in Pi's sandboxed TypeScript runtime.
 
