@@ -1,85 +1,118 @@
 {
-  "version": "0.1",
+  "version": "0.2",
+  "contract": "StorageOps Routing Contract v1",
   "categories": {
     "access_log_analysis": {
       "skill": "storageops-access-log-analysis",
       "domains": ["access-log", "observability"],
-      "aliases": ["access_log", "server_access_log", "request_analysis", "traffic_analysis"]
+      "aliases": ["access_log", "server_access_log", "request_analysis", "traffic_analysis"],
+      "signatures": ["access log", "server access log", "requester", "error rate", "cost attribution"],
+      "baseline": false
     },
     "bigdata_pipeline": {
       "skill": "storageops-bigdata-pipeline",
       "domains": ["bigdata"],
-      "aliases": ["spark_s3a", "hive_s3a", "committer_race", "table_format"]
+      "aliases": ["spark_s3a", "hive_s3a", "committer_race", "table_format"],
+      "signatures": ["Spark", "Hive", "Flink", "S3A", "FileOutputCommitter", "_temporary", "small files"],
+      "baseline": true
     },
     "cli_sdk_behavior": {
       "skill": "storageops-cli-sdk-diagnosis",
       "domains": ["cli-sdk"],
-      "aliases": ["cli_sdk", "tool_behavior", "sdk_behavior"]
+      "aliases": ["cli_sdk", "tool_behavior", "sdk_behavior"],
+      "signatures": ["rclone", "s5cmd", "awscli", "boto3", "corrupted on transfer", "multipart ETag"],
+      "baseline": true
     },
     "consistency_integrity": {
       "skill": "storageops-data-consistency",
       "domains": ["consistency"],
-      "aliases": ["data_consistency", "etag_checksum", "stale_read"]
+      "aliases": ["data_consistency", "etag_checksum", "stale_read"],
+      "signatures": ["consistency", "stale", "ETag", "checksum", "mismatch"],
+      "baseline": false
     },
     "cors_configuration": {
       "skill": "storageops-s3-protocol-compatibility",
       "domains": ["protocol", "compatibility"],
-      "aliases": ["cors", "preflight", "browser_cors"]
+      "aliases": ["cors", "preflight", "browser_cors"],
+      "signatures": ["CORS", "preflight", "Access-Control-Allow-Origin", "NoSuchCORSConfiguration"],
+      "baseline": true
     },
     "event_notification": {
       "skill": "storageops-event-notification",
       "domains": ["notification"],
-      "aliases": ["bucket_notification", "lambda_trigger", "sqs_notification"]
+      "aliases": ["bucket_notification", "lambda_trigger", "sqs_notification"],
+      "signatures": ["notification", "event", "SQS", "Lambda", "prefix filter", "ObjectCreated"],
+      "baseline": true
     },
     "lifecycle_cost": {
       "skill": "storageops-lifecycle-cost",
       "domains": ["lifecycle", "cost"],
-      "aliases": ["storage_cost", "request_cost", "small_file_cost"]
+      "aliases": ["storage_cost", "request_cost", "small_file_cost"],
+      "signatures": ["lifecycle", "cost", "billing", "Standard_IA", "Glacier", "small objects"],
+      "baseline": false
     },
     "migration_sync": {
       "skill": "storageops-migration-sync",
       "domains": ["migration"],
-      "aliases": ["cross_provider_migration", "sync_integrity", "transfer_plan"]
+      "aliases": ["cross_provider_migration", "sync_integrity", "transfer_plan"],
+      "signatures": ["migration", "sync", "transfer", "metadata", "checksum", "cross-provider"],
+      "baseline": true
     },
     "mount_filesystem_workspace": {
       "skill": "storageops-mount-filesystem-workspace",
       "domains": ["mount", "filesystem"],
-      "aliases": ["fuse_mount", "workspace_mount", "metadata_amplification"]
+      "aliases": ["fuse_mount", "workspace_mount", "metadata_amplification"],
+      "signatures": ["mount", "FUSE", "s3fs", "goofys", "filesystem", "workspace"],
+      "baseline": false
     },
     "network_endpoint_access": {
       "skill": "storageops-network-endpoint-access",
       "domains": ["network"],
-      "aliases": ["dns_tls_connectivity", "endpoint_access", "vpc_endpoint"]
+      "aliases": ["dns_tls_connectivity", "endpoint_access", "vpc_endpoint"],
+      "signatures": ["DNS", "TLS", "certificate", "endpoint", "VPC", "Connection refused"],
+      "baseline": false
     },
     "performance_throughput": {
       "skill": "storageops-performance-diagnosis",
       "domains": ["performance"],
-      "aliases": ["throttling", "slowdown", "throughput", "hot_prefix"]
+      "aliases": ["throttling", "slowdown", "throughput", "hot_prefix"],
+      "signatures": ["429", "SlowDown", "throttl", "request rate", "hot prefix", "throughput"],
+      "baseline": true
     },
     "replication_versioning": {
       "skill": "storageops-replication-versioning",
       "domains": ["replication"],
-      "aliases": ["crr_srr", "versioning", "delete_marker", "object_lock"]
+      "aliases": ["crr_srr", "versioning", "delete_marker", "object_lock"],
+      "signatures": ["replication", "CRR", "SRR", "versioning", "DeleteMarker", "Object Lock"],
+      "baseline": false
     },
     "reporting": {
       "skill": "storageops-evidence-reporting",
       "domains": ["reporting"],
-      "aliases": ["evidence_report", "diagnosis_report"]
+      "aliases": ["evidence_report", "diagnosis_report"],
+      "signatures": ["report", "diagnosis report", "evidence report", "summary"],
+      "baseline": false
     },
     "s3_protocol_compatibility": {
       "skill": "storageops-s3-protocol-compatibility",
       "domains": ["protocol", "compatibility"],
-      "aliases": ["signature_auth", "sigv4", "multipart_protocol", "list_objects"]
+      "aliases": ["signature_auth", "sigv4", "multipart_protocol", "list_objects"],
+      "signatures": ["SignatureDoesNotMatch", "SigV4", "CanonicalRequest", "StringToSign", "InvalidArgument", "MalformedXML"],
+      "baseline": true
     },
     "security_iam_policy": {
       "skill": "storageops-security-iam-policy",
       "domains": ["security"],
-      "aliases": ["permission_access_denied", "iam_policy", "bucket_policy", "kms_permission"]
+      "aliases": ["permission_access_denied", "iam_policy", "bucket_policy", "kms_permission"],
+      "signatures": ["403", "AccessDenied", "IAM", "bucket policy", "KMS", "Unauthorized"],
+      "baseline": true
     },
     "triage": {
       "skill": "storageops-triage",
       "domains": ["triage"],
-      "aliases": ["first_contact", "routing"]
+      "aliases": ["first_contact", "routing"],
+      "signatures": ["object storage", "S3 error", "storage issue", "bucket issue"],
+      "baseline": false
     }
   },
   "case_types": {

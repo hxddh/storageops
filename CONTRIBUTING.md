@@ -77,6 +77,7 @@ Run:
 python3 scripts/skill_integrity_check.py
 python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
   skills/storageops-eval-golden-cases/cases
+python3 scripts/routing_contract_check.py
 python3 scripts/repo_size_gate.py
 python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
   --cases skills/storageops-eval-golden-cases/cases \
