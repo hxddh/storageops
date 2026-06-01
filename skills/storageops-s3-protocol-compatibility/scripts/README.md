@@ -1,16 +1,23 @@
 # storageops-s3-protocol-compatibility Scripts
 
-Future scripts for this domain (not yet implemented in v0.1):
+## `parse_sigv4_error.py`
+
+Parse a `SignatureDoesNotMatch` XML response or client debug log and extract:
+- Error code/message
+- StringToSign
+- CanonicalRequest
+- Credential scope (date, region, service)
+- Signed headers, method, path, query, payload hash
+- Conservative likely causes to inspect next
+
+```bash
+./parse_sigv4_error.py ../cases/signature-clock-skew/input/error-response.xml --json
+./parse_sigv4_error.py awscli-debug.log
+```
+
+The parser is offline-only. It does not compute signatures, derive signing keys, or contact cloud endpoints.
 
 ## Planned Scripts
-
-### `parse_sigv4_error.py`
-Parse a SignatureDoesNotMatch XML response and extract:
-- StringToSign
-- CanonicalRequest  
-- Expected vs actual signing components
-
-Compare against client-computed values from debug log.
 
 ### `validate_multipart_lifecycle.py`
 Given a debug log, trace a multipart upload through:

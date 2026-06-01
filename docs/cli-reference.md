@@ -54,7 +54,7 @@ storageops install [--merge] [--force]
 
 ```
 $ storageops --version
-StorageOps v0.4.4  (pi: 0.78.0)
+StorageOps v0.4.5  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```
