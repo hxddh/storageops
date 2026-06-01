@@ -6,7 +6,6 @@ import sys
 import select as _select
 import tempfile
 import time
-import threading
 from pathlib import Path
 from typing import Any
 
@@ -17,15 +16,26 @@ _IS_INPUT_TTY = sys.stdin.isatty()
 
 # ── ANSI helpers ──────────────────────────────────────────────────────
 
-def _c(text: str, *codes: str) -> str:
-    return ("\033[" + ";".join(codes) + "m" + text + "\033[0m") if _IS_TTY else text
+# Look-up table: colour name → ansi code
+_CODES = {
+    "reset": 0, "bold": 1, "dim": 2, "italic": 3,
+    "green": 32, "yellow": 33, "red": 31, "cyan": 36,
+    "magenta": 35, "blue": 34,
+}
 
-def _bold(t: str) -> str:   return _c(t, "1")
-def _dim(t: str) -> str:    return _c(t, "2")
-def _green(t: str) -> str:  return _c(t, "32")
-def _yellow(t: str) -> str: return _c(t, "33")
-def _red(t: str) -> str:    return _c(t, "31")
-def _cyan(t: str) -> str:   return _c(t, "36")
+def _c(text: str, *args: str) -> str:
+    """Apply ANSI codes. _c('text', 'bold', 'cyan') → bold cyan text."""
+    if not _IS_TTY:
+        return text
+    codes = [str(_CODES.get(a, a)) for a in args]
+    return "\033[" + ";".join(codes) + "m" + text + "\033[0m"
+
+def _bold(t: str) -> str:   return _c(t, "bold")
+def _dim(t: str) -> str:    return _c(t, "dim")
+def _green(t: str) -> str:  return _c(t, "green")
+def _yellow(t: str) -> str: return _c(t, "yellow")
+def _red(t: str) -> str:    return _c(t, "red")
+def _cyan(t: str) -> str:   return _c(t, "cyan")
 
 def _hr(w: int = 60) -> str:
     return _dim("─" * w)
@@ -68,31 +78,27 @@ def _make_banner() -> str:
     try:
         from storageops.config import get_provider, get_api_key
         if get_api_key():
-            provider_str = f"  {_cyan(get_provider())}"
+            provider_str = f"  {_c(get_provider(), 'cyan')}"
         else:
-            provider_str = f"  {_yellow('no api key — /setup')}"
+            provider_str = f"  {_c('no api key — /setup', 'yellow')}"
     except Exception:
         pass
-    hint = _dim("type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit")
-    return f"{_bold('StorageOps')}{provider_str}  ·  {hint}"
+    lines = [
+        _c("StorageOps", "bold"),
+        f"{provider_str}",
+        "",
+        _c("Describe your S3 issue or paste a log file.", "dim"),
+        _c("Use @filename  to attach files.  /help for commands.", "dim"),
+    ]
+    return "\n".join(lines)
 
 
 def _make_prompt(session_id: str) -> str:
-    """Build the input prompt line: `  session_id · provider ›  `"""
-    provider_str = ""
-    try:
-        from storageops.config import get_provider, get_api_key
-        if get_api_key():
-            provider_str = f"  {_dim(get_provider())}"
-    except Exception:
-        pass
-    sid = _dim(session_id[:8])
-    sep = _dim("·")
-    arrow = _cyan("›")
-    return f"  {sid}{provider_str}  {sep}  {arrow}  " if _IS_TTY else "> "
+    """Build the input prompt: `  › ` (clean, pi-style)."""
+    return f"  {_c('›', 'cyan')}  " if _IS_TTY else "> "
 
 
-# ── Live progress (spinner + tool calls) ─────────────────────────────
+# ── Live streaming progress (tool calls + report streaming) ───────────
 
 def _summarize_tool_result(event: dict[str, Any]) -> str:
     """Extract a brief human-readable summary from a tool_result event."""
@@ -130,36 +136,35 @@ def _summarize_tool_result(event: dict[str, Any]) -> str:
     return "  ".join(snippets[:3])
 
 
-class _LiveProgress:
+class _StreamDisplay:
     """
-    Progress display during Pi execution.
+    Pi-style streaming progress during diagnosis.
 
-    Normal mode:  spinner + elapsed time
-    Verbose mode: tool calls printed inline as  ⏺  tool_name  ·  brief_result
+    Shows tool calls in real-time, streams the final report as it's written,
+    and dims the thinking phase to a single indicator line.
+
+      ▶ Thinking…
+         Scanning evidence for error signatures…
+      ⏺ scan_secrets  ✓ 0 secrets
+      ⏺ triage  ✓ performance_throughput 25%
+      ⏺ analyze  ✓ 2 findings
+
+      ────────────────────────────────────────────────────
+        prefix hotspot throttling  HIGH  75%
+      ────────────────────────────────────────────────────
+
+      (report body streamed in real-time)
     """
 
-    _FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
-
-    def __init__(self, verbose: bool = False):
-        self._verbose = verbose
-        self._stop = threading.Event()
-        self._lock = threading.Lock()
-        self._start = time.monotonic()
-        self._thread = threading.Thread(target=self._spin, daemon=True)
-        self._pending_tool: str | None = None
-
-    def __enter__(self):
-        if _IS_TTY and not self._verbose:
-            self._thread.start()
-        return self
-
-    def __exit__(self, *_):
-        self._stop.set()
-        if _IS_TTY and self._thread.is_alive():
-            self._thread.join(timeout=1)
-        if _IS_TTY:
-            sys.stdout.write("\r\033[K")
-            sys.stdout.flush()
+    def __init__(self):
+        self._thinking_lines = 0
+        self._thinking_header_shown = False
+        self._report_started = False
+        self._current_tool: str | None = None
+        self._first_report_line = True
+        self._yaml_buffer: list[str] = []
+        self._yaml_collecting = False
+        self._header_printed = False
 
     def on_event(self, event: dict[str, Any]) -> None:
         if not _IS_TTY:
@@ -167,43 +172,106 @@ class _LiveProgress:
 
         typ = str(event.get("type") or event.get("event") or "").lower()
 
-        tool_name = (
-            event.get("tool_name")
-            or event.get("name")
-            or (event.get("function") or {}).get("name")
-            or (event.get("tool") or {}).get("name")
-        )
-        if tool_name or typ in ("tool_use", "tool_call", "function_call"):
-            name = str(tool_name or typ)
-            if self._verbose:
-                with self._lock:
-                    self._pending_tool = name
-                    sys.stdout.write(f"\r\033[K  {_dim('⏺')}  {_cyan(name):<32}")
-                    sys.stdout.flush()
+        # ── Text streaming ──────────────────────────────────────────
+        if typ == "message_update":
+            ae = event.get("assistantMessageEvent", {})
+            if not isinstance(ae, dict) or ae.get("type") != "text_delta":
+                return
+            delta = ae.get("delta", "")
+            if not delta:
+                return
+
+            # Detect report start: YAML frontmatter `---` after a blank or on new line
+            if not self._report_started and delta.strip().startswith("---"):
+                # End thinking block
+                if self._thinking_lines > 0 and self._thinking_header_shown:
+                    print()  # newline after thinking
+                print()  # blank before report header
+                self._report_started = True
+                self._yaml_collecting = True
+                self._yaml_buffer = []
+                return
+
+            if self._yaml_collecting:
+                self._yaml_buffer.append(delta)
+                # End of YAML frontmatter
+                if delta.strip() == "---":
+                    self._yaml_collecting = False
+                    self._print_yaml_header()
+                return
+
+            if self._report_started:
+                # Stream report body
+                print(delta, end="", flush=True)
+                return
+
+            # Thinking phase: summarise to 1-2 lines only
+            if self._thinking_lines == 0:
+                print(f"\n  {_c('▶', 'cyan')}  {_c('Thinking…', 'dim')}")
+                self._thinking_header_shown = True
+            if self._thinking_lines < 2:
+                preview = delta.strip()[:100]
+                if preview:
+                    print(f"     {_c(preview, 'dim')}")
+            self._thinking_lines += 1
             return
 
-        if typ in ("tool_result", "function_result") and self._verbose and self._pending_tool:
-            summary = _summarize_tool_result(event)
-            with self._lock:
-                if summary:
-                    sys.stdout.write(f"  {_dim(summary)}\n")
-                else:
-                    sys.stdout.write("\n")
-                sys.stdout.flush()
-                self._pending_tool = None
-            return
-
-    def _spin(self) -> None:
-        i = 0
-        while not self._stop.is_set():
-            elapsed = time.monotonic() - self._start
-            frame = self._FRAMES[i % len(self._FRAMES)]
-            sys.stdout.write(
-                f"\r  {_cyan(frame)}  {_dim(f'Analyzing…  {elapsed:.0f}s')}"
+        # ── Tool calls ──────────────────────────────────────────────
+        if typ in ("tool_use", "tool_call", "function_call"):
+            name = (
+                event.get("name")
+                or event.get("tool_name")
+                or (event.get("function") or {}).get("name")
+                or (event.get("tool") or {}).get("name")
             )
-            sys.stdout.flush()
-            time.sleep(0.08)
-            i += 1
+            if not name:
+                return
+            # End thinking line if we were in thinking phase
+            if self._thinking_lines > 0 and self._thinking_header_shown:
+                print()
+            self._current_tool = name
+            # Show tool name with indent, pad to align results
+            print(f"  {_c('⏺', 'cyan')}  {_c(name, 'cyan')}", end="", flush=True)
+            return
+
+        # ── Tool results ────────────────────────────────────────────
+        if typ in ("tool_result", "function_result"):
+            if self._current_tool:
+                summary = _summarize_tool_result(event)
+                mark = _c("✓", "green") if summary and "error" not in summary.lower() else _c("✗", "red")
+                detail = summary if summary else "ok"
+                print(f"  {mark} {_c(detail, 'dim')}")
+            self._current_tool = None
+            return
+
+        # ── Agent end ───────────────────────────────────────────────
+        if typ == "agent_end":
+            if self._thinking_lines > 0 and self._thinking_header_shown:
+                print()
+            return
+
+    def _print_yaml_header(self) -> None:
+        """Parse collected YAML frontmatter and print a formatted header."""
+        yaml_text = "".join(self._yaml_buffer)
+        fm_rc = re.search(r'^root_cause_type:\s*(\S+)', yaml_text, re.MULTILINE)
+        fm_conf = re.search(r'^confidence:\s*([\d.]+)', yaml_text, re.MULTILINE)
+        fm_sev = re.search(r'^severity:\s*(\S+)', yaml_text, re.MULTILINE)
+
+        sev_str = fm_sev.group(1).upper() if fm_sev else ""
+        conf_str = f"{float(fm_conf.group(1)):.0%}" if fm_conf else ""
+        rc_str = fm_rc.group(1).replace("_", " ") if fm_rc else "diagnosis"
+
+        sev_color = (
+            "red"    if sev_str in ("HIGH", "CRITICAL") else
+            "yellow" if sev_str == "MEDIUM" else
+            "dim"
+        )
+
+        print(_hr(56))
+        print(f"  {_c(rc_str, 'bold')}  {_c(sev_str, sev_color)}  {_c(conf_str, 'dim')}")
+        print(_hr(56))
+        print()
+        self._header_printed = True
 
 
 # ── First-run inline configure ────────────────────────────────────────
@@ -333,8 +401,7 @@ def _read_input(prompt: str | None = None) -> str | None:
     """
     Read one logical user input.
 
-    Interactive: single Enter submits. Paste detection collects buffered lines
-    so multi-line pastes arrive as one message.
+    Interactive: Enter submits.  Line ending in backslash continues to next line.
     Pipe mode: read all of stdin.
     Returns None on EOF/Ctrl+D (exit signal).
     """
@@ -342,25 +409,42 @@ def _read_input(prompt: str | None = None) -> str | None:
         data = sys.stdin.read()
         return data if data.strip() else None
 
-    _prompt = prompt if prompt is not None else (f"{_cyan('>')} " if _IS_TTY else "> ")
-    try:
-        line = input(_prompt)
-    except EOFError:
-        return None
+    _prompt = prompt if prompt is not None else (f"{_c('>', 'cyan')} " if _IS_TTY else "> ")
 
-    # Paste detection: collect any buffered lines that arrived together
-    lines = [line]
-    try:
-        while True:
-            r, _, _ = _select.select([sys.stdin], [], [], 0)
-            if not r:
-                break
-            next_line = sys.stdin.readline()
-            if not next_line:
-                break
-            lines.append(next_line.rstrip("\n"))
-    except Exception:
-        pass
+    lines: list[str] = []
+    first = True
+    while True:
+        p = _prompt if first else f"  {_c('…', 'dim')}  "
+        first = False
+        try:
+            line = input(p)
+        except EOFError:
+            if not lines:
+                return None
+            break
+        # Check for paste buffering
+        extra: list[str] = []
+        try:
+            while True:
+                r, _, _ = _select.select([sys.stdin], [], [], 0)
+                if not r:
+                    break
+                nl = sys.stdin.readline()
+                if not nl:
+                    break
+                extra.append(nl.rstrip("\n"))
+        except Exception:
+            pass
+        if extra:
+            lines.append(line)
+            lines.extend(extra)
+            break
+        # Multi-line continuation: line ending in \
+        if line.rstrip().endswith("\\"):
+            lines.append(line.rstrip()[:-1].rstrip())
+            continue
+        lines.append(line)
+        break
 
     return "\n".join(lines)
 
@@ -559,69 +643,39 @@ def _handle_memory(parts: list[str]) -> None:
 # ── Response display ──────────────────────────────────────────────────
 
 def _print_result(result, *, elapsed: float | None = None, session_id: str | None = None) -> None:
+    """Show footer after a streamed diagnosis: elapsed time, session id, or error."""
     if not result.ok:
-        print()
         err = result.error or "Unknown error"
         _pi_missing = any(kw in err.lower() for kw in (
             "not found", "no such file", "filenotfounderror",
             "command not found", "permission denied", "pi: not found",
         ))
         if _pi_missing:
-            print(f"  {_red('Pi Agent not found.')}")
-            print(
-                f"  {_dim('Run')} {_bold('storageops setup')} "
-                f"{_dim('to install Pi, or type')} {_bold('/setup')} {_dim('here.')}"
-            )
+            print(f"\n  {_c('Pi Agent not found.', 'red')}")
+            print(f"  {_c('Run', 'dim')} {_c('storageops setup', 'bold')} {_c('to install Pi, or type', 'dim')} {_c('/setup', 'bold')} {_c('here.', 'dim')}")
         else:
-            print(f"  {_red('✗')}  Diagnosis failed: {_dim(err)}")
-            print(f"  {_dim('/doctor to check installation  ·  /setup to reconfigure')}")
+            print(f"\n  {_c('✗', 'red')}  Diagnosis failed: {_c(err, 'dim')}")
+            print(f"  {_c('/doctor to check installation  ·  /setup to reconfigure', 'dim')}")
         print()
         return
 
-    report = result.report_markdown.strip()
-    if not report:
-        print(f"  {_yellow('No report generated.')}")
-        return
-
-    fm_rc   = re.search(r'^root_cause_type:\s*(\S+)', report, re.MULTILINE)
-    fm_conf = re.search(r'^confidence:\s*([\d.]+)',   report, re.MULTILINE)
-    fm_sev  = re.search(r'^severity:\s*(\S+)',        report, re.MULTILINE)
-
-    print()
-    print(_hr(56))
-    if fm_rc:
-        sev_str  = fm_sev.group(1).upper() if fm_sev else ""
-        conf_str = f"{float(fm_conf.group(1)):.0%}" if fm_conf else ""
-        sev_color = (
-            _red    if sev_str in ("HIGH", "CRITICAL") else
-            _yellow if sev_str == "MEDIUM" else
-            _dim
-        )
-        print(
-            f"  {_bold(fm_rc.group(1).replace('_', ' '))}  "
-            f"{sev_color(sev_str)}  {_dim(conf_str)}"
-        )
-    print(_hr(56))
-    print()
-
-    body = re.sub(r'^---\n.*?\n---\n?', '', report, flags=re.DOTALL).strip()
-    print(body)
-    print()
-
+    # Report was already streamed in real-time.
+    # Show footer: elapsed time + session id.
     footer_parts: list[str] = []
     if elapsed is not None:
         footer_parts.append(f"{elapsed:.0f}s")
     if session_id:
         footer_parts.append(f"session {session_id}")
     if footer_parts and _IS_TTY:
-        print(_dim("  " + "  ·  ".join(footer_parts)))
+        print()
+        print(_c("  " + "  ·  ".join(footer_parts), "dim"))
         print()
 
 
 # ── Turn runner ───────────────────────────────────────────────────────
 
 def _run_turn(text: str, session: DiagnosticSession) -> bool:
-    """Send one turn to Pi. Returns True on success."""
+    """Send one turn to Pi. Streams progress and report in real-time."""
     from storageops.runtime import AgentRunOptions, PiRpcRuntime
     from storageops.config import get_pi_command
 
@@ -635,24 +689,23 @@ def _run_turn(text: str, session: DiagnosticSession) -> bool:
         tmp.write(session.accumulated_evidence)
         tmp_path = tmp.name
 
-    progress = _LiveProgress(verbose=session.verbose)
+    display = _StreamDisplay()
     t_start = time.monotonic()
 
     options = AgentRunOptions(
         runtime="pi",
-        stream=False,
+        stream=True,   # enable real-time Pi output
         max_turns=10,
         timeout_seconds=600,
-        verbose=session.verbose,
+        verbose=False,  # verbose handled by _StreamDisplay now
         pi_command=get_pi_command(),
-        event_callback=progress.on_event,
+        event_callback=display.on_event,
     )
 
     try:
-        with progress:
-            result = PiRpcRuntime(options).run(tmp_path)
+        result = PiRpcRuntime(options).run(tmp_path)
     except KeyboardInterrupt:
-        print(f"\n  {_dim('Interrupted.')}\n")
+        print(f"\n  {_c('Interrupted.', 'dim')}\n")
         try:
             Path(tmp_path).unlink()
         except OSError:
@@ -750,7 +803,8 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         text = text.strip()
         if not text:
             if not _empty_hint_shown and _IS_TTY:
-                print(f"  {_dim('Ask a question, or type / for commands')}")
+                print(f"  {_c('Describe your S3 issue, paste a log, or type / for commands.', 'dim')}")
+                print(f"  {_c('Use backslash at end of line for multi-line input.', 'dim')}")
                 _empty_hint_shown = True
             continue
         _empty_hint_shown = False
@@ -806,8 +860,8 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
 
         elif first == "/verbose":
             session.verbose = not session.verbose
-            state = _green("on") if session.verbose else _dim("off")
-            print(f"\n  Verbose: {state}\n")
+            state = _c("on", "green") if session.verbose else _c("off", "dim")
+            print(f"\n  Verbose: {state}  ({_c('shows full thinking text', 'dim')})\n")
 
         else:
             expanded, file_errors = _expand_file_refs(text)

@@ -375,8 +375,8 @@ class PiRpcRuntime:
                         self.options.event_callback(safe)
                     except Exception:
                         pass
-                if self.options.stream:
-                    # Emit text_delta chunks from message_update events
+                elif self.options.stream:
+                    # No callback: stream text_delta to stdout directly
                     typ = str(safe.get("type") or "").lower()
                     if typ == "message_update":
                         ae = safe.get("assistantMessageEvent", {})
