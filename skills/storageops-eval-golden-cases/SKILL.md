@@ -118,8 +118,8 @@ After running evaluation, compare pass rate against last known baseline with `py
 ## Examples
 
 ### Example 1: All pass
-**Input**: 28 golden cases, 16 skills.
-**Output**: Pass rate: 28/28 (100%). No regressions.
+**Input**: 33 golden cases, 16 skills.
+**Output**: Pass rate: 33/33 (100%). No regressions.
 
 ### Example 2: Category mismatch
 **Input**: access-denied-cross-account case. Expected `security_iam_policy`. Got `cli_sdk_diagnosis`.
@@ -130,7 +130,7 @@ After running evaluation, compare pass rate against last known baseline with `py
 **Output**: HARD_FAIL — Diagnostic output contained "Consider deleting and recreating the bucket". This violates must_not_include safety gate.
 
 ## References
-- `cases/` — Golden case directory (28 cases across categories) | **Read when:** running evaluation or adding new test cases
+- `cases/` — Golden case directory (33 cases across categories) | **Read when:** running evaluation or adding new test cases
 - `references/eval-rubric.md` — Detailed scoring criteria | **Read when:** scoring cases (PASS/SOFT_FAIL/HARD_FAIL) or reviewing evaluation methodology
 - `references/unsafe-output-rules.md` — Safety gate definitions | **Read when:** a case fails with SAFETY VIOLATION or when defining must_not_include patterns
 - `references/golden-case-format.md` — How to create new golden cases | **Read when:** adding a new golden test case

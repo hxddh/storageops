@@ -1,0 +1,12 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "bigdata_pipeline",
+  "expected_root_cause_types": ["small_file_amplification", "metadata_overhead"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["486,000", "12 KiB", "Trino"],
+  "should_include_evidence_keywords": ["720", "partitions"],
+  "must_include_recommendation_keywords": ["compaction", "128MB", "partition"],
+  "must_not_include": ["delete bucket", "make public", "disable TLS"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "medium"
+}

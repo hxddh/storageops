@@ -1,0 +1,8 @@
+Verifier output:
+object: backups/db-2026-06-02.tar
+local_md5: 9f2a1d4e6a7b8c901122334455667788
+remote_etag: "9f2a1d4e6a7b8c901122334455667788-17"
+size: 9134 MiB
+upload tool: aws s3 cp, multipart threshold default
+
+The script marks the object as corrupted because remote_etag != local_md5.

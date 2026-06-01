@@ -1,0 +1,12 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "consistency_integrity",
+  "expected_root_cause_types": ["multipart_etag_not_md5", "verification_method_error"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["ETag", "-17", "multipart"],
+  "should_include_evidence_keywords": ["9134 MiB", "local_md5"],
+  "must_include_recommendation_keywords": ["checksum", "HEAD", "metadata"],
+  "must_not_include": ["delete bucket", "force delete", "make public"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "medium"
+}

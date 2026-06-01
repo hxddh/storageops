@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-06-02 — v0.4.4: Specialist diagnosis case coverage
+
+- **Coverage**: added compact diagnosis golden cases for access-log delete storms, multipart ETag verification, big-data small-file queries, notification prefix filters, and migration metadata loss.
+- **Regression suite**: expanded golden cases from 28 to 33 while keeping inputs small and synthetic.
+- **Documentation**: updated eval examples and version references for the expanded suite.
+
 ## 2026-06-02 — v0.4.3: Batch golden-case evaluation
 
 - **Batch eval**: added `eval_all.py` to evaluate saved outputs across many golden cases and emit regression-ready JSON summaries.

@@ -1,0 +1,5 @@
+2026-06-02T03:10:01Z bucket REST.DELETE.OBJECT reports/2026/06/a.json 204 requester=arn:aws:iam::111111111111:role/cleanup-lambda remote_ip=198.51.100.10 user_agent=boto3/1.34
+2026-06-02T03:10:02Z bucket REST.DELETE.OBJECT reports/2026/06/b.json 204 requester=arn:aws:iam::111111111111:role/cleanup-lambda remote_ip=198.51.100.10 user_agent=boto3/1.34
+2026-06-02T03:10:03Z bucket REST.DELETE.OBJECT reports/2026/06/c.json 204 requester=arn:aws:iam::111111111111:role/cleanup-lambda remote_ip=198.51.100.10 user_agent=boto3/1.34
+
+User says about 15,000 objects disappeared between 03:00 and 03:15 UTC.
