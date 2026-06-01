@@ -68,7 +68,7 @@ skills:
       - "encryption"
       - "public access"
     domains: [security_iam_policy, permission_access_denied]
-    recommended_tools: [scan_secrets, analyze_iam, search_memory]
+    recommended_tools: [scan_secrets, analyze_policy, generate_policy_fix, search_memory]
 
   - name: storageops-performance-diagnosis
     path: agents/skills/storageops-performance-diagnosis/SKILL.md
@@ -93,7 +93,7 @@ skills:
       - "latency"
       - "RequestRateLimitExceeded"
     domains: [performance_throughput, small_file_metadata]
-    recommended_tools: [analyze_performance, parse_rclone_log, scan_secrets]
+    recommended_tools: [detect_throttling, analyze_throughput, parse_rclone_log, scan_secrets]
 
   - name: storageops-s3-protocol-compatibility
     path: agents/skills/storageops-s3-protocol-compatibility/SKILL.md
@@ -115,7 +115,7 @@ skills:
       - "S3 compatible"
       - "S3 protocol"
     domains: [s3_protocol_compatibility, sigv4, list_objects, multipart_upload, checksum_etag]
-    recommended_tools: [parse_s3_xml_error, parse_aws_cli_debug, scan_secrets]
+    recommended_tools: [parse_sigv4_error, parse_awscli_debug, scan_secrets]
 
   - name: storageops-cli-sdk-diagnosis
     path: agents/skills/storageops-cli-sdk-diagnosis/SKILL.md
@@ -139,7 +139,7 @@ skills:
       - "--debug"
       - "aws sdk"
     domains: [cli_sdk_behavior]
-    recommended_tools: [parse_rclone_log, parse_aws_cli_debug, scan_secrets]
+    recommended_tools: [parse_rclone_log, parse_awscli_debug, parse_s5cmd_log, scan_secrets]
 
   - name: storageops-network-endpoint-access
     path: agents/skills/storageops-network-endpoint-access/SKILL.md
@@ -189,7 +189,7 @@ skills:
       - "计费"
       - "费用"
     domains: [lifecycle_cost]
-    recommended_tools: [analyze_lifecycle, scan_secrets]
+    recommended_tools: [parse_lifecycle_xml, analyze_cost, generate_lifecycle_fix, scan_secrets]
 
   - name: storageops-mount-filesystem-workspace
     path: agents/skills/storageops-mount-filesystem-workspace/SKILL.md
@@ -335,7 +335,7 @@ skills:
       - "duplicate events"
       - "事件通知"
     domains: [event_notification]
-    recommended_tools: [scan_secrets, analyze_iam]
+    recommended_tools: [scan_secrets, analyze_policy]
 
   - name: storageops-eval-golden-cases
     path: agents/skills/storageops-eval-golden-cases/SKILL.md

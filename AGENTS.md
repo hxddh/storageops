@@ -13,24 +13,19 @@ The project is built in phases:
 Skill Pack  →  storageops-core  →  storageops CLI  →  StorageOps Agent  →  Enterprise Platform
 ```
 
-## v0.1 Scope
+## Current State
 
-v0.1 is **Skill-first**. The deliverable is a set of Agent Skills that coding agents
-(Codex, Claude Code, Amp, etc.) can load to perform structured diagnostics on offline
-logs, configurations, and command output.
+StorageOps ships a complete diagnostic system:
 
-**In scope:**
-- 10 specialized Skill definitions with concrete diagnostic workflows
-- Reference documentation for each diagnostic domain
-- Evidence-based reporting templates
-- Golden case evaluation framework
+- **15 Skill definitions** across core / mature / beta / experimental maturity levels
+- **storageops-core** — deterministic offline parser/analyzer engine
+- **storageops CLI** — interactive REPL, offline triage/analyze/scan commands, MCP server, HTTP API
+- **Pi Coding Agent runtime** — AI-powered multi-turn diagnosis via `storageops` REPL
 
-**Out of scope (deferred to storageops-core and beyond):**
-- Full agent platform or Web UI
-- Real cloud account integration
-- Real AK/SK usage
-- Automated remediation
-- Production deployment
+**Permanently out of scope (all phases):**
+- Real cloud account integration or AK/SK usage
+- Automated remediation (suggestions only, labeled `manual-only`)
+- Production deployment targeting real object storage
 
 ## Prohibited Actions (All Phases)
 
@@ -59,24 +54,33 @@ The following actions are **never** permitted in any phase of this project:
 
 ```
 agents/skills/
-├── storageops-triage/                  # Entry point: triage and routing
-├── storageops-s3-protocol-compatibility/# S3 protocol and compatibility
-├── storageops-cli-sdk-diagnosis/       # Client tool and SDK behavior
-├── storageops-performance-diagnosis/   # Performance bottlenecks
-├── storageops-mount-filesystem-workspace/# Mount/workspace issues
-├── storageops-network-endpoint-access/ # Network and endpoint
-├── storageops-security-iam-policy/     # Permissions and security
-├── storageops-lifecycle-cost/          # Lifecycle and cost analysis
-├── storageops-evidence-reporting/      # Report generation
-└── storageops-eval-golden-cases/       # Evaluation and regression
+├── storageops-triage/                    # core    — Entry point: triage and routing
+├── storageops-security-iam-policy/       # core    — 403 AccessDenied, IAM/bucket policy, KMS
+├── storageops-performance-diagnosis/     # core    — Throttling, throughput, prefix hotspot
+├── storageops-s3-protocol-compatibility/ # core    — SigV4, ETag, multipart, CORS
+├── storageops-evidence-reporting/        # core    — Structured report generation
+├── storageops-cli-sdk-diagnosis/         # mature  — rclone, s5cmd, awscli, boto3
+├── storageops-network-endpoint-access/   # mature  — DNS, TLS, VPC endpoint, PrivateLink
+├── storageops-lifecycle-cost/            # mature  — Lifecycle rules, storage cost analysis
+├── storageops-mount-filesystem-workspace/# mature  — s3fs, FUSE mounts, agent workspace
+├── storageops-replication-versioning/    # beta    — CRR/SRR, delete markers, Object Lock
+├── storageops-bigdata-pipeline/          # beta    — Spark S3A, Iceberg, Delta Lake
+├── storageops-data-consistency/          # beta    — Stale reads, replica drift
+├── storageops-migration-sync/            # beta    — Cross-provider data migration
+├── storageops-event-notification/        # experimental — S3→Lambda/SQS/SNS triggers
+└── storageops-eval-golden-cases/         # —       — Regression evaluation golden cases
 ```
 
 ## Agent Runtime Architecture
 
 StorageOps Agent Runtime is Pi Coding Agent. Pi owns the agent loop, interactive reasoning,
 tool orchestration, streaming events, LLM provider configuration, model selection, skill
-loading, and runtime skill selection. StorageOps does not manage LLM providers, API keys,
-base URLs, provider headers, model registries, or native ReAct/supervisor loops.
+loading, and runtime skill selection. StorageOps does not manage model registries, provider
+headers, base URLs, or native ReAct/supervisor loops.
+
+StorageOps stores the API key in `~/.storageops/config.json` and passes it to Pi as an
+environment variable at startup. Pi then owns all LLM call handling. StorageOps only holds
+the key as a convenience bridge — users can also configure it directly in Pi.
 
 `storageops-core` remains the deterministic offline diagnostic engine and must stay
 independent of Pi, LLM providers, model APIs, and real cloud credentials. Non-agent CLI
