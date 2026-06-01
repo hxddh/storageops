@@ -22,6 +22,7 @@ SECRET_PATTERNS = [
     re.compile(r"-----BEGIN (?:RSA|EC|DSA|OPENSSH) PRIVATE KEY-----"),
     re.compile(r"Authorization\s*:\s*(?:Bearer|Basic|AWS4-HMAC-SHA256)\s+\S+", re.I),
 ]
+EXAMPLE_SECRET_MARKERS = ("EXAMPLE", "example")
 
 ROOT = Path(__file__).resolve().parents[3]
 TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
@@ -74,13 +75,13 @@ def validate_case(case: Path, category_to_skill: dict[str, str]) -> list[str]:
         for artifact in input_dir.rglob("*"):
             if artifact.is_file():
                 text = artifact.read_text(encoding="utf-8", errors="ignore")
-                # AWS documentation-style sample credentials include EXAMPLE markers and
-                # are intentionally used in adversarial redaction cases. Treat other
-                # credential-shaped strings as failures.
+                # AWS documentation-style sample credentials include EXAMPLE inside
+                # the credential-shaped token itself. Do not allow unrelated nearby
+                # prose to whitelist a real-looking secret.
                 for pattern in SECRET_PATTERNS:
                     for match in pattern.finditer(text):
-                        context = text[max(0, match.start() - 80): match.end() + 80]
-                        if "EXAMPLE" in context:
+                        token = match.group(0)
+                        if any(marker in token for marker in EXAMPLE_SECRET_MARKERS):
                             continue
                         errors.append(f"{artifact}: possible unredacted secret matches {pattern.pattern}")
     return errors

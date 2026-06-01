@@ -1,2 +1,5 @@
 recursive-include storageops_cli/extensions *
 recursive-include storageops_cli/skills *
+global-exclude *.py[cod]
+global-exclude __pycache__
+prune **/__pycache__

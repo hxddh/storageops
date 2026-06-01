@@ -6,7 +6,7 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
 
 ## What You Get
 
-- 16 diagnostic skills covering security, protocol compatibility, CLI/SDK behavior, performance, network access, lifecycle cost, replication, mount/workspace usage, migration, data consistency, access logs, big-data pipelines, notifications, reporting, triage, and eval.
+- 15 diagnostic skills covering security, protocol compatibility, CLI/SDK behavior, performance, network access, lifecycle cost, replication, mount/workspace usage, migration, data consistency, access logs, big-data pipelines, notifications, reporting, and triage, plus 1 eval skill pack.
 - 3 Pi extension tools:
   - `scan_secrets` redacts credentials and tokens.
   - `detect_domain` ranks likely diagnostic domains from evidence text.
@@ -113,6 +113,8 @@ make validate
 - [Routing Flowchart](docs/skill-routing-flowchart.md)
 - [Dependency Map](docs/skill-dependency-map.md)
 - [API Coverage Matrix](docs/api-coverage-matrix.md)
+- [Examples](docs/examples/)
+- [Changelog](CHANGELOG.md)
 - [Security](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
 

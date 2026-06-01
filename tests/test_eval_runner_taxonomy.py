@@ -42,6 +42,7 @@ def test_eval_accepts_mapped_skill_name_for_category(tmp_path):
         """
 # Routing
 Route to storageops-s3-protocol-compatibility.
+Confidence: 0.8
 Evidence: SignatureDoesNotMatch from an S3-compatible endpoint.
 Recommendation: compare endpoint region and canonical request details.
 """,
@@ -61,6 +62,7 @@ def test_eval_fails_when_neither_category_nor_skill_is_present(tmp_path):
         """
 # Routing
 Evidence: SignatureDoesNotMatch in the response.
+Confidence: 0.8
 Recommendation: inspect endpoint settings.
 """,
         encoding="utf-8",
@@ -70,3 +72,24 @@ Recommendation: inspect endpoint settings.
 
     assert result["status"] == "HARD_FAIL"
     assert "expected_category or mapped skill not found" in result["failures"][0]
+
+
+def test_eval_fails_when_confidence_is_below_expected(tmp_path):
+    runner = load_eval_runner_module()
+    case = write_case(tmp_path, "s3_protocol_compatibility")
+    output = tmp_path / "diagnosis.md"
+    output.write_text(
+        """
+# Routing
+Route to storageops-s3-protocol-compatibility.
+Confidence: 0.4
+Evidence: SignatureDoesNotMatch in the response.
+Recommendation: inspect endpoint settings.
+""",
+        encoding="utf-8",
+    )
+
+    result = runner.evaluate(case, output)
+
+    assert result["status"] == "HARD_FAIL"
+    assert "confidence too low" in result["failures"][0]

@@ -13,34 +13,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate skills
-        run: |
-          echo "=== Checking skill count ==="
-          skill_count=$(ls -d skills/storageops-*/ | wc -l)
-          echo "Skills found: $skill_count"
-          test "$skill_count" -ge 10 || { echo "ERROR: Expected >= 10 skills, found $skill_count"; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Validate SKILL.md files
-        run: |
-          echo "=== Checking SKILL.md files ==="
-          for skill in skills/*/SKILL.md; do
-            name=$(basename $(dirname $skill))
-            if ! grep -q "^name:" "$skill"; then
-              echo "ERROR: $name SKILL.md missing 'name:' field"
-              exit 1
-            fi
-            frontmatter_name=$(grep "^name:" "$skill" | head -1 | sed 's/name: *//')
-            if ! echo "$frontmatter_name" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
-              echo "ERROR: $name SKILL.md has invalid name '$frontmatter_name' (must be a-z, 0-9, hyphens only)"
-              exit 1
-            fi
-            if ! grep -q "scan_secrets" "$skill"; then
-              echo "ERROR: $name SKILL.md missing scan_secrets reference"
-              exit 1
-            fi
-            echo "  OK: $name"
-          done
-          echo "All skills validated."
+      - name: Install test dependencies
+        run: python -m pip install -e '.[dev]'
+
+      - name: Validate skills
+        run: python scripts/skill_integrity_check.py
+
+      - name: Validate golden cases
+        run: python skills/storageops-eval-golden-cases/scripts/golden_case_validator.py skills/storageops-eval-golden-cases/cases
+
+      - name: Run tests
+        run: python -m pytest
 
   check-extension:
     runs-on: ubuntu-latest

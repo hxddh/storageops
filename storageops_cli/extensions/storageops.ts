@@ -51,6 +51,7 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
 
 function redactText(text: string): { findings: Array<{ line: number; type: string; preview: string }>; redacted: string } {
   const findings: Array<{ line: number; type: string; preview: string }> = [];
+  const ranges: Array<[number, number]> = [];
   let redacted = text;
 
   for (const [pattern, type] of SECRET_PATTERNS) {
@@ -58,14 +59,14 @@ function redactText(text: string): { findings: Array<{ line: number; type: strin
     pattern.lastIndex = 0;
     const matches = Array.from(text.matchAll(pattern));
     for (const m of matches) {
+      const start = m.index ?? 0;
+      const end = start + m[0].length;
+      if (ranges.some(([rangeStart, rangeEnd]) => start < rangeEnd && end > rangeStart)) {
+        continue;
+      }
       const line = text.slice(0, m.index!).split("\n").length;
       const preview = m[0].length > 60 ? m[0].slice(0, 60) + "..." : m[0];
-      // Skip if already redacted
-      if (redacted.includes("[REDACTED]")) {
-        const before = redacted.slice(Math.max(0, m.index! - 30), m.index!).toLowerCase();
-        const after = redacted.slice(m.index! + m[0].length, m.index! + m[0].length + 30).toLowerCase();
-        if (before.includes("[redacted]") || after.includes("[redacted]")) continue;
-      }
+      ranges.push([start, end]);
       findings.push({ line, type, preview });
     }
   }
@@ -85,17 +86,22 @@ function redactText(text: string): { findings: Array<{ line: number; type: strin
 // Replaces the old Python storageops/utils/signatures.py
 
 const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
-  "security-iam-policy": [
+  "storageops-security-iam-policy": [
     [/403\s*(?:Forbidden|Access\s*Denied)/i, "access_denied"],
     [/AccessDenied/i, "access_denied_api"],
     [/InvalidAccessKeyId/i, "invalid_key"],
-    [/SignatureDoesNotMatch/i, "signature_error"],
-    [/RequestExpired|clock\s*skew/i, "clock_skew"],
     [/KMS/i, "kms_error"],
     [/Unauthorized/i, "unauthorized"],
     [/AssumeRole|sts:/i, "role_error"],
   ],
-  "performance-throttling": [
+  "storageops-s3-protocol-compatibility": [
+    [/SignatureDoesNotMatch|AuthorizationHeaderMalformed|InvalidArgument/i, "signature_or_protocol_error"],
+    [/CanonicalRequest|StringToSign|AWS4-HMAC-SHA256|SigV4|SigV2/i, "signature_debug"],
+    [/CORS|preflight|Access-Control-Allow-Origin|Access-Control-Allow-Methods/i, "cors"],
+    [/MalformedXML|InvalidDigest|Content-MD5|x-amz-content-sha256/i, "protocol_header"],
+    [/virtual.?hosted|path.?style|chunked|STREAMING-AWS4-HMAC-SHA256-PAYLOAD/i, "provider_compatibility"],
+  ],
+  "storageops-performance-diagnosis": [
     [/429|TooManyRequests|RequestRateLimitExceeded/i, "rate_limit"],
     [/SlowDown/i, "slow_down"],
     [/throttl/i, "throttle"],
@@ -103,14 +109,14 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/bandwidth/i, "bandwidth"],
     [/retry/i, "retry"],
   ],
-  "network-endpoint": [
+  "storageops-network-endpoint-access": [
     [/DNS|Name\s*or\s*service\s*not\s*known|NXDOMAIN/i, "dns"],
     [/Could\s*not\s*connect|Connection\s*refused|connect\s*ETIMEDOUT/i, "connectivity"],
     [/TLS|SSL|Certificate|cert/i, "tls"],
     [/VPC|endpoint|ENDPOINT/i, "endpoint"],
     [/host\s*unreachable|no\s*route/i, "route"],
   ],
-  "cli-sdk": [
+  "storageops-cli-sdk-diagnosis": [
     [/rclone/i, "rclone"],
     [/s5cmd/i, "s5cmd"],
     [/awscli|botocore|boto3/i, "aws_cli"],
@@ -118,41 +124,48 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/obsutil|obs:/i, "obsutil"],
     [/corrupted\s*on\s*transfer|multipart.*etag/i, "corruption"],
   ],
-  "replication-versioning": [
+  "storageops-replication-versioning": [
     [/replicat/i, "replication"],
     [/CRR|SRR/i, "replication_type"],
     [/version/i, "versioning"],
     [/DeleteMarker/i, "delete_marker"],
     [/sync\s*(?:lag|delay)/i, "sync_lag"],
   ],
-  "lifecycle-cost": [
+  "storageops-lifecycle-cost": [
     [/lifecycle/i, "lifecycle"],
     [/Standard_IA|Glacier|Deep_Archive/i, "storage_class"],
     [/cost|费用|计费|账单/i, "cost"],
     [/transition|expir/i, "transition"],
     [/objects.*small|small.*objects/i, "small_objects"],
   ],
-  "mount-filesystem": [
+  "storageops-mount-filesystem-workspace": [
     [/mount|FUSE|s3fs|goofys/i, "mount"],
     [/fuse|FUSE/i, "fuse"],
     [/filesystem/i, "filesystem"],
   ],
-  "migration-sync": [
+  "storageops-migration-sync": [
     [/migrat|搬迁|迁移/i, "migration"],
     [/sync|cp\s+-r/i, "sync"],
     [/transfer/i, "transfer"],
   ],
-  "data-consistency": [
+  "storageops-data-consistency": [
     [/consistenc|一致性/i, "consistency"],
     [/stale|陈旧/i, "stale"],
     [/mismatch/i, "mismatch"],
     [/checksum|ETag/i, "checksum"],
   ],
-  "event-notification": [
+  "storageops-bigdata-pipeline": [
+    [/Spark|Hive|Flink|Hadoop|S3A|EMR/i, "bigdata_engine"],
+    [/FileOutputCommitter|MagicCommitter|S3ACommitter|_temporary|speculative execution/i, "committer"],
+    [/partition|Parquet|Iceberg|Delta|Hudi/i, "table_or_partition"],
+    [/small files|many files|listing storm|listObjects/i, "small_file_query"],
+  ],
+  "storageops-event-notification": [
     [/notification|通知/i, "notification"],
     [/event/i, "event"],
+    [/prefix filter|suffix filter|ObjectCreated|ObjectRemoved/i, "event_filter"],
   ],
-  "access-log-analysis": [
+  "storageops-access-log-analysis": [
     [/access\s*log|server\s*access\s*log/i, "access_log"],
     [/log\s*(?:analysis|分析)|request\s*analysis|traffic\s*analysis/i, "log_analysis"],
     [/403\s*spike|503\s*spike|error\s*rate|错误率/i, "error_spike"],
@@ -177,7 +190,7 @@ function detectDomain(text: string): Array<{ domain: string; confidence: number;
   return Object.entries(scores)
     .map(([domain, info]) => ({
       domain,
-      confidence: Math.min(info.score / (DOMAIN_SIGNATURES[domain]?.length || 1), 0.95),
+      confidence: Math.min(0.5 + info.score * 0.15, 0.95),
       subdomains: Array.from(info.subdomains),
     }))
     .sort((a, b) => b.confidence - a.confidence);

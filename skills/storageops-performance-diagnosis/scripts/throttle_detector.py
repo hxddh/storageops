@@ -26,6 +26,7 @@ _TS_FMTS = [
     "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z",
     "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
 ]
+_STATUS_RE = re.compile(r"(?<![\d.])(429|503)(?!\d)")
 
 
 def _parse_ts(line: str) -> Optional[datetime]:
@@ -57,6 +58,14 @@ def _prefix(path: str, depth: int = 2) -> str:
     return "/".join(parts[:depth]) if len(parts) > 1 else path
 
 
+def _extract_throttle_status(line: str) -> Optional[str]:
+    for match in _STATUS_RE.finditer(line):
+        context = line[max(0, match.start() - 32): match.end() + 32].lower()
+        if re.search(r"status|http|error|err|fail|slowdown|throttl|rate", context):
+            return match.group(1)
+    return None
+
+
 class ThrottleDetector:
     def __init__(self, lines: List[str]):
         self.lines = lines
@@ -73,10 +82,8 @@ class ThrottleDetector:
             if ts:
                 self.all_ts.append(ts)
 
-            code = None
-            sm = re.search(r"\b(429|503)\b", line)
-            if sm:
-                code = sm.group(0)
+            code = _extract_throttle_status(line)
+            if code:
                 if code == "429":
                     self.code_429 += 1
                 else:

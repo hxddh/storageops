@@ -24,7 +24,14 @@ OP_START_RE = re.compile(
     r'(s3://[^\s"]+|[^\s"]+)\s+(s3://[^\s"]+|[^\s"]+)"?\s+started',
     re.I
 )
-# Match finished in <duration><unit>
+# Match "<op> <src> <dst>" finished in <duration><unit>
+OP_FINISH_RE = re.compile(
+    r'"?(cp|mv|rm|ls|du|sync|copy|move|delete|get|put|cat|'
+    r'presign|bucket-version|bucket-location|select)\s+'
+    r'(s3://[^\s"]+|[^\s"]+)\s+(s3://[^\s"]+|[^\s"]+)"?\s+finished\s+in\s+'
+    r'([\d.]+)\s*(\w+)',
+    re.I
+)
 OP_END_RE = re.compile(
     r'finished\s+in\s+([\d.]+)\s*(\w+)'
 )
@@ -61,12 +68,18 @@ def guess_file(line: str) -> str | None:
 
 
 def find_status(line: str) -> int | None:
-    m = STATUS_RE.search(line)
-    if m:
+    for m in STATUS_RE.finditer(line):
+        context = line[max(0, m.start() - 32): m.end() + 32].lower()
+        if not re.search(r"status|http|error|err|fail|slowdown|accessdenied|nosuchkey", context):
+            continue
         code = int(m.group(1))
         if 400 <= code <= 599:
             return code
     return None
+
+
+def op_key(op: str, src: str, dst: str) -> str:
+    return f"{op.lower()} {src} {dst}"
 
 
 def parse_log(lines: list[str]) -> dict:
@@ -96,21 +109,29 @@ def parse_log(lines: list[str]) -> dict:
         # Match started/finished for timing  ---------------------------------
         started = OP_START_RE.search(line)
         if started and ts:
-            key = started.group(0)
+            key = op_key(started.group(1), started.group(2), started.group(3))
             in_flight[key] = ts
             continue
 
-        ended = OP_END_RE.search(line)
+        finished = OP_FINISH_RE.search(line)
+        ended = finished or OP_END_RE.search(line)
         if ended and ts and in_flight:
-            duration = float(ended.group(1))
-            unit = ended.group(2).lower()
+            if finished:
+                key = op_key(finished.group(1), finished.group(2), finished.group(3))
+                start_ts = in_flight.pop(key, None)
+                duration = float(finished.group(4))
+                unit = finished.group(5).lower()
+            else:
+                key, start_ts = next(iter(in_flight.items()))
+                del in_flight[key]
+                duration = float(ended.group(1))
+                unit = ended.group(2).lower()
+            if start_ts is None:
+                continue
             multiplier = {"s": 1, "ms": 0.001, "µs": 1e-6, "us": 1e-6,
                           "m": 60, "h": 3600}
             duration_sec = duration * multiplier.get(unit, 1)
 
-            # Pop the oldest in-flight entry (best-effort pairing)
-            key, start_ts = next(iter(in_flight.items()))
-            del in_flight[key]
             ops.append({
                 "start": start_ts,
                 "end": ts,

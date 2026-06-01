@@ -34,6 +34,21 @@ def section_present(text: str, section: str) -> bool:
     return re.search(pattern, text, re.I | re.M) is not None or section.lower() in text.lower()
 
 
+def extract_confidence(text: str) -> float | None:
+    patterns = [
+        r'"confidence"\s*:\s*(0(?:\.\d+)?|1(?:\.0+)?)',
+        r"\bconfidence\b\s*[:=]\s*(0(?:\.\d+)?|1(?:\.0+)?)",
+        r"\bconfidence\b\s*[:=]\s*([1-9]\d?)%",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if not match:
+            continue
+        value = float(match.group(1))
+        return value / 100 if value > 1 else value
+    return None
+
+
 def evaluate(case: Path, output: Path) -> dict:
     expected = json.loads((case / "expected.json").read_text(encoding="utf-8"))
     category_to_skill = load_taxonomy()
@@ -48,6 +63,14 @@ def evaluate(case: Path, output: Path) -> dict:
     mapped_skill_found = bool(mapped_skill) and mapped_skill.lower() in lower
     if category and category.lower() not in lower and not mapped_skill_found:
         failures.append(f"expected_category or mapped skill not found: {category} -> {mapped_skill}")
+
+    expected_confidence = expected.get("expected_min_confidence")
+    if isinstance(expected_confidence, (int, float)):
+        actual_confidence = extract_confidence(text)
+        if actual_confidence is None:
+            failures.append(f"confidence not found; expected >= {expected_confidence}")
+        elif actual_confidence < float(expected_confidence):
+            failures.append(f"confidence too low: {actual_confidence} < {expected_confidence}")
 
     for key in ["must_include_evidence_keywords", "must_include_recommendation_keywords"]:
         missing = contains_all(text, expected.get(key, []))

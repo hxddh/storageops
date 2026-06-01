@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-02 — v0.4.10: Review bug fixes and real CI gates
+
+- **CI**: GitHub Actions now installs dev dependencies, runs skill integrity checks, validates golden cases, and runs pytest.
+- **Security tooling**: fixed public-policy detection for list/dict principal forms, broad resources, `NotAction`, and `NotPrincipal`; explicit Deny statements are now informational.
+- **Credential loading**: fixed standard AWS credentials parsing for `key=value` profile files.
+- **Routing/eval**: aligned deterministic domain detection with skill names, added protocol/big-data/CORS signatures, improved confidence scoring, and made eval enforce confidence thresholds.
+- **Packaging/docs**: excluded Python cache files from source distributions and clarified skill counts, examples, changelog, and credential-loader security posture.
+
 ## 2026-06-02 — v0.4.9: Merge install settings preservation
 
 - **Merge install fix**: `storageops install --merge` now preserves existing Pi `skills` paths and appends StorageOps' `../skills` path once instead of replacing the whole list.
