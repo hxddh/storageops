@@ -480,20 +480,27 @@ def cmd_eval(args: argparse.Namespace) -> None:
         _cmd_eval_regression(args)
         return
 
-    from eval_runner import evaluate_case, evaluate_all
     cases_dir = Path(args.cases_dir)
-    outputs_dir = Path(args.outputs_dir) if args.outputs_dir else Path(".")
+    outputs_dir_raw = getattr(args, "outputs_dir", None)
 
     if args.case:
-        case_path = cases_dir / args.case
-        output_path = outputs_dir / f"{args.case}.md"
-        if not output_path.exists():
-            _err(f"Output not found: {output_path}")
-            sys.exit(1)
-        output_text = output_path.read_text(encoding="utf-8", errors="replace")
-        result = evaluate_case(case_path, output_text)
+        if outputs_dir_raw:
+            # Evaluate a pre-generated LLM output file
+            from eval_runner import evaluate_case
+            output_path = Path(outputs_dir_raw) / f"{args.case}.md"
+            if not output_path.exists():
+                _err(f"Output not found: {output_path}")
+                sys.exit(1)
+            output_text = output_path.read_text(encoding="utf-8", errors="replace")
+            result = evaluate_case(cases_dir / args.case, output_text)
+        else:
+            result = _fast_eval_case(cases_dir / args.case)
     elif args.all:
-        result = evaluate_all(cases_dir, outputs_dir)
+        if outputs_dir_raw:
+            from eval_runner import evaluate_all
+            result = evaluate_all(cases_dir, Path(outputs_dir_raw))
+        else:
+            result = _fast_eval_all(cases_dir)
     else:
         _err("Specify --case, --all, or --regression")
         sys.exit(1)
@@ -507,6 +514,62 @@ def cmd_eval(args: argparse.Namespace) -> None:
             if any(not c.get("passed", True) for c in result["cases"]):
                 sys.exit(1)
         sys.exit(1)
+
+
+def _fast_eval_case(case_path: Path) -> dict:
+    """Rule-based fast eval for a single golden case. No LLM/Pi required."""
+    import json as _json
+    expected_path = case_path / "expected.json"
+    if not expected_path.exists():
+        return {"case": case_path.name, "passed": False, "error": "No expected.json"}
+
+    expected = _json.loads(expected_path.read_text(encoding="utf-8"))
+    input_dir = case_path / "input"
+    texts: list[str] = []
+    if input_dir.exists():
+        for fpath in sorted(input_dir.iterdir()):
+            if fpath.is_file():
+                texts.append(fpath.read_text(encoding="utf-8", errors="replace"))
+    text = "\n\n".join(texts)
+
+    detections = auto_detect(text)
+    top_domain = detections[0]["domain"] if detections else None
+    top_conf = detections[0]["confidence"] if detections else 0.0
+    expected_category = expected.get("expected_category")
+    domain_ok = top_domain == expected_category
+
+    return {
+        "case": case_path.name,
+        "mode": "fast",
+        "passed": domain_ok,
+        "score": round(top_conf, 3),
+        "expected_category": expected_category,
+        "actual_category": top_domain,
+        "domain_match": domain_ok,
+        "all_detections": [{"domain": d["domain"], "confidence": d["confidence"]}
+                           for d in detections[:3]],
+    }
+
+
+def _fast_eval_all(cases_dir: Path) -> dict:
+    """Rule-based fast eval for all golden cases. No LLM/Pi required."""
+    results = []
+    for case_path in sorted(cases_dir.iterdir()):
+        if case_path.is_dir():
+            results.append(_fast_eval_case(case_path))
+
+    total = len(results)
+    passed_count = sum(1 for r in results if r.get("passed"))
+    avg_score = round(sum(r.get("score", 0) for r in results) / total, 3) if total else 0
+    return {
+        "mode": "fast",
+        "total_cases": total,
+        "passed": passed_count,
+        "failed": total - passed_count,
+        "aggregate_score": avg_score,
+        "unsafe_output_detected": False,
+        "cases": results,
+    }
 
 
 def _cmd_eval_regression(args: argparse.Namespace) -> None:
@@ -1575,7 +1638,8 @@ def main() -> None:
     p_eval = sub.add_parser("eval", help=argparse.SUPPRESS)
     p_eval.add_argument("--cases-dir",
                         default="agents/skills/storageops-eval-golden-cases/cases")
-    p_eval.add_argument("--outputs-dir", default=".")
+    p_eval.add_argument("--outputs-dir", default=None,
+                        help="Dir with pre-generated .md outputs (omit to run fast triage eval)")
     p_eval.add_argument("--case")
     p_eval.add_argument("--all", action="store_true")
     p_eval.add_argument("--regression", action="store_true")
