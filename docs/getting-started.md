@@ -1,70 +1,111 @@
-# 快速上手
+# Getting Started
 
-2 分钟上手 StorageOps。
+This guide gets StorageOps installed and running with Pi Coding Agent.
 
-## 1. 安装
+## 1. Prerequisites
+
+- Python 3.11 or newer.
+- Pi Coding Agent available as `pi`.
+- Node.js supported by your Pi installation.
+- A model provider key for Pi, such as DeepSeek, Anthropic, or OpenAI.
+
+Check Pi:
+
+```bash
+pi --version
+```
+
+StorageOps warns when Pi is older than `0.78.0`.
+
+## 2. Install StorageOps
 
 ```bash
 pip install storageops
 storageops install
 ```
 
-> **前提**：机器上需有 Node.js ≥ 20，用于运行 Pi Coding Agent。
-> 如果没有：`curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs`
+The default install is independent and writes to `~/.storageops/`, leaving `~/.pi/` alone.
 
-## 2. 配置 API Key
-
-任选一种方式：
+To merge into an existing Pi setup:
 
 ```bash
-# 方式A：环境变量（推荐）
-export DEEPSEEK_API_KEY=sk-xxx
-export ANTHROPIC_API_KEY=sk-xxx
+storageops install --merge
+```
 
-# 方式B：本地文件（不受 shell 影响）
-echo sk-xxx > ~/.storageops/agent/api-key
+## 3. Configure a Model Key
+
+Recommended:
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+```
+
+Other supported environment variables include:
+
+```bash
+export ANTHROPIC_API_KEY=sk-...
+export OPENAI_API_KEY=sk-...
+```
+
+Local file option:
+
+```bash
+echo sk-... > ~/.storageops/agent/api-key
 chmod 600 ~/.storageops/agent/api-key
-
-# 方式C：Pi 内登录
-storageops  → /login
 ```
 
-## 3. 第一次诊断
+## 4. Run a Diagnosis
+
+Single-shot:
 
 ```bash
-# 交互模式
+storageops --print 's5cmd sync returns 429 SlowDown; diagnose the likely bottleneck'
+```
+
+With a log file:
+
+```bash
+storageops --print @/path/to/rclone-debug.log 'explain this transfer checksum failure'
+```
+
+Interactive:
+
+```bash
 storageops
-
-# 单次诊断
-storageops --print 's5cmd sync 报了大量 429 SlowDown，帮我分析原因'
 ```
 
-## 4. 分析日志
+## 5. Update
 
 ```bash
-# 用 @ 前缀传入文件
-storageops --print @/path/to/rclone-debug.log '分析这个 rclone 日志'
+pip install --upgrade storageops
+storageops install --force
 ```
 
-## 5. 查看帮助
+Use `--merge --force` if you intentionally maintain a merged `~/.pi/` install.
+
+## 6. Validate a Checkout
 
 ```bash
-storageops --help
+python3 scripts/skill_integrity_check.py
+python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
+  skills/storageops-eval-golden-cases/cases
+make validate
+```
+
+## Troubleshooting
+
+If `storageops` says it is not installed, run `storageops install`.
+
+If Pi cannot find skills, check:
+
+```bash
 storageops --version
+cat ~/.storageops/agent/settings.json
+ls ~/.storageops/skills
 ```
 
-## 6. 保持更新
+If model calls fail, verify your provider key is visible in the same shell:
 
 ```bash
-pip install --upgrade storageops && storageops install --force
+env | grep -E 'DEEPSEEK|ANTHROPIC|OPENAI'
 ```
-
-## 常见问题
-
-**Q: 我已经有 Pi Coding Agent，会有冲突吗？**
-
-A: 不会。默认安装到 `~/.storageops/`，与 `~/.pi/` 完全隔离。如需合并，运行 `storageops install --merge`。
-
-**Q: 诊断时需要我提供 AK/SK 吗？**
-
-A: 不需要！StorageOps 不会连接你的云账户。`scan_secrets` 工具会自动扫描并脱敏日志中的凭据。

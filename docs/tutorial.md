@@ -1,91 +1,71 @@
-# 教程
+# Tutorial
 
-## 场景 1：s5cmd sync 报 429 SlowDown
+These examples show how to use StorageOps without exposing credentials or granting cloud account access.
 
-**输入**：
-```
-s5cmd sync s3://my-bucket/data/ /local/backup/
-ERROR SlowDown (429) for objects bigfile1.dat, bigfile2.dat...
-```
-
-**诊断**：
+## 1. 429 SlowDown
 
 ```bash
-storageops --print 's5cmd sync 报 429 SlowDown 错误，帮我诊断'
+storageops --print 's5cmd sync s3://bucket/data ./data fails with 429 SlowDown'
 ```
 
-**输出示例**：
+Good evidence to include:
 
-```
-根因: s5cmd 默认并发 256 过高，触发服务端前缀限流
-建议: --numworkers 16 --retry-count 10
-```
+- tool and version,
+- command shape,
+- concurrency settings,
+- object count and average size,
+- whether errors cluster by prefix.
 
-## 场景 2：rclone 报 corrupted on transfer
+StorageOps should route to `storageops-performance-diagnosis`.
 
-**输入**：
-```
-rclone copy s3:bucket/ /local/
-ERROR corrupted on transfer: md5 hash mismatch
-```
-
-**诊断**：
+## 2. SignatureDoesNotMatch
 
 ```bash
-storageops --print @rclone-debug.log 'rclone corrupted on transfer，分析原因'
+storageops --print @error-response.xml 'why does this S3-compatible endpoint reject the signature?'
 ```
 
-**输出示例**：
-
-```
-根因: 分块上传中断/网络不稳定导致的校验和不匹配
-建议: --checkers 1 --transfers 1 --retries 10
-```
-
-## 场景 3：BOS 报 SignatureDoesNotMatch
-
-**输入**：
-```
-<Error>
-  <Code>SignatureDoesNotMatch</Code>
-  <Message>The request signature we calculated does not match</Message>
-</Error>
-```
-
-**诊断**：
+For saved XML/debug traces, use the helper:
 
 ```bash
-storageops --print 'BOS AccessDenied: SignatureDoesNotMatch 错误，帮我分析'
+python3 skills/storageops-s3-protocol-compatibility/scripts/parse_sigv4_error.py \
+  error-response.xml --json
 ```
 
-**输出示例**：
+StorageOps should inspect credential scope, region, signed headers, payload hash, and canonical request shape.
 
-```
-根因: 客户端时钟偏差或 AK/SK 不匹配
-建议: ntpdate 同步时钟；检查 endpoint 和 region
-```
-
-## 场景 4：交互式排查
+## 3. Endpoint Timeout
 
 ```bash
-storageops
+storageops --print 'EC2 in private subnet times out connecting to s3.us-east-1.amazonaws.com'
 ```
 
-进入交互模式，可以多轮对话深入排查：
-
-```
-你: rclone 挂载 OSS 很慢
-Ai: 请提供更多信息：并发参数？对象数量？文件大小分布？
-你: --transfers 4，大概 10 万个小文件
-Ai: 小文件过多。建议：--transfers 16 --checkers 32，并考虑先 tar 再传...
-```
-
-## 场景 5：输出诊断报告
+If the user explicitly wants an active check from this machine:
 
 ```bash
-storageops --print \
-  '分析附件中的日志，输出完整的诊断报告' \
-  @error.log > diagnosis.md
+python3 skills/storageops-network-endpoint-access/scripts/endpoint_reachability_test.py \
+  https://s3.us-east-1.amazonaws.com --skip-http
 ```
 
-输出格式化的诊断报告，可直接发给客户或归档。
+StorageOps should distinguish DNS, TCP, TLS, and application-layer failures.
+
+## 4. Access Log Investigation
+
+```bash
+storageops --print @access-log-sample.txt 'identify who caused this 503 spike'
+```
+
+StorageOps should route to access-log analysis, aggregate by requester and operation, then escalate to performance only after attribution.
+
+## 5. Generate a Report
+
+```bash
+storageops --print @diagnosis-notes.md 'turn this into a customer-facing report'
+```
+
+StorageOps should route to `storageops-evidence-reporting` and preserve:
+
+- summary,
+- key evidence,
+- root cause,
+- recommendations,
+- limitations and confidence.

@@ -1,85 +1,47 @@
-# S3 API Operation Coverage Matrix
+# API and Capability Coverage
 
-## Operations by Diagnostic Domain
+StorageOps diagnoses failure modes around object storage APIs rather than implementing API clients. Coverage means the skill pack has enough routing, references, scripts, or golden cases to reason about that operation.
 
-Each S3 API operation maps to the skill(s) that diagnose its failures.
+## Strong Coverage
 
-| S3 API Operation | Primary Skill | Secondary Skill | Coverage Status |
-|-----------------|--------------|-----------------|-----------------|
-| `GetObject` | performance-diagnosis, cli-sdk-diagnosis | s3-protocol-compatibility, security-iam-policy | ✅ Full |
-| `PutObject` | performance-diagnosis, cli-sdk-diagnosis | s3-protocol-compatibility, security-iam-policy | ✅ Full |
-| `HeadObject` | performance-diagnosis, mount-filesystem-workspace | security-iam-policy | ✅ Full |
-| `DeleteObject` | security-iam-policy | replication-versioning | ✅ Full |
-| `DeleteObjects` | security-iam-policy | cli-sdk-diagnosis | ✅ Full |
-| `ListObjectsV2` | s3-protocol-compatibility | cli-sdk-diagnosis | ✅ Full |
-| `ListObjects` (V1) | s3-protocol-compatibility | cli-sdk-diagnosis | ✅ Full |
-| `ListObjectVersions` | replication-versioning | s3-protocol-compatibility | ✅ Full |
-| `ListBuckets` | security-iam-policy | cli-sdk-diagnosis | ⚠️ Partial |
-| `CreateBucket` | security-iam-policy | cli-sdk-diagnosis | ⚠️ Partial |
-| `DeleteBucket` | security-iam-policy | — | ⚠️ Partial |
-| `GetBucketLocation` | cli-sdk-diagnosis | network-endpoint-access | ✅ Full |
-| `GetBucketVersioning` | replication-versioning | — | ✅ Full |
-| `PutBucketVersioning` | replication-versioning | security-iam-policy | ⚠️ Partial |
-| `GetBucketPolicy` | security-iam-policy | — | ✅ Full |
-| `PutBucketPolicy` | security-iam-policy | — | ⚠️ Partial |
-| `DeleteBucketPolicy` | security-iam-policy | — | ⚠️ Partial |
-| `GetBucketAcl` | security-iam-policy | — | ⚠️ Partial |
-| `PutBucketAcl` | security-iam-policy | — | ⚠️ Partial |
-| `GetObjectAcl` | security-iam-policy | — | ⚠️ Partial |
-| `PutObjectAcl` | security-iam-policy | — | ⚠️ Partial |
-| `PutBucketEncryption` | security-iam-policy | — | ⚠️ No dedicated reference |
-| `GetBucketEncryption` | security-iam-policy | — | ⚠️ No dedicated reference |
-| `CreateMultipartUpload` | s3-protocol-compatibility | cli-sdk-diagnosis | ✅ Full |
-| `UploadPart` | s3-protocol-compatibility | performance-diagnosis | ✅ Full |
-| `UploadPartCopy` | s3-protocol-compatibility | cli-sdk-diagnosis | ⚠️ Partial |
-| `CompleteMultipartUpload` | s3-protocol-compatibility | cli-sdk-diagnosis | ✅ Full |
-| `AbortMultipartUpload` | s3-protocol-compatibility | lifecycle-cost | ✅ Full |
-| `ListMultipartUploads` | s3-protocol-compatibility | replication-versioning | ⚠️ Partial |
-| `ListParts` | s3-protocol-compatibility | — | ⚠️ Partial |
-| `CopyObject` | s3-protocol-compatibility | cli-sdk-diagnosis | ✅ Full |
-| `RestoreObject` | lifecycle-cost | — | ⚠️ Partial |
-| `GetObjectTorrent` | — | — | ❌ Not Covered |
-| `GetBucketWebsite` | — | — | ❌ Not Covered |
-| `PutBucketWebsite` | — | — | ❌ Not Covered |
-| `GetBucketLogging` | — | — | ❌ Not Covered |
-| `PutBucketLogging` | — | — | ❌ Not Covered |
-| `GetBucketNotification` | replication-versioning | — | ⚠️ Partial |
-| `PutBucketNotification` | replication-versioning | — | ⚠️ Partial |
-| `GetBucketCORS` | s3-protocol-compatibility | — | ✅ (cors.md reference) |
-| `PutBucketCORS` | s3-protocol-compatibility | — | ✅ (cors.md reference) |
-| `GetBucketLifecycle` | lifecycle-cost | — | ✅ Full |
-| `PutBucketLifecycle` | lifecycle-cost | — | ✅ Full |
-| `GetBucketReplication` | replication-versioning | — | ✅ Full |
-| `PutBucketReplication` | replication-versioning | — | ⚠️ Partial |
-| `GetObjectRetention` | replication-versioning | — | ✅ (object-lock.md) |
-| `PutObjectRetention` | replication-versioning | — | ⚠️ Partial |
-| `GetObjectLegalHold` | replication-versioning | — | ✅ (object-lock.md) |
-| `PutObjectLegalHold` | replication-versioning | — | ⚠️ Partial |
-| `GetPublicAccessBlock` | security-iam-policy | — | ⚠️ Partial |
-| `PutPublicAccessBlock` | security-iam-policy | — | ⚠️ Partial |
+| Area | Skills |
+| --- | --- |
+| `GetObject`, `PutObject`, `HeadObject` | security, performance, protocol, CLI/SDK, data consistency |
+| multipart upload and ETag behavior | protocol, CLI/SDK, data consistency |
+| SigV4 and signature mismatch | protocol, CLI/SDK, security |
+| CORS | protocol |
+| AccessDenied and KMS deny | security |
+| 429/SlowDown and hot prefixes | performance |
+| DNS/TCP/TLS endpoint failures | network |
+| lifecycle transitions and request-cost amplification | lifecycle-cost |
+| replication, delete markers, object lock | replication-versioning |
+| access log spikes and requester attribution | access-log-analysis |
 
-## Coverage Summary
+## Partial Coverage
 
-| Status | Count | Percent |
-|--------|-------|---------|
-| ✅ Full | 22 | 47% |
-| ⚠️ Partial | 21 | 45% |
-| ❌ Not Covered | 4 | 8% |
-| **Total** | **47** | **100%** |
+| Area | Current state |
+| --- | --- |
+| bucket ACL and public access block changes | diagnosed as security policy behavior; no dedicated helper |
+| bucket encryption configuration | KMS diagnosis exists; encryption config references are thinner |
+| restore/archive retrieval | lifecycle skill can reason about it; no focused golden case yet |
+| bucket website hosting | no dedicated skill |
+| bucket logging configuration | access-log skill covers log interpretation more than setup |
+| static website routing errors | usually out of scope unless expressed as S3/CORS/endpoint issue |
 
-## Gap Analysis
+## Explicit Non-Goals
 
-### Not Covered (P1): Static Website, Torrent, Logging
-These are less commonly diagnosed operations. Static website issues (404, routing) and bucket logging configuration failures are edge cases for most object storage users.
+StorageOps does not:
 
-### Partial Coverage (P2): Write Operations
-Most write operations (Put*, Delete*, Create*) have partial coverage because:
-- Skills default to read-only diagnosis
-- Write commands are tagged `manual-only`
-- The main gap is in validating whether a write FAILED due to permissions vs configuration vs resource constraints
+- call cloud APIs with user credentials,
+- mutate buckets,
+- repair policies automatically,
+- serve as a full S3 SDK conformance tester.
 
-### Recommendations
-1. Add `PutBucketEncryption` / `GetBucketEncryption` reference to security-iam-policy (ACE encryption configuration)
-2. Add `ListParts` / `ListMultipartUploads` to s3-protocol-compatibility (multipart state diagnosis)
-3. Add `RestoreObject` to lifecycle-cost (archive retrieval diagnosis)
-4. Consider adding `GetBucketWebsite` / `PutBucketWebsite` to a future static-website skill
+## How To Improve Coverage
+
+Add coverage in this order:
+
+1. compact golden case,
+2. reference note,
+3. deterministic helper if the reasoning can be parsed or measured,
+4. SKILL.md routing/workflow update.

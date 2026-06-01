@@ -1,86 +1,94 @@
-# CLI 参考
+# CLI Reference
 
-## storageops — 主命令
+`storageops` is a thin wrapper around Pi Coding Agent.
 
-```
-storageops [pi args]
-```
+## `storageops install`
 
-所有参数转发到 `pi`。常用参数：
-
-| 参数 | 说明 |
-|------|------|
-| `--print`, `-p` | 非交互模式，处理完退出 |
-| `--no-session` | 不保存会话记录 |
-| `--provider <name>` | 指定 provider（deepseek, anthropic, openai, google...） |
-| `--api-key <key>` | API key |
-| `--model <id>` | 模型 ID（如 `deepseek/deepseek-v4-flash:off`） |
-| `--continue`, `-c` | 恢复上次会话 |
-| `--resume`, `-r` | 选择历史会话恢复 |
-| `--skills <path>` | 额外 skills 目录 |
-| `--append-system-prompt <text>` | 追加系统提示词 |
-| `@<file>` | 读取文件内容作为上下文 |
-
-## storageops install
-
-```
+```bash
 storageops install [--merge] [--force]
 ```
 
-一键安装到 `~/.storageops/`（独立）。
+Options:
 
-| 选项 | 说明 |
-|------|------|
-| `--merge`, `-m` | 合并安装到 `~/.pi/`，融入已有 Pi |
-| `--force`, `-f` | 强制重装 |
+| Option | Meaning |
+| --- | --- |
+| `--merge`, `-m` | Install into an existing `~/.pi/` Pi setup. |
+| `--force`, `-f` | Reinstall files even when StorageOps already appears installed. |
 
-检测逻辑：
-- 如果 `~/.pi/agent/settings.json` 不存在 → 静默独立安装
-- 如果存在 → 提示用户选择模式
-- pi 版本 < 0.78.0 → 警告 + 升级建议
+Independent mode writes:
 
-## API Key 配置
-
-四种方式，任选其一：
-
-| 方式 | 命令 | 说明 |
-|------|------|------|
-| A. 环境变量 | `export DEEPSEEK_API_KEY=sk-xxx` | 推荐，一劳永逸 |
-| B. 本地文件 | `echo sk-xxx > ~/.storageops/agent/api-key && chmod 600 ~/.storageops/agent/api-key` | 不受 shell 影响，建议仅当前用户可读 |
-| C. 命令行 | `storageops --api-key sk-xxx ...` | 每次传入 |
-| D. Pi 内登录 | `storageops` → `/login` | Pi 原生 |
-
-## storageops --version / -V
-
+```text
+~/.storageops/agent/settings.json
+~/.storageops/agent/extensions/storageops.ts
+~/.storageops/skills/
 ```
-$ storageops --version
-StorageOps v0.4.7  (pi: 0.78.0)
+
+Merge mode writes:
+
+```text
+~/.pi/agent/settings.json
+~/.pi/agent/extensions/storageops.ts
+~/.pi/skills/
+```
+
+The installer backs up merged settings to `settings.json.storageops-backup`.
+
+## `storageops --version`
+
+```text
+StorageOps v0.4.8  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```
 
-## storageops --help / -h
+## `storageops --help`
 
-打印帮助信息。
+Prints install and launch help.
 
-## 示例
+## Diagnosis Commands
+
+All other arguments are passed to `pi` after setting `PI_CODING_AGENT_DIR`.
+
+Examples:
 
 ```bash
-# 交互式诊断
 storageops
-
-# 单次诊断
-storageops --print 's5cmd 429 错误'
-
-# 指定模型
-storageops --model deepseek/deepseek-v4-flash:off --print '...'
-
-# 分析日志文件
-storageops --print @error.log '分析这个错误'
-
-# 恢复上次会话
+storageops --print 'AccessDenied when reading bucket policy'
+storageops --print @debug.log 'diagnose this rclone transfer'
 storageops -c
-
-# 合并安装
-storageops install --merge
+storageops -r
 ```
+
+Common Pi options:
+
+| Option | Use |
+| --- | --- |
+| `--print`, `-p` | Non-interactive response. |
+| `--provider <name>` | Select provider. |
+| `--model <id>` | Select model. |
+| `--api-key <key>` | Pass a model key for this run. |
+| `--continue`, `-c` | Continue last session. |
+| `--resume`, `-r` | Select a previous session. |
+| `@file` | Include file contents as context. |
+
+## API Keys
+
+StorageOps injects provider keys from:
+
+1. existing environment variables,
+2. `{agent_dir}/auth.json`,
+3. `{agent_dir}/api-key`.
+
+Supported environment variables include:
+
+```text
+ANTHROPIC_API_KEY
+DEEPSEEK_API_KEY
+OPENAI_API_KEY
+GEMINI_API_KEY
+MISTRAL_API_KEY
+GROQ_API_KEY
+CEREBRAS_API_KEY
+```
+
+Object storage AK/SK credentials are not required for StorageOps diagnosis.

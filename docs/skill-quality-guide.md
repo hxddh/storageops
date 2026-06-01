@@ -1,59 +1,77 @@
 # Skill Quality Guide
 
-This guide defines the quality bar for StorageOps diagnostic skills. It turns the skill pack from a collection of prompts into a maintainable, testable diagnostic system.
+StorageOps skills are runtime instructions. They should be concise, testable, and safe.
 
-## Quality Principles
+## Required Shape
 
-1. **Progressive disclosure** — keep `SKILL.md` focused on workflow, evidence, tool use, and output; put detailed provider behavior in `references/`.
-2. **No broken links** — every backticked `references/...` or `scripts/...` path in a `SKILL.md` must exist in that skill directory.
-3. **Single metadata truth** — `skill-registry.yaml` must match each `SKILL.md` for `name`, `maturity`, `mode`, and path.
-4. **Stable taxonomy** — every golden-case `expected_category` must map to a primary skill in `docs/skill-taxonomy.json`.
-5. **Deterministic validation** — golden cases, unsafe-output scans, and integrity checks must run without LLM judgment.
-6. **Safety first** — destructive, public-access, TLS-disabling, or credential-exposing recommendations must be blocked unless explicitly framed as unsafe analysis rather than a fix.
-
-## Required Skill Shape
-
-Every `skills/storageops-*/SKILL.md` should include:
+Every `skills/storageops-*/SKILL.md` should contain:
 
 - YAML frontmatter with `name`, `description`, `maturity`, `mode`, `trigger_keywords`, and `recommended_tools`.
 - A decision tree or routing checklist.
-- Evidence requirements and user clarification prompts.
-- A step-by-step workflow.
-- Tool/script usage instructions when deterministic helpers exist.
-- A structured output contract with evidence, root cause, confidence, recommendations, and limitations. The exact prose and section order can vary when the conversation calls for it.
-- A `References` section with `Read when:` guidance for each file.
+- Evidence requirements.
+- A workflow with clear stopping points.
+- User interaction guidance.
+- An output contract, not a rigid exact template.
+- References with `Read when:` guidance.
 
-## Validation Commands
+## Quality Principles
 
-Run these before merging skill changes:
+- Keep `SKILL.md` operational. Move detailed provider notes into `references/`.
+- Use deterministic scripts for parsing, validation, and read-only checks when a small tool reduces ambiguity.
+- Do not ask for cloud account credentials.
+- Do not recommend destructive actions without manual-only framing.
+- Add compact golden cases for behavior changes.
+- Keep evaluation deterministic; do not depend on LLM judgment for pass/fail gates.
+
+## Validation
+
+Run:
 
 ```bash
 python3 scripts/skill_integrity_check.py
 python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
   skills/storageops-eval-golden-cases/cases
 make validate
+.venv/bin/python -m pytest
 ```
 
-## Golden Case Expectations
+## Golden Cases
 
-Each case under `skills/storageops-eval-golden-cases/cases/<case>/` must contain:
+Each case has:
 
-- `input/` with at least one artifact.
-- `expected.json` with required category, confidence, evidence keywords, recommendation keywords, forbidden output patterns, and required report sections.
-- `expected_category` matching a canonical category in `docs/skill-taxonomy.json`.
-- `must_not_include` must be non-empty and include safety-relevant forbidden patterns.
+```text
+cases/<case>/
+├── description.md
+├── input/
+└── expected.json
+```
 
-Routing cases should set `"case_type": "routing"`, keep input artifacts short, and validate that triage names either the canonical category or the mapped skill.
+`expected.json` must include:
 
-## Repository Size Budget
+- `expected_category`
+- `expected_min_confidence`
+- `must_include_evidence_keywords`
+- `must_include_recommendation_keywords`
+- `must_not_include`
+- `required_report_sections`
 
-- Keep `SKILL.md` files focused on workflow and evidence requirements; move details into references. The integrity check enforces a 40KB `SKILL.md` budget.
-- Keep golden-case inputs synthetic, redacted, and small; avoid committing full debug logs. The integrity check enforces 10KB per input artifact, 25KB per case, and 512KB for all cases.
-- Keep `docs/skill-taxonomy.json` under 20KB unless the taxonomy contract is intentionally expanded.
-- Keep deterministic helper scripts narrow and parse-oriented.
-- Store large regression corpora outside the main repository and commit only manifests or reduced samples.
+Use canonical categories from `docs/skill-taxonomy.json`.
 
-Use deterministic scripts:
+## Size Budgets
+
+The integrity check enforces:
+
+| Item | Limit |
+| --- | --- |
+| `SKILL.md` | 40 KB |
+| `docs/skill-taxonomy.json` | 20 KB |
+| one golden-case input artifact | 10 KB |
+| one golden case | 25 KB |
+| all golden cases | 512 KB |
+
+Large logs belong outside the repository. Commit reduced, synthetic, redacted samples.
+
+## Eval Scripts
 
 ```bash
 python3 skills/storageops-eval-golden-cases/scripts/eval_runner.py \
@@ -65,16 +83,17 @@ python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
   --outputs diagnoses \
   --json-out eval-current.json
 
-python3 skills/storageops-eval-golden-cases/scripts/unsafe_output_scanner.py \
-  diagnosis.md --case skills/storageops-eval-golden-cases/cases/<case>
+python3 skills/storageops-eval-golden-cases/scripts/regression_reporter.py \
+  --baseline eval-baseline.json \
+  --current eval-current.json
 ```
 
-## Maturity Model
+## Maturity
 
-- **alpha** — SKILL.md exists, but references/evals are incomplete.
-- **beta** — references are complete and integrity checks pass.
-- **mature** — references are complete, helper scripts exist where useful, and domain-specific validation passes.
-- **stable** — golden cases exist and deterministic validation passes.
-- **core** — skill is a routing, reporting, or safety-critical foundation used across domains.
-
-Do not mark a skill as `stable` unless its bundled-resource links are valid and at least the relevant integrity checks pass.
+| Level | Meaning |
+| --- | --- |
+| `alpha` | Skill exists, but eval/helper coverage is thin. |
+| `beta` | References and integrity checks are in good shape. |
+| `mature` | Domain has useful deterministic helpers or focused eval coverage. |
+| `stable` | Domain has representative golden cases and deterministic validation. |
+| `core` | Routing, reporting, safety, or other foundational behavior. |

@@ -1,39 +1,83 @@
 # Contributing
 
-StorageOps 欢迎贡献！本项目是一个 Pi Coding Agent 扩展包，贡献方式很简单。
+StorageOps is mostly a skill pack plus a thin installer. Good contributions keep behavior evidence-based, safe by default, and easy to regression test.
 
-## 贡献方式
-
-### 贡献诊断技能
-
-1. 在 `skills/` 下创建 `storageops-<domain>/SKILL.md`
-2. 在 `skill-registry.yaml` 中注册
-3. 提交 PR
-
-### 贡献工具
-
-编辑 `storageops_cli/extensions/storageops.ts`，使用 `pi.registerTool()` 注册新工具。
-
-### 改进 CLI
-
-编辑 `storageops_cli/__init__.py`。
-
-## 开发设置
+## Setup
 
 ```bash
 git clone https://github.com/hxddh/storageops.git
 cd storageops
-pip install -e .
-storageops install
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[dev]'
+storageops install --force
 ```
 
-## 文档
+## Common Changes
 
-- `README.md` — 用户文档
-- `AGENTS.md` — AI Agent 开发指南
-- `docs/` — 详细文档
-- `skill-registry.yaml` — 技能注册表
+### Add or Edit a Skill
 
-## License
+1. Edit `skills/storageops-<domain>/SKILL.md`.
+2. Keep the frontmatter aligned with `skill-registry.yaml`.
+3. Put long provider details in `references/`.
+4. Add or update compact golden cases when behavior changes.
+5. Run validation before opening a PR.
 
-MIT
+### Add a Deterministic Helper
+
+Place domain-specific helpers under the relevant skill:
+
+```text
+skills/storageops-<domain>/scripts/<tool>.py
+```
+
+Scripts should be offline or explicitly read-only, emit structured output where practical, and include tests under `tests/`.
+
+### Add a Golden Case
+
+Create:
+
+```text
+skills/storageops-eval-golden-cases/cases/<case>/
+├── description.md
+├── input/
+└── expected.json
+```
+
+Keep inputs synthetic, redacted, and small. The integrity check enforces size budgets.
+
+### Change the Extension
+
+Edit `storageops_cli/extensions/storageops.ts`. It currently registers `scan_secrets`, `detect_domain`, and `search_memory` via Pi's extension API.
+
+### Change Install or Launch Behavior
+
+Edit `storageops_cli/__init__.py`. Be careful with:
+
+- independent vs merge mode paths,
+- `PI_CODING_AGENT_DIR`,
+- package data lookup for skills and extensions,
+- preserving existing Pi settings.
+
+## Validation
+
+Run:
+
+```bash
+python3 scripts/skill_integrity_check.py
+python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
+  skills/storageops-eval-golden-cases/cases
+make validate
+.venv/bin/python -m pytest
+```
+
+## Pull Request Checklist
+
+- The change is scoped and documented.
+- No real credentials, customer logs, or large raw artifacts are committed.
+- New helper scripts have tests.
+- New golden cases use canonical categories from `docs/skill-taxonomy.json`.
+- Version and changelog are updated for user-visible behavior.
+
+## Release Notes
+
+Use patch versions for quality gates, docs, helper scripts, golden cases, and installer fixes. Reserve larger version changes for major architecture or packaging changes.
