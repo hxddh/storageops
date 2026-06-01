@@ -101,11 +101,11 @@ def _make_app() -> "FastAPI":
                 content={"ok": False, "error": "Provide 'text' or 'file_content'"},
             )
         try:
-            from secret_scanner import scan as _scan
+            from storageops.utils.secret_scanner import scan as _scan
             scan_result = _scan(text)
             safe_text = scan_result["redacted_text"]
 
-            from storageops.agent import classify_evidence, assess_evidence
+            from storageops.diagnostics import classify_evidence, assess_evidence
             classification = classify_evidence(safe_text)
             domain = classification["primary_domain"]
             evidence = assess_evidence(safe_text, domain)
@@ -134,14 +134,14 @@ def _make_app() -> "FastAPI":
             # Step 1: secret scan
             yield f"data: {json.dumps({'step': 'scanning', 'msg': 'Scanning for secrets...'})}\n\n"
             await asyncio.sleep(0)
-            from secret_scanner import scan as _scan
+            from storageops.utils.secret_scanner import scan as _scan
             scan_result = _scan(text)
             yield f"data: {json.dumps({'step': 'scan_done', 'redacted': scan_result['count']})}\n\n"
             await asyncio.sleep(0)
             # Step 2: classify
             yield f"data: {json.dumps({'step': 'classifying', 'msg': 'Classifying evidence...'})}\n\n"
             await asyncio.sleep(0)
-            from storageops.agent import classify_evidence, assess_evidence
+            from storageops.diagnostics import classify_evidence, assess_evidence
             classification = classify_evidence(scan_result['redacted_text'])
             domain = classification['primary_domain']
             evidence = assess_evidence(scan_result['redacted_text'], domain)
@@ -168,7 +168,7 @@ def _make_app() -> "FastAPI":
     @app.post("/analyze")
     async def analyze(req: AnalyzeRequest):
         try:
-            from storageops.agent import run_analysis, generate_report, assess_evidence
+            from storageops.diagnostics import run_analysis, generate_report, assess_evidence
 
             result = run_analysis(req.domain, req.text)
             evidence = assess_evidence(req.text, req.domain)
@@ -193,7 +193,7 @@ def _make_app() -> "FastAPI":
         async def generate():
             yield f"data: {json.dumps({'step': 'analyzing', 'msg': f'Analyzing domain: {req.domain}...'})}\n\n"
             await asyncio.sleep(0)
-            from storageops.agent import run_analysis, generate_report, assess_evidence
+            from storageops.diagnostics import run_analysis, generate_report, assess_evidence
             result = run_analysis(req.domain, req.text)
             yield f"data: {json.dumps({'step': 'generating', 'msg': 'Generating report...'})}\n\n"
             await asyncio.sleep(0)
@@ -211,7 +211,7 @@ def _make_app() -> "FastAPI":
 
     @app.get("/domains")
     async def domains():
-        from storageops.agent import EVIDENCE_CHECKLIST
+        from storageops.diagnostics import EVIDENCE_CHECKLIST
         return {"domains": list(EVIDENCE_CHECKLIST.keys())}
 
     # ── /memory ───────────────────────────────────────────────────────

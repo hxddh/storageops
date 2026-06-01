@@ -16,9 +16,7 @@ const BRIDGE = path.resolve(
   __dirname,
   "..",
   "..",
-  "storageops-cli",
   "storageops",
-  "runtime",
   "tool_bridge.py"
 );
 

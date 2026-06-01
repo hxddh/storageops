@@ -519,15 +519,15 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
     """Execute a tool by name. Returns result dict. Never raises — errors in result."""
     try:
         if name == "scan_secrets":
-            from secret_scanner import scan  # noqa: E402
+            from storageops.utils.secret_scanner import scan  # noqa: E402
             return scan(inputs["text"])
 
         elif name == "parse_rclone_log":
-            from parse_rclone_log import parse  # noqa: E402
+            from storageops.parsers.parse_rclone_log import parse  # noqa: E402
             return parse(inputs["log_text"])
 
         elif name == "parse_sigv4_error":
-            from parse_sigv4_error import parse_xml_error, diagnose  # noqa: E402
+            from storageops.parsers.parse_sigv4_error import parse_xml_error, diagnose  # noqa: E402
             parsed = parse_xml_error(inputs["xml_text"])
             system_time = inputs.get("system_time")
             if system_time:
@@ -535,15 +535,15 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
             return parsed
 
         elif name == "parse_awscli_debug":
-            from parse_awscli_debug import parse  # noqa: E402
+            from storageops.parsers.parse_awscli_debug import parse  # noqa: E402
             return parse(inputs["log_text"])
 
         elif name == "parse_lifecycle_xml":
-            from parse_lifecycle_xml import parse  # noqa: E402
+            from storageops.parsers.parse_lifecycle_xml import parse  # noqa: E402
             return parse(inputs["xml_text"])
 
         elif name == "analyze_policy":
-            from analyze_policy import analyze, analyze_inline_403  # noqa: E402
+            from storageops.analyzers.analyze_policy import analyze, analyze_inline_403  # noqa: E402
             error_text = inputs.pop("error_text", None)
             has_policy_data = inputs.get("principal") or inputs.get("iam_policy") or inputs.get("bucket_policy")
             if has_policy_data:
@@ -553,7 +553,7 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
             return {"error": "Provide principal+action+resource+policies or error_text"}
 
         elif name == "analyze_cost":
-            from analyze_cost import analyze  # noqa: E402
+            from storageops.analyzers.analyze_cost import analyze  # noqa: E402
             if "storage_price_per_gb" not in inputs:
                 inputs["storage_price_per_gb"] = {
                     "STANDARD": 0.023,
@@ -565,7 +565,7 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
             return analyze(inputs)
 
         elif name == "detect_throttling":
-            from detect_throttling import detect  # noqa: E402
+            from storageops.analyzers.detect_throttling import detect  # noqa: E402
             return detect(inputs)
 
         elif name == "generate_lifecycle_fix":
@@ -577,56 +577,62 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
             return generate_policy_fix(inputs)
 
         elif name == "search_memory":
-            from storageops.memory_store import search_cases
+            from storageops.session import Session
             query = inputs.get("query", "")
             if not query or not isinstance(query, str):
                 return {"results": [], "count": 0, "query": str(query)}
-            domain_filter = inputs.get("domain")
-            top_k = min(int(inputs.get("top_k", 3)), 5)
             try:
-                results = search_cases(query, domain=domain_filter, top_k=top_k)
+                sessions = Session.list_all(query=query)
+                results = [{
+                    "id": s.get("id", ""),
+                    "name": s.get("name", ""),
+                    "summary": s.get("summary", ""),
+                    "domain": s.get("domain", ""),
+                    "created": s.get("created", ""),
+                    "turns": s.get("turns", 0)
+                } for s in sessions[:5]]
+                return {"results": results, "count": len(results), "query": query}
             except Exception:
-                results = []
-            return {"results": results, "count": len(results), "query": query}
+                return {"results": [], "count": 0, "query": query}
 
         elif name == "parse_s5cmd_log":
-            from parse_s5cmd_log import parse
+            from storageops.parsers.parse_s5cmd_log import parse
             return parse(inputs["log_text"])
 
         elif name == "analyze_throughput":
-            from analyze_throughput import analyze  # noqa: E402
+            from storageops.analyzers.analyze_throughput import analyze  # noqa: E402
             return analyze(inputs)
 
         elif name == "parse_cors_error":
-            from parse_cors_error import parse
+            from storageops.parsers.parse_cors_error import parse
             return parse(inputs["log_text"])
 
         elif name == "analyze_cors":
-            from analyze_cors import analyze
+            from storageops.analyzers.analyze_cors import analyze
             return analyze(inputs.get("cors_data", inputs))
 
         elif name == "parse_replication_status":
-            from parse_replication_status import parse
+            from storageops.parsers.parse_replication_status import parse
             return parse(inputs["log_text"])
 
         elif name == "analyze_replication":
-            from analyze_replication import analyze
+            from storageops.analyzers.analyze_replication import analyze
             return analyze(inputs.get("replication_data", inputs))
 
         elif name == "parse_hadoop_s3a":
-            from parse_hadoop_s3a import parse
+            from storageops.parsers.parse_hadoop_s3a import parse
             return parse(inputs["log_text"])
 
         elif name == "parse_network_diagnostics":
-            from parse_network_diagnostics import parse  # noqa: E402
+            from storageops.parsers.parse_network_diagnostics import parse  # noqa: E402
             return parse(inputs["diagnostic_text"])
 
         elif name == "analyze_network":
-            from analyze_network import analyze  # noqa: E402
+            from storageops.analyzers.analyze_network import analyze  # noqa: E402
             return analyze(inputs["parsed"])
 
         elif name == "parse_httpmon_log":
-            from parse_httpmon_log import parse  # noqa: E402
+            from storageops.parsers.parse_httpmon_log import parse  # noqa: E402
             return parse(inputs["log_text"])
 
         else:

@@ -1,6 +1,18 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "storageops"
+version = "0.3.0"
+description = "StorageOps — S3-compatible object storage diagnostic toolkit"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["storageops", "storageops.*"]
+
 [tool.pytest.ini_options]
-# importlib mode resolves namespace collisions between storageops-core/tests/
-# and storageops-cli/tests/ when running pytest from the repo root.
 addopts = "--import-mode=importlib"
 pythonpath = ["storageops-cli"]
 

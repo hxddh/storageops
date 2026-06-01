@@ -1,393 +1,202 @@
 """
-StorageOps offline diagnostic utilities.
+Stateless agent loop: converse() streams Pi events through a display.
 
-Provides domain classification, evidence assessment, analysis pipeline,
-and report generation. Used by api_server.py and the serve command.
-Pi Coding Agent invokes storageops CLI tools directly for agent sessions.
+Pure functions — no global state, no side effects beyond session writes
+and display output. Designed for REPL, CLI, and API usage.
 """
 from __future__ import annotations
 
+import time
 import json
-import re
+from typing import Protocol
 
-from secret_scanner import scan as scan_secrets
-from signatures import auto_detect
-
-
-# ── Evidence Requirements per Domain ──────────────────────────────────
-
-EVIDENCE_CHECKLIST = {
-    'cors_configuration': {
-        'required': ['Error message (NoSuchCORSConfiguration, CORSForbidden, etc.)', 'Origin header value', 'HTTP method'],
-        'helpful': ['Full preflight request/response headers', 'Bucket name'],
-    },
-    'replication_versioning': {
-        'required': ['ReplicationStatus per object or rule', 'Source and destination bucket names'],
-        'helpful': ['IAM policy for replication role', 'KMS key ARN if encryption is used', 'aws s3api get-bucket-replication output'],
-    },
-    'bigdata_pipeline': {
-        'required': ['Full stack trace or error log', 'Hadoop/Spark version', 'Committer type (staging or magic)'],
-        'helpful': ['spark.hadoop.fs.s3a.committer.name config', 'IAM policy for EMR/Spark role', '_temporary/ path that failed'],
-    },
-    's3_protocol_compatibility': {
-        'required': [
-            'Error code or message (SignatureDoesNotMatch, InvalidPart, etc.)',
-            'Provider name and endpoint',
-            'SDK or tool name and version',
-        ],
-        'helpful': [
-            'Debug log with canonical request and string-to-sign',
-            'Client region configuration',
-            'Whether path-style or virtual-hosted-style is used',
-        ],
-    },
-    'cli_sdk_behavior': {
-        'required': [
-            'Tool name and exact version',
-            'The command that was run (redact secrets)',
-            'Error output or debug log',
-        ],
-        'helpful': [
-            'Configuration file (endpoint, region, concurrency settings)',
-            'Whether the same operation works with a different tool',
-            'Object size and count',
-        ],
-    },
-    'performance_throughput': {
-        'required': [
-            'Tool and version used',
-            'Observed throughput or timing data',
-            'Object sizes and count',
-        ],
-        'helpful': [
-            'Concurrency and part size settings',
-            'RTT to endpoint (ping result)',
-            'Client machine specs (CPU, memory, disk type)',
-            'Any 429/503/5xx errors in logs',
-        ],
-    },
-    'mount_filesystem_workspace': {
-        'required': [
-            'Mount type and version (s3fs, rclone mount, bosfs, etc.)',
-            'Mount options (command line or fstab)',
-            'Workspace description (git repos, node_modules, venv, etc.)',
-        ],
-        'helpful': [
-            'Timing comparison: local SSD vs mount for same operation',
-            'Kernel log FUSE errors: dmesg | grep -i fuse',
-            'Concurrency: number of simultaneous users/processes',
-        ],
-    },
-    'network_endpoint_access': {
-        'required': [
-            'Endpoint URL or hostname',
-            'Access path type (public, VPC, PrivateLink)',
-        ],
-        'helpful': [
-            'DNS resolution output: dig <endpoint-hostname>',
-            'Ping/traceroute to endpoint',
-            'TLS certificate details',
-            'Proxy configuration',
-        ],
-    },
-    'security_iam_policy': {
-        'required': [
-            'Full error message with request ID',
-            'Bucket name and object key (if applicable)',
-            'Action being attempted (GetObject, PutObject, ListBucket, etc.)',
-        ],
-        'helpful': [
-            'IAM policy JSON for the principal (redact account IDs if needed)',
-            'Bucket policy JSON',
-            'Whether STS/temporary credentials are in use',
-        ],
-    },
-    'lifecycle_cost': {
-        'required': [
-            'Lifecycle configuration (XML or description)',
-            'Storage class of objects in question',
-            'Object sizes and count per prefix',
-        ],
-        'helpful': [
-            'Access frequency patterns (how often are objects read?)',
-            'Current monthly cost breakdown if available',
-            'Region and pricing tier',
-        ],
-    },
-}
+from storageops.session import Session
+from storageops.context import build_prompt
+from storageops.tool_registry import dispatch_tool
 
 
-# ── Domain classification ─────────────────────────────────────────────
+# ── Display protocol ──────────────────────────────────────────────────
 
-def classify_evidence(text: str) -> dict:
-    """Classify evidence and return primary domain with quality assessment."""
-    detections = auto_detect(text)
-    if not detections:
-        return {
-            'primary_domain': 'unknown',
-            'all_domains': [],
-            'scores': {},
-            'evidence_quality': 'insufficient',
-        }
-    primary = detections[0]
-    return {
-        'primary_domain': primary['domain'],
-        'all_domains': [d['domain'] for d in detections],
-        'scores': {d['domain']: d['confidence'] for d in detections},
-        'evidence_quality': 'sufficient' if primary['confidence'] >= 0.5 else 'partial',
-    }
+class Display(Protocol):
+    """Protocol for streaming output renders."""
+    def show_thinking(self, text: str) -> None: ...
+    def show_text_delta(self, text: str) -> None: ...
+    def show_tool_call(self, name: str, args: dict) -> None: ...
+    def show_tool_result(self, name: str, summary: str) -> None: ...
+    def show_result(self, elapsed_ms: float) -> None: ...
+    def show_progress(self, total: int, current: int) -> None: ...
+    def show_error(self, msg: str) -> None: ...
 
 
-def assess_evidence(text: str, domain: str) -> dict:
-    """Check what evidence is present vs missing for a domain."""
-    checklist = EVIDENCE_CHECKLIST.get(domain, {})
-    if not checklist:
-        return {'quality': 'unknown', 'missing': []}
+# ── PiRunResult ───────────────────────────────────────────────────────
 
-    has_debug = bool(re.search(r'\d{4}-\d{2}-\d{2}.*(?:DEBUG|ERROR|INFO|WARN)', text))
-    has_error = bool(re.search(
-        r'(?:Error|ERROR|AccessDenied|SignatureDoesNotMatch|corrupted|failed)', text
-    ))
-    missing_required = []
-    missing_helpful = []
-
-    for req in checklist.get('required', []):
-        indicator = _indicator_for(req)
-        if indicator and not indicator(text):
-            missing_required.append(req)
-
-    for help_item in checklist.get('helpful', []):
-        indicator = _indicator_for(help_item)
-        if indicator and not indicator(text):
-            missing_helpful.append(help_item)
-
-    quality = 'sufficient' if not missing_required else 'partial'
-    if not has_error and not has_debug:
-        quality = 'insufficient'
-
-    return {
-        'quality': quality,
-        'missing_required': missing_required,
-        'missing_helpful': missing_helpful,
-    }
+class PiRunResult:
+    """Result from a one-shot Pi run (converse_one_shot)."""
+    def __init__(self) -> None:
+        self.text: str = ""
+        self.events: list[dict] = []
+        self.tool_calls: list[dict] = []
+        self.errors: list[str] = []
+        self.elapsed_ms: float = 0
 
 
-def _indicator_for(item: str):
-    indicators = {
-        'error': lambda t: bool(re.search(r'(?:Error|ERROR|fail|denied)', t)),
-        'tool': lambda t: bool(re.search(
-            r'(?:aws-cli|rclone|s5cmd|bcecmd|obsutil|boto3|aws\s+s3)', t, re.IGNORECASE
-        )),
-        'debug': lambda t: bool(re.search(r'(?:DEBUG|--debug|-vv)', t)),
-        'config': lambda t: bool(re.search(
-            r'(?:endpoint|region|concurrency|part.size|chunk.size)', t, re.IGNORECASE
-        )),
-        'timing': lambda t: bool(re.search(
-            r'(?:\d+\s*(?:ms|s|MB/s)|RTT|latency|ping|elapsed)', t, re.IGNORECASE
-        )),
-        'mount': lambda t: bool(re.search(
-            r'(?:s3fs|bosfs|rclone mount|fuse|mount\s+-[a-zA-Z])', t, re.IGNORECASE
-        )),
-        'policy': lambda t: bool(re.search(
-            r'(?:Statement|Effect|Principal|Action|Resource|bucket.*policy)', t
-        )),
-    }
-    for key, fn in indicators.items():
-        if key in item.lower():
-            return fn
-    return None
+# ── Main conversation loop ────────────────────────────────────────────
 
+def converse(session: Session, user_input: str, display: Display) -> None:
+    """Run a streaming conversation turn with Pi.
 
-# ── Analysis Pipeline ─────────────────────────────────────────────────
+    Writes a user_turn event to the session, builds the prompt,
+    streams Pi events, dispatches tool calls, and updates session metadata.
+    Returns nothing — all output goes through Display.
+    """
+    from storageops.pi_runtime import PiRuntime
 
-def run_analysis(domain: str, text: str) -> dict:
-    """Run domain analysis. Returns structured result dict."""
-    secret_result = scan_secrets(text)
-    if secret_result['count'] > 0:
-        text = secret_result['redacted_text']
+    t0 = time.monotonic()
 
-    result: dict = {}
-    try:
-        if domain == 'cors_configuration':
-            from parse_cors_error import parse as parse_cors
-            from analyze_cors import analyze as analyze_cors
-            parsed = parse_cors(text)
-            result = analyze_cors(parsed)
+    # Record user turn
+    session.append({"type": "user_turn", "prompt": user_input, "ts": _now_iso()})
 
-        elif domain == 'replication_versioning':
-            from parse_replication_status import parse as parse_replication
-            from analyze_replication import analyze as analyze_replication
-            parsed = parse_replication(text)
-            result = analyze_replication(parsed)
+    # Build prompt
+    prompt = build_prompt(session, user_input)
 
-        elif domain == 'bigdata_pipeline':
-            from parse_hadoop_s3a import parse as parse_hadoop
-            result = parse_hadoop(text)
+    # Start Pi
+    pi = PiRuntime()
+    pi.send_prompt(prompt)
 
-        elif domain == 's3_protocol_compatibility':
-            from parse_sigv4_error import parse_xml_error, diagnose as diagnose_sigv4
-            if '<Code>' in text:
-                result = diagnose_sigv4(parse_xml_error(text))
-            else:
-                from parse_awscli_debug import parse as parse_awscli
-                result = parse_awscli(text)
+    turn_count = 0
+    max_turns = 20  # safety limit
 
-        elif domain == 'cli_sdk_behavior':
-            if 'rclone' in text.lower():
-                from parse_rclone_log import parse as parse_rclone
-                result = parse_rclone(text)
-            elif 's5cmd' in text.lower():
-                from parse_s5cmd_error import parse as parse_s5cmd_err
-                result = parse_s5cmd_err(text)
-            else:
-                from parse_awscli_debug import parse as parse_awscli
-                result = parse_awscli(text)
+    while turn_count < max_turns:
+        turn_count += 1
+        event = pi.read_event()
+        if event is None:
+            # No event ready, send ack and wait
+            pi.acknowledge()
+            time.sleep(0.05)
+            continue
 
-        elif domain == 'performance_throughput':
-            from parse_awscli_debug import parse as parse_awscli
-            from detect_throttling import detect as detect_throttling
-            parsed = parse_awscli(text)
-            if parsed.get('summary', {}).get('has_throttling'):
-                result = detect_throttling(parsed)
-            else:
-                result = parsed
+        event_type = event.get("type", "unknown")
+        session.append(event)
 
-        elif domain == 'mount_filesystem_workspace':
-            from analyze_metadata_amplification import analyze as analyze_amp
-            # Extract RTT from text if present (e.g. "rtt=50ms", "rtt: 80ms")
-            rtt_match = re.search(r'rtt[= :]?\s*(\d+(?:\.\d+)?)\s*ms', text, re.IGNORECASE)
-            rtt_ms = float(rtt_match.group(1)) if rtt_match else 50
-            # Extract syscall counts if strace-style output is present
-            found_syscalls: dict[str, int] = {}
-            for name in ('stat', 'lstat', 'open', 'read', 'write', 'readdir', 'getdents', 'rename', 'unlink', 'fsync'):
-                m = re.search(rf'\b{name}\b.*?(\d{{3,}})', text, re.IGNORECASE)
-                if m:
-                    found_syscalls[name] = int(m.group(1))
-            using_defaults = not found_syscalls and not rtt_match
-            syscalls = found_syscalls or {"stat": 10000, "open": 2000, "readdir": 200, "read": 5000}
-            result = analyze_amp({
-                "rtt_ms": rtt_ms,
-                "syscalls": syscalls,
-                "operation_name": "detected from input" if not using_defaults else "git status (estimated)",
-                "note": "Default estimation — provide strace output for accurate analysis." if using_defaults else
-                        "Values extracted from input text.",
-            })
+        if event_type == "thinking":
+            display.show_thinking(event.get("text", ""))
 
-        elif domain == 'security_iam_policy':
-            from analyze_policy import analyze as analyze_policy, analyze_inline_403
+        elif event_type == "text_delta":
+            display.show_text_delta(event.get("text", ""))
+
+        elif event_type == "tool_call":
+            name = event.get("name", "unknown")
+            args = event.get("arguments", {})
+            call_id = event.get("call_id", "")
+            display.show_tool_call(name, args)
+
+            # Dispatch the tool
             try:
-                result = analyze_policy(json.loads(text))
-            except json.JSONDecodeError:
-                result = analyze_inline_403(text)
+                result = dispatch_tool(name, args)
+                summary = _summarize_result(name, result)
+                display.show_tool_result(name, summary)
+                pi.send_tool_result(call_id, result)
+            except Exception as exc:
+                err = {"error": str(exc)}
+                display.show_error(f"Tool {name} error: {exc}")
+                pi.send_tool_result(call_id, err)
 
-        elif domain == 'lifecycle_cost':
-            from analyze_cost import analyze as analyze_cost
+        elif event_type == "error":
+            display.show_error(event.get("message", "Unknown error"))
+
+        elif event_type == "agent_end":
+            break
+
+        elif event_type == "turn_end":
+            # Pi wants to continue — loop keeps going
+            continue
+
+    if turn_count >= max_turns:
+        display.show_error("Reached maximum turn limit")
+
+    elapsed = (time.monotonic() - t0) * 1000
+    display.show_result(elapsed)
+
+    # Sync session metadata
+    session.sync_meta()
+
+
+def converse_one_shot(prompt: str) -> PiRunResult:
+    """Run Pi once without session or display. Returns structured result.
+
+    Used by API server and CLI for quick diagnostic runs.
+    """
+    from storageops.pi_runtime import PiRuntime
+
+    result = PiRunResult()
+    t0 = time.monotonic()
+
+    pi = PiRuntime()
+    pi.send_prompt(prompt)
+
+    turn_count = 0
+    max_turns = 20
+
+    while turn_count < max_turns:
+        turn_count += 1
+        event = pi.read_event()
+        if event is None:
+            pi.acknowledge()
+            time.sleep(0.05)
+            continue
+
+        result.events.append(event)
+
+        if event.get("type") == "text_delta":
+            result.text += event.get("text", "")
+
+        elif event.get("type") == "tool_call":
+            name = event.get("name", "unknown")
+            args = event.get("arguments", {})
+            call_id = event.get("call_id", "")
+            result.tool_calls.append({"name": name, "args": args})
+
             try:
-                result = analyze_cost(json.loads(text))
-            except json.JSONDecodeError:
-                from parse_lifecycle_xml import parse as parse_lifecycle
-                result = parse_lifecycle(text)
+                tool_result = dispatch_tool(name, args)
+                pi.send_tool_result(call_id, tool_result)
+            except Exception as exc:
+                err = {"error": str(exc)}
+                result.errors.append(f"Tool {name}: {exc}")
+                pi.send_tool_result(call_id, err)
 
-        elif domain == 'network_endpoint_access':
-            from parse_network_diagnostics import parse as parse_net_diag
-            from analyze_network import analyze as analyze_net
-            parsed = parse_net_diag(text)
-            result = analyze_net(parsed)
-            result['_parsed'] = parsed
+        elif event.get("type") == "error":
+            result.errors.append(event.get("message", "Unknown error"))
 
-    except Exception as exc:
-        result = {"error": str(exc), "note": "Analysis failed. More evidence may be needed."}
+        elif event.get("type") == "agent_end":
+            break
 
-    result['_secret_scan'] = {
-        'findings': secret_result['count'],
-        'redacted': secret_result['count'] > 0,
-    }
+    result.elapsed_ms = (time.monotonic() - t0) * 1000
     return result
 
 
-# ── Report Generation ─────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────
 
-def generate_report(domain: str, analysis: dict, evidence_quality: str) -> str:
-    """Generate a structured markdown report from analysis results."""
-    secret_info = analysis.pop('_secret_scan', {})
-    redacted_note = (
-        "\n> Warning: secrets detected in input and redacted before analysis.\n"
-        if secret_info.get('redacted') else ''
-    )
-
-    report = f"""---
-category: {domain}
-root_cause_type: unknown
-confidence: 0.5
-severity: medium
----
-
-## Summary
-
-{_extract_conclusion(analysis, domain)}
-{redacted_note}
-## Key Evidence
-
-```json
-{json.dumps(analysis, indent=2, ensure_ascii=False, default=str)[:3000]}
-```
-
-## Remediation
-
-{_extract_recommendations(analysis, domain)}
-
-## Safety Notes
-
-- All remediation steps require manual review before execution.
-- Label any cloud-mutating command with `# manual-only:` before running.
-
----
-*Generated by StorageOps offline analysis. Evidence quality: {evidence_quality}.*
-*Verify all conclusions before acting.*
-"""
-    analysis['_secret_scan'] = secret_info
-    return report
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
 
 
-def _extract_conclusion(analysis: dict, domain: str) -> str:
-    if analysis.get('conclusion'):
-        return str(analysis['conclusion'])
-    if analysis.get('note'):
-        return str(analysis['note'])
-    summary = analysis.get('summary', {})
-    if summary.get('root_cause_likely'):
-        return f"Likely root cause: {summary['root_cause_likely']}"
-    if summary.get('corrupted_count', 0) > 0:
-        return f"Detected {summary['corrupted_count']} transfer checksum failure(s)."
-    if summary.get('has_signature_error'):
-        return "SigV4 signature error detected."
-    if analysis.get('denial_source'):
-        return f"Access denial source: {analysis['denial_source']}"
-    return "See Key Evidence section for analysis details."
-
-
-def _extract_recommendations(analysis: dict, domain: str) -> str:
-    recs = analysis.get('recommendations') or analysis.get('recommendation')
-    if isinstance(recs, list):
-        return '\n'.join(f'- {r}' for r in recs) or _default_rec(domain)
-    if isinstance(recs, str) and recs:
-        return f'- {recs}'
-    if isinstance(recs, dict):
-        return '\n'.join(f'- {k}: {v}' for k, v in recs.items())
-    return _default_rec(domain)
-
-
-def _default_rec(domain: str) -> str:
-    defaults = {
-        's3_protocol_compatibility': '- Check clock sync (NTP) and region configuration.',
-        'cors_configuration': '- Add or update CORS configuration on the bucket. Check allowed origins.',
-        'replication_versioning': '- Ensure versioning is enabled and the replication IAM role has required permissions.',
-        'bigdata_pipeline': '- Check S3A credentials, endpoint config, and committer type for the job engine.',
-        'cli_sdk_behavior': '- Check tool version and configuration. Try a different tool to compare.',
-        'performance_throughput': '- Tune concurrency and part size. Check for throttling (429).',
-        'mount_filesystem_workspace': '- Use local SSD for hot workspace. Use object storage for persistence only.',
-        'security_iam_policy': '- Check IAM and bucket policy. For cross-account, both sides must Allow.',
-        'lifecycle_cost': '- Review lifecycle rules. Avoid STANDARD_IA for small objects (<128 KB).',
-        'network_endpoint_access': '- Check DNS resolution, TCP connectivity, and TLS handshake.',
-    }
-    return defaults.get(domain, '- See Key Evidence section.')
+def _summarize_result(name: str, result: dict) -> str:
+    """Create a short summary of a tool result for display."""
+    if not isinstance(result, dict):
+        return str(result)[:200]
+    if error := result.get("error"):
+        return f"error: {str(error)[:150]}"
+    # Common patterns
+    for key in ("ok", "count", "status", "root_cause", "domain"):
+        if key in result:
+            return f"{key}={result[key]}"
+    # Try to find a meaningful summary key
+    if "summary" in result:
+        return str(result["summary"])[:150]
+    if "findings" in result:
+        cnt = result["findings"] if isinstance(result["findings"], int) else len(result["findings"])
+        return f"findings={cnt}"
+    # Fallback: show keys present
+    keys = list(result.keys())[:5]
+    return f"keys: {', '.join(keys)}"
