@@ -1,203 +1,101 @@
-"""Pi Coding Agent JSONL RPC runtime for StorageOps."""
+"""Pi Coding Agent JSONL RPC runtime — simplified process manager.
+
+Owns the Pi subprocess lifecycle and streams RPC events. All session
+management, prompt building, and safety logic now lives in core/agent.py.
+
+Protocol:
+  → stdin:  {"type": "prompt",    "message": "..."}
+  → stdin:  {"type": "tool_result", "id": "...", "result": {...}}
+  ← stdout: {"type": "text_delta", "delta": "..."}
+  ← stdout: {"type": "tool_call",  "name": "...", "arguments": {...}}
+  ← stdout: {"type": "agent_end", ...}
+"""
 from __future__ import annotations
 
 import fcntl
-import os as _os_mod  # for O_NONBLOCK with pipes
 import json
 import os
-import re
-import subprocess
+import os as _os_mod
 import select
-import tempfile
+import subprocess
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Generator
 
-from storageops.audit_logger import log_session_start, log_pi_result, log_session_end
-from storageops.config import get_workdir as _cfg_workdir
-from storageops.config import get_skills_dir as _cfg_skills_dir
-from storageops.config import get_api_key as _cfg_api_key
-from storageops.config import get_provider as _cfg_provider
-from storageops.report_validator import safety_lint
 from storageops.runtime.base import AgentRunOptions, AgentRunResult
 
-from secret_scanner import scan as _scan_secrets
+
+_PI_NOT_FOUND = """\
+Pi Agent not found on PATH. Run: storageops setup"""
+
+_DEFAULT_MODELS: dict[str, str] = {
+    "deepseek": "deepseek/deepseek-v4-flash:off",
+    "openai": "openai/gpt-4o-mini",
+    "anthropic": "anthropic/claude-sonnet-4-20250514",
+    "google": "google/gemini-3-flash-preview",
+}
+
+
+def _default_model(provider: str) -> str:
+    return _DEFAULT_MODELS.get(provider, "")
 
 
 def _pi_workdir() -> Path:
-    """Return the directory Pi should run in (contains .pi/settings.json)."""
+    from storageops.config import get_workdir as _cfg_workdir
     d = _cfg_workdir()
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _skills_path() -> str:
-    """Return skills path for the Pi RPC request."""
-    d = _cfg_skills_dir()
-    if d and d.exists():
-        return str(d)
-    repo = Path(__file__).resolve().parents[3] / "agents" / "skills"
-    if repo.exists():
-        return str(repo)
-    return "./agents/skills"
+class PiRuntime:
+    """Manages a single Pi RPC subprocess.
 
-
-_PI_NOT_FOUND_MSG = """\
-Pi Agent not found on PATH.
-
-  Pi Agent is required for `storageops diagnose`.
-  Install Pi Agent, then run: storageops setup
-
-  Offline commands (no Pi required):
-    storageops triage <log>
-    storageops analyze <domain> <log>\
-"""
-
-_MIGRATION_ERROR = (
-    "StorageOps no longer manages LLM providers. Configure providers and models "
-    "in Pi Coding Agent."
-)
-
-_ADDITIONAL_SECRET_PATTERNS = [
-    re.compile(r"\bASIA[0-9A-Z]{16}\b"),
-    re.compile(r"\bA3T[A-Z0-9]{16}\b"),
-    re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/-]+=*"),
-    re.compile(r"(?i)(cookie|set-cookie):\s*.*?(?=\n|$)"),
-    re.compile(r"(?i)(x-amz-security-token|session[_-]?token)\s*[:=]\s*\S+"),
-    re.compile(r"(?i)(api[_-]?key|apikey|provider[_-]?api[_-]?key)\s*[:=]\s*\S+"),
-    re.compile(r"(?i)(X-Amz-Credential|X-Amz-Signature|X-Amz-Security-Token)=[^\s&]+"),
-    re.compile(r"(?i)(secret_access_key|aws_secret_access_key)\s*[:=]\s*\S+"),
-]
-
-
-def redact_for_pi(text: str) -> tuple[str, int]:
-    """Apply StorageOps redaction plus extra provider/API-token patterns."""
-    result = _scan_secrets(text)
-    redacted = result["redacted_text"]
-    extra_count = 0
-    for pattern in _ADDITIONAL_SECRET_PATTERNS:
-        redacted, count = pattern.subn("[REDACTED]", redacted)
-        extra_count += count
-    return redacted, int(result.get("count", 0)) + extra_count
-
-
-def _load_prompt() -> str:
-    """Load the single StorageOps identity prompt template."""
-    prompt_dir = Path(__file__).resolve().parents[1] / "prompts"
-    path = prompt_dir / "pi_diagnosis_prompt.md"
-    return path.read_text(encoding="utf-8")
-
-
-def build_pi_prompt(
-    *, evidence_file: Path, original_filename: str, redaction_count: int, max_turns: int,
-    user_message: str = "",
-) -> str:
-    """Build the StorageOps prompt sent to Pi. No mode switching — one unified prompt."""
-    prompt = _load_prompt()
-    replacements = {
-        "{{ evidence_file }}": str(evidence_file),
-        "{{ original_filename }}": original_filename,
-        "{{ redaction_count }}": str(redaction_count),
-        "{{ max_turns }}": str(max_turns),
-        "{{ user_message }}": user_message,
-    }
-    for key, value in replacements.items():
-        prompt = prompt.replace(key, value)
-    return prompt
-
-
-def _safe_event(event: dict[str, Any]) -> dict[str, Any]:
-    """Redact string payloads in captured raw events before returning them."""
-    safe: dict[str, Any] = {}
-    for key, value in event.items():
-        if isinstance(value, str):
-            safe[key] = redact_for_pi(value)[0]
-        elif isinstance(value, dict):
-            safe[key] = _safe_event(value)
-        elif isinstance(value, list):
-            safe[key] = [
-                _safe_event(v) if isinstance(v, dict)
-                else redact_for_pi(v)[0] if isinstance(v, str)
-                else v
-                for v in value
-            ]
-        else:
-            safe[key] = value
-    return safe
-
-
-def _event_is_final(event: dict[str, Any]) -> bool:
-    """Return True when Pi signals the agent turn is complete."""
-    typ = str(event.get("type") or event.get("event") or "").lower()
-    return typ == "agent_end"
-
-
-def reconstruct_report_from_events(events: list[dict[str, Any]]) -> str:
-    """Extract final assistant response from Pi RPC JSONL event stream."""
-    # Primary: extract from agent_end.messages (most reliable)
-    raw = ""
-    for event in reversed(events):
-        if str(event.get("type") or "").lower() == "agent_end":
-            for msg in reversed(event.get("messages", [])):
-                if msg.get("role") == "assistant":
-                    texts = [
-                        block["text"]
-                        for block in msg.get("content", [])
-                        if isinstance(block, dict) and block.get("type") == "text"
-                    ]
-                    if texts:
-                        raw = "\n".join(texts)
-                        break
-            if raw:
-                break
-
-    # Fallback: reassemble from streaming text_delta events
-    if not raw:
-        chunks: list[str] = []
-        for event in events:
-            if str(event.get("type") or "").lower() == "message_update":
-                ae = event.get("assistantMessageEvent", {})
-                if isinstance(ae, dict) and ae.get("type") == "text_delta":
-                    delta = ae.get("delta", "")
-                    if delta:
-                        chunks.append(delta)
-        raw = "".join(chunks)
-
-    return raw
-
-
-class PiSession:
-    """
-    A long-lived Pi process for a REPL session.
-
-    Maintains one Pi subprocess across multiple turns, sending messages via JSONL RPC.
-    This preserves conversation history — each turn's prompt includes prior messages so
-    the model remembers earlier interactions.
+    Created per Agent instance. Handles start/stop and event streaming.
     """
 
-    runtime_name = "pi"
+    def __init__(
+        self,
+        max_turns: int = 10,
+        timeout_seconds: int = 600,
+        pi_command: str | None = None,
+        pi_model: str | None = None,
+        pi_provider: str | None = None,
+    ) -> None:
+        from storageops.config import get_pi_command, get_api_key, get_provider
 
-    def __init__(self, options: AgentRunOptions):
-        self.options = options
-        self.proc: subprocess.Popen | None = None
-        self._events: list[dict[str, Any]] = []
-        self._session_id: str = ""
-        self._conversation_turns: list[str] = []  # user messages for history
+        self.max_turns = max_turns
+        self.timeout_seconds = timeout_seconds
+        self.pi_command = pi_command or get_pi_command()
+        self.pi_model = pi_model or _default_model(get_provider() or "deepseek")
+        self.pi_provider = pi_provider or get_provider() or ""
+        self.api_key = get_api_key() or ""
 
-    @property
-    def session_id(self) -> str:
-        return self._session_id
+        self._proc: subprocess.Popen | None = None
+        self._started: bool = False
 
-    @property
-    def raw_events(self) -> list[dict[str, Any]]:
-        return self._events
+    # ── Lifecycle ──────────────────────────────────────────────────────
 
     def start(self) -> AgentRunResult | None:
-        """Launch the Pi subprocess. Returns error result on failure, None on success."""
+        """Launch the Pi subprocess. Returns error on failure."""
+        if self._proc and self._proc.poll() is None:
+            return None  # Already running
+
+        cmd = [self.pi_command, "--mode", "rpc"]
+        if self.pi_provider:
+            cmd.extend(["--provider", self.pi_provider])
+        if self.api_key:
+            cmd.extend(["--api-key", self.api_key])
+        if self.pi_model:
+            cmd.extend(["--model", self.pi_model])
+
+        env = os.environ.copy()
+        if self.api_key and self.pi_provider:
+            env_var = f"{self.pi_provider.upper()}_API_KEY"
+            env.setdefault(env_var, self.api_key)
+
         try:
-            self._session_id = str(__import__("uuid").uuid4())[:8]
-            self.proc = subprocess.Popen(
-                self._command(),
+            self._proc = subprocess.Popen(
+                cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -205,266 +103,217 @@ class PiSession:
                 encoding="utf-8",
                 errors="replace",
                 cwd=str(_pi_workdir()),
-                env=self._pi_env(),
+                env=env,
             )
+            # Set stdout to non-blocking for reliable event reading
+            fd = self._proc.stdout.fileno()
+            flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, flags | _os_mod.O_NONBLOCK)
+            self._started = True
             return None
         except FileNotFoundError:
-            return AgentRunResult(False, self.runtime_name, error=_PI_NOT_FOUND_MSG)
+            return AgentRunResult(False, "pi", error=_PI_NOT_FOUND)
         except OSError as exc:
-            return AgentRunResult(False, self.runtime_name, error=f"Failed to start Pi: {exc}")
-
-    def send(
-        self,
-        prompt: str,
-        evidence_path: Path | None = None,
-        event_callback: Any = None,
-        stream: bool = False,
-    ) -> AgentRunResult:
-        """Send a prompt to the Pi process and collect the response.
-
-        For the first turn of a session, sends the full StorageOps system prompt.
-        For subsequent turns, sends just the user message with conversation context.
-        Returns AgentRunResult with the assistant response in report_markdown.
-        """
-        if self.proc is None or self.proc.poll() is not None:
-            # Process died or never started — attempt restart
-            err = self.start()
-            if err is not None:
-                return err
-            assert self.proc is not None
-
-        assert self.proc.stdin is not None
-        assert self.proc.stdout is not None
-
-        deadline = time.monotonic() + self.options.timeout_seconds
-        events: list[dict[str, Any]] = []
-        saw_final = False
-
-        # Set stdout to non-blocking — select() has false negatives on Linux pipes
-        stdout_fd = self.proc.stdout.fileno()
-        stdout_flags = fcntl.fcntl(stdout_fd, fcntl.F_GETFL)
-        fcntl.fcntl(stdout_fd, fcntl.F_SETFL, stdout_flags | _os_mod.O_NONBLOCK)
-
-        try:
-            self.proc.stdin.write(json.dumps(
-                {"type": "prompt", "message": prompt}, ensure_ascii=False
-            ) + "\n")
-            self.proc.stdin.flush()
-
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-
-                # Read all available lines in non-blocking mode
-                while True:
-                    try:
-                        line = self.proc.stdout.readline()
-                        if not line:
-                            break
-                        line = line.rstrip("\n")
-                        if not line.strip():
-                            continue
-                        try:
-                            event = json.loads(line)
-                        except json.JSONDecodeError:
-                            event = {"type": "raw_line", "text": line.strip()}
-                        safe = _safe_event(event)
-                        events.append(safe)
-                        self._events.append(safe)
-                        if event_callback:
-                            try:
-                                event_callback(safe)
-                            except Exception:
-                                pass
-                        elif stream:
-                            typ = str(safe.get("type") or "").lower()
-                            if typ == "message_update":
-                                ae = safe.get("assistantMessageEvent", {})
-                                if isinstance(ae, dict) and ae.get("type") == "text_delta":
-                                    delta = ae.get("delta", "")
-                                    if delta:
-                                        print(delta, end="", flush=True)
-                        if _event_is_final(event):
-                            saw_final = True
-                            break
-                    except (IOError, OSError):
-                        # EAGAIN / EWOULDBLOCK — no more data right now
-                        break
-
-                if saw_final:
-                    break
-
-                if self.proc.poll() is not None:
-                    break
-
-                # Wait for more data with select
-                ready, _, _ = select.select(
-                    [self.proc.stdout], [], [], min(0.5, remaining)
-                )
-                if not ready and self.proc.poll() is not None:
-                    break
-
-        finally:
-            try:
-                fcntl.fcntl(stdout_fd, fcntl.F_SETFL, stdout_flags)
-            except OSError:
-                pass
-
-        if not saw_final:
-            self.proc.kill()
-            self.proc.wait()
-            self.proc = None
-            return AgentRunResult(
-                False,
-                self.runtime_name,
-                raw_events=events,
-                error=f"Pi RPC did not send agent_end within {self.options.timeout_seconds}s",
-            )
-
-        report = reconstruct_report_from_events(events)
-
-        if report:
-            lint = safety_lint(report)
-            if lint["issues"]:
-                report += "\n\n---\n\n⚠️  Safety note: " + "; ".join(lint["issues"])
-
-            try:
-                from storageops.memory_store import save_case
-                save_case(
-                    self._session_id,
-                    "diagnosis",
-                    "general",
-                    report[:400],
-                    keywords=[],
-                )
-            except Exception:
-                pass
-
-        return AgentRunResult(
-            True,
-            self.runtime_name,
-            report_markdown=report,
-            raw_events=events,
-        )
+            return AgentRunResult(False, "pi", error=f"Failed to start Pi: {exc}")
 
     def stop(self) -> None:
-        """Cleanly terminate the Pi subprocess."""
-        if self.proc and self.proc.poll() is None:
+        """Terminate the Pi subprocess."""
+        if self._proc:
             try:
-                if self.proc.stdin:
-                    self.proc.stdin.close()
+                if self._proc.stdin:
+                    self._proc.stdin.close()
             except OSError:
                 pass
             try:
-                self.proc.wait(timeout=3)
+                self._proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
-                self.proc.kill()
-                self.proc.wait()
-        self.proc = None
+                self._proc.kill()
+                self._proc.wait()
+            self._proc = None
+            self._started = False
 
-    # Default models per provider when no explicit --model is set.
-    _DEFAULT_MODELS: dict[str, str] = {
-        "deepseek": "deepseek/deepseek-v4-flash:off",
-        "openai": "openai/gpt-4o-mini",
-        "anthropic": "anthropic/claude-sonnet-4-20250514",
-        "google": "google/gemini-3-flash-preview",
-    }
+    def _ensure_started(self) -> AgentRunResult | None:
+        if not self._started or (self._proc and self._proc.poll() is not None):
+            return self.start()
+        return None
 
-    def _command(self) -> list[str]:
-        cmd = [self.options.pi_command, "--mode", "rpc"]
-        provider = self.options.pi_provider or _cfg_provider() or ""
-        if provider:
-            cmd.extend(["--provider", provider])
-        api_key = _cfg_api_key()
-        if api_key:
-            cmd.extend(["--api-key", api_key])
-        model = self.options.pi_model or self._DEFAULT_MODELS.get(provider, "")
-        if model:
-            cmd.extend(["--model", model])
-        return cmd
+    # ── Streaming ──────────────────────────────────────────────────────
 
-    def _pi_env(self) -> dict:
-        env = os.environ.copy()
-        api_key = _cfg_api_key()
-        if api_key:
-            provider = self.options.pi_provider or _cfg_provider() or ""
-            env_map = {
-                "anthropic": "ANTHROPIC_API_KEY",
-                "openai":    "OPENAI_API_KEY",
+    def stream(self, prompt: str) -> Generator[dict[str, Any], None, None]:
+        """Send a prompt and yield parsed events until agent_end.
+
+        Yields dicts like:
+          {"type": "text_delta", "delta": "..."}
+          {"type": "tool_call", "id": "...", "name": "...", "arguments": {...}}
+          {"type": "agent_end", "messages": [...]}
+        """
+        err = self._ensure_started()
+        if err:
+            yield {"type": "error", "message": err.error or "Pi failed to start"}
+            return
+
+        assert self._proc and self._proc.stdin and self._proc.stdout
+
+        # Write prompt
+        self._proc.stdin.write(
+            json.dumps({"type": "prompt", "message": prompt}, ensure_ascii=False) + "\n"
+        )
+        self._proc.stdin.flush()
+
+        deadline = time.monotonic() + self.timeout_seconds
+
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                yield {"type": "error", "message": f"Pi timed out after {self.timeout_seconds}s"}
+                self.stop()
+                return
+
+            # Read all available lines (non-blocking)
+            had_data = False
+            while True:
+                try:
+                    line = self._proc.stdout.readline()
+                    if not line:
+                        break
+                    had_data = True
+                    line = line.rstrip("\n")
+                    if not line.strip():
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    # Normalize events for the Agent
+                    evt = self._normalize_event(event)
+                    if evt:
+                        yield evt
+                        if evt.get("type") == "agent_end":
+                            return
+                except (IOError, OSError):
+                    break
+
+            if self._proc.poll() is not None:
+                break
+
+            # Wait for more data
+            ready, _, _ = select.select(
+                [self._proc.stdout], [], [], min(0.5, remaining)
+            )
+            if not ready and self._proc.poll() is not None:
+                break
+
+        yield {"type": "error", "message": "Pi process exited unexpectedly"}
+        self.stop()
+
+    def send_tool_result(self, tool_id: str, result: Any) -> None:
+        """Send a tool execution result back to Pi."""
+        if not self._proc or not self._proc.stdin:
+            return
+
+        # Convert ToolResult to Pi-compatible format
+        if hasattr(result, "ok"):
+            payload = {
+                "type": "tool_result",
+                "id": tool_id,
+                "ok": result.ok,
+                "result": {
+                    "ok": result.ok,
+                    "summary": getattr(result, "summary", ""),
+                    "error": getattr(result, "error", ""),
+                    "elapsed": getattr(result, "elapsed", 0),
+                },
             }
-            env_var = env_map.get(provider, f"{provider.upper()}_API_KEY")
-            env.setdefault(env_var, api_key)
-        return env
+        else:
+            payload = {"type": "tool_result", "id": tool_id, "result": result}
 
+        try:
+            self._proc.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            self._proc.stdin.flush()
+        except OSError:
+            pass
 
-# ── Legacy PiRpcRuntime (one-shot, stateless — kept for CLI commands) ──
+    # ── Event normalization ────────────────────────────────────────────
 
-class PiRpcRuntime:
-    """One-shot Pi RPC runner for standalone commands (triage, analyze, eval)."""
+    @staticmethod
+    def _normalize_event(raw: dict) -> dict | None:
+        """Convert Pi RPC event to a normalized form the Agent understands."""
+        typ = str(raw.get("type") or "").lower()
 
-    runtime_name = "pi"
+        if typ == "message_update":
+            ae = raw.get("assistantMessageEvent", {})
+            if isinstance(ae, dict):
+                ae_type = ae.get("type", "")
+                if ae_type == "text_delta":
+                    return {"type": "text_delta", "delta": ae.get("delta", "")}
+                if ae_type == "text_start":
+                    return {"type": "text_delta", "delta": ae.get("text", ae.get("delta", ""))}
+            return None
 
-    def __init__(self, options: AgentRunOptions | None = None):
-        self.options = options or AgentRunOptions()
+        if typ == "tool_execution_start":
+            return {
+                "type": "tool_call",
+                "id": raw.get("executionId", raw.get("id", "")),
+                "name": raw.get("toolName", raw.get("name", "")),
+                "arguments": raw.get("input", raw.get("arguments", {})),
+            }
 
-    def run(self, input_file: str | os.PathLike[str]) -> AgentRunResult:
-        import uuid
-        session_id = str(uuid.uuid4())[:8]
+        if typ == "tool_execution_end":
+            is_error = bool(raw.get("isError"))
+            result = raw.get("result", {})
+            content = ""
+            if isinstance(result, dict):
+                cl = result.get("content", [])
+                if isinstance(cl, list) and cl and isinstance(cl[0], dict):
+                    text = cl[0].get("text", "")
+                    if isinstance(text, str):
+                        try:
+                            data = json.loads(text)
+                            # Build summary from structured result
+                            parts = []
+                            for k in ("records", "findings", "count"):
+                                v = data.get(k)
+                                if isinstance(v, list):
+                                    parts.append(f"{len(v)} {k}")
+                                elif isinstance(v, int):
+                                    parts.append(f"{v} {k}")
+                            content = "  ".join(parts[:3])
+                        except json.JSONDecodeError:
+                            content = text[:100]
+            return {
+                "type": "tool_result",
+                "id": raw.get("executionId", ""),
+                "name": raw.get("toolName", ""),
+                "ok": not is_error,
+                "summary": content,
+                "error": raw.get("error", "") if is_error else "",
+            }
 
-        input_path = Path(input_file)
-        if not input_path.exists():
-            return AgentRunResult(False, self.runtime_name, error=f"File not found: {input_file}")
+        if typ in ("agent_end",):
+            return {"type": "agent_end", "messages": raw.get("messages", [])}
 
-        raw_text = input_path.read_text(encoding="utf-8", errors="replace")
-        redacted_text, redaction_count = redact_for_pi(raw_text)
+        if typ == "turn_end":
+            return None  # Don't stop streaming; agent_end signals completion
 
-        from storageops.agent import classify_evidence
-        domain = classify_evidence(redacted_text).get("primary_domain", "unknown")
-        log_session_start(session_id, domain, runtime="pi")
+        if typ in ("thinking_delta", "thinking"):
+            return {"type": "think_block", "text": raw.get("thinking", raw.get("text", "")),
+                    "signature": raw.get("thinkingSignature", "")}
 
-        with tempfile.TemporaryDirectory(prefix="storageops-pi-") as tmpdir:
-            evidence_path = Path(tmpdir) / "redacted-evidence.txt"
-            evidence_path.write_text(redacted_text, encoding="utf-8")
+        if typ == "turn_start":
+            return None  # Stream display handles this; Agent doesn't need it
 
-            prompt = build_pi_prompt(
-                evidence_file=evidence_path,
-                original_filename=input_path.name,
-                redaction_count=redaction_count,
-                max_turns=self.options.max_turns,
-                user_message=redacted_text[:500],
-            )
-            prompt = redact_for_pi(prompt)[0]
+        if typ == "message_start":
+            return None
 
-            session = PiSession(self.options)
-            start_err = session.start()
-            if start_err:
-                return start_err
+        if typ == "message_end":
+            return None
 
-            result = session.send(
-                prompt,
-                evidence_path=evidence_path,
-                event_callback=self.options.event_callback,
-                stream=self.options.stream,
-            )
-            session.stop()
+        if typ == "response":
+            return None
 
-            log_pi_result(
-                session_id,
-                ok=result.ok,
-                redaction_count=redaction_count,
-                validation_ok=result.ok,
-                event_count=len(result.raw_events),
-            )
-            log_session_end(session_id, "success" if result.ok else "failed")
-            return result
+        if typ == "agent_start":
+            return None
 
-
-__all__ = [
-    "PiSession",
-    "PiRpcRuntime",
-    "redact_for_pi",
-    "build_pi_prompt",
-    "reconstruct_report_from_events",
-    "_MIGRATION_ERROR",
-]
+        # Unknown — pass through
+        return {"type": typ, "raw": raw}

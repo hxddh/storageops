@@ -25,6 +25,9 @@ storageops = "storageops.cli:main"
 [tool.setuptools]
 packages = [
     "storageops",
+    "storageops.core",
+    "storageops.ui",
+    "storageops.cli",
     "storageops.runtime",
     "storageops._parsers",
     "storageops._analyzers",
