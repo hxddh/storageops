@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-02 — v0.4.6: Endpoint reachability checker
+
+- **Network tooling**: added `endpoint_reachability_test.py` for read-only DNS, TCP, TLS, and HTTP HEAD checks against an explicitly provided endpoint.
+- **Layer classification**: reports the first failing layer as DNS, TCP, TLS, HTTP, application, or reachable.
+- **Skill integration**: wired the checker into `storageops-network-endpoint-access` guidance and documented authorized-use constraints.
+- **Tests**: added offline unit coverage for endpoint parsing, failure classification, and application-level HTTP status handling.
+
 ## 2026-06-02 — v0.4.5: SigV4 evidence parser
 
 - **Protocol tooling**: added `parse_sigv4_error.py` to extract SigV4 error code, StringToSign, CanonicalRequest, credential scope, signed headers, and likely inspection points from XML/debug logs.
