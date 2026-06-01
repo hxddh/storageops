@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## 2026-06-01 — Pi Extension + RPC protocol fix
+
+- **Pi Extension** (`.pi/extensions/storageops.ts`): all 21 StorageOps diagnostic tools are
+  now registered natively in Pi via `pi.registerTool()`. Pi's LLM can call them directly during
+  multi-turn diagnosis sessions without any MCP or text-based tool list.
+- **`runtime/tool_bridge.py`**: lightweight Python bridge subprocess. Reads `{tool, inputs}` from
+  stdin, calls `dispatch_tool()`, writes JSON result to stdout. Called by the TypeScript Extension.
+- **RPC protocol fix** (`runtime/pi_rpc.py`):
+  - Request type corrected from `"diagnose"` (unsupported) to `"prompt"` (real Pi command)
+  - Model configuration sent via `set_model` command before `prompt`
+  - `stdin` kept open during the session (previously closed immediately, blocking all tool calls)
+  - Terminal event updated from `final_report` to `agent_end` (real Pi protocol)
+  - Report extracted from `agent_end.messages[].content[].text`
+  - Streaming via `message_update.assistantMessageEvent.text_delta`
+  - Fixed `ValueError: I/O operation on closed file` when draining stderr after `stdin.close()`
+- **`pi_diagnosis_prompt.md`**: removed hand-written tool list (tools now registered natively);
+  updated evidence collection strategy to call tools directly.
+- **Tests**: fake Pi helper updated to emit real Pi RPC events (`agent_start`,
+  `message_update/text_delta`, `agent_end/messages`). 109/109 tests pass.
+- **Architecture docs** (`ARCHITECTURE.md`, `CLAUDE.md`, `README.md`, `docs/cli-reference.md`):
+  updated to reflect Pi Extension as the correct tool registration path.
+
 ## 2026-05-31 — Pi Coding Agent-style REPL rewrite
 
 - **`repl.py` complete rewrite**: interactive session now matches Pi Coding Agent / Ampcode UX

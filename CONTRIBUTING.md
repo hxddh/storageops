@@ -25,6 +25,10 @@ cd storageops-cli && pytest ../storageops-core/tests/ tests/ -v
 
 ```
 storageops/
+├── .pi/
+│   ├── settings.json         # Pi configuration (skills path, extensions path)
+│   └── extensions/
+│       └── storageops.ts     # Pi Extension — registers all 21 tools via pi.registerTool()
 ├── storageops-core/          # Deterministic offline engine (no LLM, no network)
 │   ├── parsers/              # parse_*.py — text → structured dict
 │   ├── analyzers/            # analyze_*.py — structured dict → diagnosis
@@ -37,12 +41,13 @@ storageops/
 │       ├── agent.py          # Domain routing and report generation
 │       ├── session.py        # Session persistence (save/load/list)
 │       ├── repl.py           # Interactive REPL
-│       ├── tool_registry.py  # Tool definitions + dispatch for Pi/MCP
+│       ├── tool_registry.py  # Tool definitions + dispatch for MCP/HTTP API
 │       ├── api_server.py     # FastAPI server + SSE endpoints
 │       ├── memory_store.py   # BM25 case memory (JSONL)
 │       ├── audit_logger.py   # Session audit log
-│       └── runtime/          # Pi RPC runtime
-│           └── pi_rpc.py
+│       └── runtime/
+│           ├── pi_rpc.py     # Pi RPC runtime (prompt command → agent_end event)
+│           └── tool_bridge.py # Python bridge called by Pi Extension per tool call
 └── agents/skills/            # StorageOps skill pack for Pi
     └── storageops-*/         # One skill per diagnostic domain
 ```
@@ -54,13 +59,15 @@ storageops/
 3. Register as a tool in `storageops-cli/storageops/tool_registry.py`:
    - Add an entry to `TOOL_DEFINITIONS` (name, description >10 chars, input_schema)
    - Add a dispatch case in `dispatch_tool()`
-4. Add a minimal-input entry to `storageops-cli/tests/test_mcp_server.py::TestToolRegistryConsistency`.
+4. Add the tool to `.pi/extensions/storageops.ts` — copy an existing entry in the `TOOLS` array
+   with the same name, description, and inputSchema.
+5. Add a minimal-input entry to `storageops-cli/tests/test_mcp_server.py::TestToolRegistryConsistency`.
 
 ## How to Add an Analyzer
 
 1. Create `storageops-core/analyzers/analyze_<name>.py` with `analyze(parsed: dict) -> dict`.
 2. Add a test class in `storageops-core/tests/test_analyzers.py`.
-3. Register as a tool (same steps as parser above).
+3. Register as a tool (same steps as parser above, including the Pi Extension update).
 4. Add routing in `storageops-cli/storageops/agent.py::run_analysis()`.
 5. Add an `EVIDENCE_CHECKLIST` entry in `agent.py` for the domain.
 
@@ -98,7 +105,7 @@ storageops/
 ## Testing
 
 ```bash
-# Full suite (221 tests, no LLM/Pi required)
+# Full suite (109 tests, no LLM/Pi required)
 make test
 
 # Core engine only

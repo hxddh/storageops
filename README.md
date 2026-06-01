@@ -55,7 +55,7 @@ pip install storageops
 storageops setup
 ```
 
-`setup` downloads [Pi Coding Agent](https://pi.ai/agent), asks for your API key, and configures Pi to load StorageOps skills automatically. That's it.
+`setup` downloads [Pi Coding Agent](https://pi.dev), asks for your API key, and configures Pi to load StorageOps skills and the StorageOps tool Extension automatically. That's it.
 
 ---
 
