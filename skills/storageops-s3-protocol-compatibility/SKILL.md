@@ -55,7 +55,7 @@ Protocol error →
 ## Workflow
 
 ### Step 1: Extract Signature Information
-From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/sigv4.md`.
+From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/sigv4.md`. For saved XML/debug artifacts, run `scripts/parse_sigv4_error.py` to extract canonical request fields and credential scope.
 
 ### Step 2: Compare Against AWS S3 Baseline
 AWS S3 is the reference implementation. Check `references/aws-s3-baseline.md` for expected behavior of the failing operation.
@@ -125,6 +125,7 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 
 ## References
 - `references/sigv4.md` — SigV2 vs SigV4 deep dive, StringToSign format | **Read when:** user reports SignatureDoesNotMatch or signature-related errors
+- `scripts/parse_sigv4_error.py` — Offline parser for SignatureDoesNotMatch XML/debug traces | **Read when:** user provides saved SigV4 error XML or client debug logs
 - `references/aws-s3-baseline.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
 - `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** user mentions a non-AWS provider (BOS/OSS/COS/GCS)
 - `references/sigv4.md` — Standard and provider-specific headers | **Read when:** debugging header ordering or specific header issues

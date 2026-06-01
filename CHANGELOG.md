@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-06-02 — v0.4.5: SigV4 evidence parser
+
+- **Protocol tooling**: added `parse_sigv4_error.py` to extract SigV4 error code, StringToSign, CanonicalRequest, credential scope, signed headers, and likely inspection points from XML/debug logs.
+- **Skill integration**: wired the parser into `storageops-s3-protocol-compatibility` guidance and replaced the placeholder script note with concrete usage.
+- **Tests**: added parser coverage for service XML responses and client debug blocks.
+
 ## 2026-06-02 — v0.4.4: Specialist diagnosis case coverage
 
 - **Coverage**: added compact diagnosis golden cases for access-log delete storms, multipart ETag verification, big-data small-file queries, notification prefix filters, and migration metadata loss.
