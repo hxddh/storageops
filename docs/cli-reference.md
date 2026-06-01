@@ -50,6 +50,19 @@ storageops install [--merge] [--force]
 | C. 命令行 | `storageops --api-key sk-xxx ...` | 每次传入 |
 | D. Pi 内登录 | `storageops` → `/login` | Pi 原生 |
 
+## storageops update
+
+升级 StorageOps 到最新版本（CLI + 技能包 + 扩展全部更新）：
+
+```
+$ storageops update
+📦 StorageOps 当前版本: v0.4.1
+🔍 检查最新版本...
+  ✅ 已是最新版本 v0.4.1
+```
+
+> 自动检测安装来源（Git 或 pip），拉取最新代码/包，然后重新部署技能和扩展。
+
 ## storageops --version / -V
 
 ```
