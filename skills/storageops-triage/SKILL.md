@@ -116,7 +116,7 @@ Map the input to one of the issue categories (see `references/issue-taxonomy.md`
 
 - `s3_protocol_compatibility` → `storageops-s3-protocol-compatibility`
   - Includes: SigV4 errors, clock skew, ETag mismatch, multipart failures, ListObjects V1/V2, CORS preflight errors
-- `cli_sdk_behavior` → `the diagnostic tool-sdk-diagnosis`
+- `cli_sdk_behavior` → `storageops-cli-sdk-diagnosis`
   - Includes: awscli, rclone, s5cmd, bcecmd, obsutil, s3cmd, MinIO mc, boto3, Go/Java/Node.js SDKs
 - `performance_throughput` → `storageops-performance-diagnosis`
   - Includes: throttling (429/SlowDown), slow transfers, prefix hotspot, multipart tuning
@@ -240,6 +240,16 @@ cat ~/.bce/credentials
 curl -I https://<endpoint>
 dig <endpoint-hostname>
 ```
+
+## Provider-Specific Considerations
+
+| Provider | Domain Pattern | Internal Endpoint | Notes |
+|----------|---------------|-------------------|-------|
+| AWS S3 | s3.amazonaws.com | s3.<region>.amazonaws.com | Standard, most feature-rich |
+| BOS (Baidu) | bcebos.com | <bucket>.<region>.bcebos.com | S3-compatible with quirks |
+| OSS (Alibaba) | aliyuncs.com | oss-<region>.aliyuncs.com | S3-compatible, own SDK |
+| COS (Tencent) | myqcloud.com | cos.<region>.myqcloud.com | S3-compatible, own SDK |
+| MinIO | custom | Custom domain/IP | Self-hosted, full S3 API |
 
 ## Common mistakes to avoid
 

@@ -49,6 +49,9 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `scan_secrets` | 扫描 replica 清单和 object key 中的凭证 | `{"text": "<inventory listing>"}` |
+| `detect_domain` | 从 bucket ARN 和 endpoint 确定提供商 | `{"text": "<source or destination bucket config>"}` |
+| `search_memory` | 搜索同一 bucket 的历史一致性异常 | `{"query": "stale read replica mismatch <bucket>"}` |
 
 ## Diagnosis workflow
 
@@ -131,7 +134,10 @@ Plus:
 
 ## Common mistakes to avoid
 
-1. Assuming eventual consistency is "broken" — most cases are within normal propagation windows
+1. Assuming the inconsistency is a storage problem — check client-side cache (rclone VFS cache, s3fs stat cache, browser/CDN cache) first
 2. Not checking versioning state before comparing ETags
 3. Recommending destructive sync without explicit `manual-only` label
 4. Confusing replication lag with replication failure
+5. Overlooking multipart upload completion timing — incomplete multipart uploads show as zero-byte or missing objects until CompleteMultipartUpload
+6. Ignoring the object listing delay — S3 ListObjects may briefly lag behind PutObject even with strong consistency due to index propagation
+7. Comparing ETags across different upload methods — multipart ETags differ from single-part ETags for the same data

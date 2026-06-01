@@ -205,16 +205,7 @@ The report must include in its structured output:
 report_type: customer_report | internal_engineering_note | reproduction_checklist | diagnosis_report
 category: <from specialist Skill>
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 evidence_count: <number of evidence items>
 evidence_quality_score: <0.0–1.0>
@@ -236,3 +227,18 @@ next_actions:
 5. **Skipping the next-step checklist** — Reports should be actionable.
 6. **Using inappropriate template for audience** — Customer report ≠ engineering note.
 7. **Omitting risk notes** — Every recommendation has trade-offs.
+
+## Degradation Diagnosis
+
+### Only one specialist skill invoked
+- Report can still be generated with single-diagnosis findings
+- Note: "diagnosis is based on a single specialist analysis; multi-perspective verification not performed"
+- Confidence inherit from specialist skill, no cross-domain boost
+
+### Report target audience unclear
+- Default to `diagnosis-report` template
+- Note: "target audience not specified — using internal diagnostic format; use customer-report template for external distribution"
+
+### Missing evidence for some report sections
+- Mark missing sections as "insufficient evidence" rather than fabricating
+- Note: "evidence gap annotated in report; recommend collecting missing items before handoff"

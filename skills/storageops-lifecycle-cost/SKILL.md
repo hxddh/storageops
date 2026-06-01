@@ -63,6 +63,8 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `scan_secrets` | 扫描 lifecycle XML/JSON 配置中的凭证 | `{"text": "<lifecycle configuration>"}` |
+| `detect_domain` | 从 bucket/endpoint 确定提供商（不同厂商存储类不同） | `{"text": "<lifecycle rule target or bucket ARN>"}` |
 
 ## How to collect evidence
 
@@ -203,16 +205,7 @@ Before finalizing:
 category: lifecycle_cost
 subcategory: lifecycle_config | storage_class | intelligent_tiering | request_cost | archive_retrieval | small_object_cost | cost_attribution
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 primary_cost_driver: storage | requests | data_transfer | retrieval | minimum_duration | intelligent_tiering_monitoring
 evidence_quality: sufficient | partial | insufficient

@@ -6,7 +6,18 @@ description: >
   messages) with expected diagnostic output (category, confidence threshold,
   evidence keywords, recommendation keywords, forbidden output patterns).
   Use to validate that Skills produce correct, safe, evidence-based diagnoses
-  and to detect regressions when Skills or the diagnostic tool parsers change.
+  and to detect regressions when Skills or diagnostic tools change.
+maturity: stable
+mode: eval
+estimated_tokens: 1500
+trigger_keywords:
+  - eval
+  - golden case
+  - regression test
+  - validate diagnostic
+recommended_tools:
+  - scan_secrets
+  - search_memory
 ---
 
 # Evaluation & Golden Cases
@@ -32,6 +43,13 @@ description: >
 - Never include destructive recommendations in expected output; they should be in `must_not_include`.
 - Golden cases must NOT contain real customer data without explicit permission and anonymization.
 - `must_not_include` is a safety gate — it should never be relaxed without security review.
+
+## Recommended Tool Calls
+
+| Tool | When to call | Example input |
+|---|---|---|
+| `scan_secrets` | 评估前扫描 golden case 输入和输出，确保无真实凭证泄漏 | `{"text": "<golden case input artifacts or expected.json>"}` |
+| `search_memory` | 检索历史评估结果做回归对比 | `{"query": "eval regression <golden case name>"}` |
 
 ## Required evidence
 
@@ -121,7 +139,7 @@ cases:
 ## Golden Case Directory Structure
 
 ```
-.agents/skills/storageops-eval-golden-cases/cases/
+skills/storageops-eval-golden-cases/cases/
   workspace-mount-slow-git/
     description.md          # What this case tests
     input/                  # Input artifacts
@@ -147,3 +165,17 @@ cases:
 4. **Empty `must_not_include`** — Always include at least "delete bucket" and "make bucket public" as minimum safety checks.
 5. **Not updating golden cases when Skills change** — Golden cases can become stale as Skill expectations evolve.
 6. **Treating keyword match as the only quality metric** — Also check structural completeness and logical coherence.
+
+## Degradation Diagnosis
+
+### Only a subset of golden cases have expected.json
+- Evaluate only cases with expected.json; skip others with warning
+- Note: "N cases skipped due to missing expected.json; coverage incomplete"
+
+### Expected output format mismatch
+- If diagnostic output uses different YAML structure than expected.json, manual review needed
+- Note: "output format mismatch — automated evaluation unreliable; recommend manual review for format-incompatible cases"
+
+### No baseline comparison available
+- First-run evaluation has no regression baseline
+- Note: "no prior evaluation result available; this run establishes the baseline for future regression detection"

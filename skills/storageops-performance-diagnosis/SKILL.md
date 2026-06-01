@@ -44,7 +44,7 @@ recommended_tools:
 
 - The issue is a mount/filesystem performance problem → use `storageops-mount-filesystem-workspace`.
 - The issue is purely network connectivity (endpoint unreachable) → use `storageops-network-endpoint-access`.
-- A specific tool is crashing or throwing errors (not just slow) → use `the diagnostic tool-sdk-diagnosis`.
+- A specific tool is crashing or throwing errors (not just slow) → use `storageops-cli-sdk-diagnosis`.
 - The issue is a 403 (not 429) → use `storageops-security-iam-policy`.
 
 ## Safety rules
@@ -61,8 +61,11 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `scan_secrets` | 开始诊断前，确保输入中无凭证泄漏 | `{"text": "<log content>"}` |
+| `detect_domain` | 从报错日志中找出涉及的云厂商 | `{"text": "<error message or log snippet>"}` |
+| `search_memory` | 检查是否有相同 endpoint 的历史性能诊断 | `{"query": "429 SlowDown <s5cmd/rclone> <endpoint>"}` |
 
-> **httpmon tip**: `httpmon --har perf.har rclone copy ...` generates per-request timing HAR that the diagnostic tool can analyze for throttling patterns (SlowDown 503 bursts) and TTFB spikes invisible in rclone's aggregate stats.
+> **诊断提示**: `rclone copy ... --dump headers -vv --stats 5s` 输出逐请求计时，可分析节流模式（SlowDown 503 突发）和 TTFB 尖峰。`s5cmd run --stat cp ...` 也统计 429 响应分布。
 
 ## Required evidence
 
@@ -197,16 +200,7 @@ Before finalizing, verify the bottleneck is NOT caused by a different domain:
 category: performance_throughput
 subcategory: upload | download | small_file | large_file | listing | mixed
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 bottleneck_layer: dns | tcp | tls | http_server | transfer_bandwidth | client_cpu | client_disk | server_throttling | concurrency | configuration
 observed_throughput_mbps: <number>

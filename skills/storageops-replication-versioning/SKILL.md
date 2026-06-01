@@ -60,6 +60,9 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `scan_secrets` | 扫描 replication rule 和 KMS key ARN 中的凭证 | `{"text": "<replication configuration JSON>"}` |
+| `detect_domain` | 从 source/destination endpoint 确定跨云复现场景 | `{"text": "<cross-region replication rule target>"}` |
+| `search_memory` | 搜索同一 bucket 的历史复制异常 | `{"query": "replication lag delete marker <bucket>"}` |
 
 ## Required evidence
 
@@ -166,19 +169,10 @@ Classify root cause and provide specific remediation.
 
 ```yaml
 # Output Envelope v2
-category: s3_protocol_compatibility
+category: replication_versioning
 subcategory: replication | versioning | object_lock
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 root_cause_type: replication_iam_missing | destination_policy_missing | delete_marker_not_enabled | kms_cross_account | versioning_suspended | object_lock_compliance | object_lock_governance | noncurrent_version_accumulation
 evidence_quality: sufficient | partial | insufficient
@@ -226,3 +220,15 @@ Plus:
 5. **Suspending versioning while replication is active** — This breaks replication. Never recommend suspending versioning on a bucket with active replication rules.
 6. **Ignoring KMS cross-account** — If the source objects are KMS-encrypted, the destination account must have permission to use the source KMS key, and the destination must re-encrypt with a destination-side key.
 7. **Missing the destination bucket policy** — Cross-account replication requires an explicit Allow on the destination bucket policy for the source account's replication role.
+
+## Degradation Diagnosis
+
+### Missing destination configuration
+- Infer from source-side replication status and error logs
+- Note: "destination bucket policy/encryption configuration not available — diagnosis based on source-side evidence only"
+- Confidence capped at 0.5 without destination-side evidence
+
+### Provider is non-AWS (BOS/OSS/COS)
+- Cross-region replication is an AWS-specific feature with S3 Replication Configuration
+- BOS/OSS/COS have their own cross-region sync mechanisms with different semantics
+- Note: "replication behavior differs across object storage providers — this diagnosis is based on AWS S3 replication model"

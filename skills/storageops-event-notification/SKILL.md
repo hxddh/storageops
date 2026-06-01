@@ -243,16 +243,7 @@ Common bug: URL-encoded keys in event → consumer doesn't decode → fails to f
 category: event_notification
 subcategory: lambda_invocation | sqs_delivery | sns_publish | event_filter | concurrency | delivery_latency
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 root_cause_type: missing_event_type | filter_mismatch | iam_policy_gap | lambda_concurrency | destination_deleted | cross_region | event_format_parse_error
 evidence_quality: sufficient | partial | insufficient

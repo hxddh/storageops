@@ -48,7 +48,7 @@ recommended_tools:
 - The mount cannot connect at all → use `storageops-network-endpoint-access`.
 - The issue is access denied (403) on mount → use `storageops-security-iam-policy`.
 - Performance is slow but no mount is involved → use `storageops-performance-diagnosis`.
-- The mount tool is crashing with error messages → use `the diagnostic tool-sdk-diagnosis` for tool-specific errors.
+- The mount tool is crashing with error messages → use `storageops-cli-sdk-diagnosis` for tool-specific errors.
 
 ## Safety rules
 
@@ -63,6 +63,9 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `scan_secrets` | 检查 mount 配置中的 token/密钥 | `{"text": "<mount options or config>"}` |
+| `detect_domain` | 从 mount endpoint 确定提供商 | `{"text": "<mount command or fstab entry>"}` |
+| `search_memory` | 查找相同模式的历史 mount 诊断 | `{"query": "FUSE hang git <mount type> <provider>"}` |
 
 ## Required evidence
 
@@ -185,16 +188,7 @@ Instead of direct mount as hot workspace:
 category: mount_filesystem_workspace
 subcategory: metadata_storm | posix_mismatch | cache_configuration | connection_pool | concurrent_access | mount_disconnect | write_amplification
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 primary_bottleneck: metadata_amplification | write_amplification | connection_pool_exhaustion | provider_rate_limit | posix_mismatch
 evidence_quality: sufficient | partial | insufficient

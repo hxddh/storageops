@@ -45,7 +45,7 @@ recommended_tools:
 - The endpoint is reachable but returns authentication errors → use `storageops-s3-protocol-compatibility` or `storageops-security-iam-policy`.
 - The endpoint is reachable but slow (throughput issue, not connectivity) → use `storageops-performance-diagnosis`.
 - The issue is a mount disconnect → use `storageops-mount-filesystem-workspace`.
-- A specific tool has configuration issues → use `the diagnostic tool-sdk-diagnosis`.
+- A specific tool has configuration issues → use `storageops-cli-sdk-diagnosis`.
 
 ## Safety rules
 
@@ -60,8 +60,11 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `scan_secrets` | 扫描网络诊断输出中的凭证 | `{"text": "<curl/openssl output>"}` |
+| `detect_domain` | 从 endpoint URL 和 DNS 响应中确定厂商 | `{"text": "<endpoint hostname or dig output>"}` |
+| `search_memory` | 搜索同一 endpoint 的历史连接问题 | `{"query": "DNS failure timeout <endpoint>"}` |
 
-> **httpmon tip**: `httpmon --format json curl https://s3.endpoint.example.com/ 2>&1` captures the full TLS handshake failure message and timing — more precise than `curl -v` for diagnosing certificate errors and connection resets in S3 VPC endpoint scenarios.
+> **诊断提示**: `curl -sv https://<endpoint>/ 2>&1` 捕获 TLS 握手详情和证书信息。生产环境 VPC endpoint SSL 诊断追加 `openssl s_client -connect <host>:443 -servername <host>` 获取完整证书链。
 
 ## Required evidence
 
@@ -196,16 +199,7 @@ Each pattern below maps a symptom signature to a root cause and fix.
 category: network_endpoint_access
 subcategory: dns | tls | routing | endpoint_configuration | private_access | cross_cloud | proxy | mtu
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 primary_failure_point: dns_resolution | tcp_connect | tls_handshake | routing_path | endpoint_misconfiguration | proxy_interference | mtu_issue
 evidence_quality: sufficient | partial | insufficient
@@ -271,3 +265,19 @@ ping -M do -s 1472 <endpoint-hostname>  # Test 1500 byte MTU
 | Network path | `traceroute <host>` | If routing suspected |
 | MTU | `ping -M do -s 1472 <host>` | If large objects fail |
 | Proxy env | `env \| grep -i proxy` | If in corporate network |
+
+## Degradation Diagnosis
+
+### DNS lookup only (no TCP)
+- Infer from DNS resolution errors: port unreachable, timeout after DNS success
+- Note: "TCP connectivity not verified — root cause may be firewall or routing, not DNS"
+- Confidence capped at 0.6 without TCP connectivity test
+
+### Provider is non-AWS (BOS/OSS/COS)
+- Endpoint format varies by provider (BOS uses `.bcebos.com`, OSS uses `.aliyuncs.com`)
+- MTU, VPC endpoint, and Direct Connect availability vary per provider
+- Note: "network connectivity behaviors between cloud providers are not identical — baseline against provider documentation"
+
+### Intermittent timeouts only
+- May be: MTU issue (large packets dropped), intermittent routing, load balancer timeout
+- Check: packet size correlation (small requests work, large fail → MTU), time-of-day pattern (peak hours → congestion)

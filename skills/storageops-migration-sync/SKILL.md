@@ -40,7 +40,7 @@ recommended_tools:
 
 ## Do not use this skill when
 
-- The sync fails with a specific tool error (e.g., `corrupted on transfer`) → use `the diagnostic tool-sdk-diagnosis` first.
+- The sync fails with a specific tool error (e.g., `corrupted on transfer`) → use `storageops-cli-sdk-diagnosis` first.
 - The issue is permissions blocking the copy → use `storageops-security-iam-policy`.
 - Network connectivity prevents the transfer → use `storageops-network-endpoint-access`.
 - The question is about replication (automatic, bucket-level) → use `storageops-replication-versioning`.
@@ -252,16 +252,7 @@ ETag algorithms differ across providers. During cross-provider migration:
 category: migration_sync
 subcategory: cross_provider | same_provider_cross_region | same_provider_same_region | incremental_sync
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 migration_strategy: server_side_copy | direct_client_transfer | snowball_offline
 estimated_time_hours: <number>

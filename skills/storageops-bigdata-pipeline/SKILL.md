@@ -64,6 +64,9 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `scan_secrets` | 扫描 Spark/Hive 配置中的 fs.s3a.secret.key | `{"text": "<spark-defaults.conf>"}` |
+| `detect_domain` | 从 fs.s3a.endpoint 确定对象存储厂商 | `{"text": "<Hadoop config fs.s3a.endpoint>"}` |
+| `search_memory` | 搜索同一集群的历史 ETL 诊断 | `{"query": "Spark FileNotFoundException committer <app>"}` |
 
 ## Required evidence
 
@@ -256,16 +259,7 @@ Fix:
 category: bigdata_pipeline
 subcategory: committer | partition_discovery | small_files | connection_pool | table_format | s3guard
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 root_cause_type: committer_v1_race | committer_cleanup | partition_discovery | small_files | connection_pool | table_format_conflict | s3guard_stale
 evidence_quality: sufficient | partial | insufficient

@@ -44,7 +44,7 @@ recommended_tools:
 
 - The issue is purely a 403 AccessDenied with no signature component → use `storageops-security-iam-policy`.
 - The issue is network connectivity (timeout, connection refused) → use `storageops-network-endpoint-access`.
-- The issue is purely about command-line tool syntax or configuration → use `the diagnostic tool-sdk-diagnosis`.
+- The issue is purely about command-line tool syntax or configuration → use `storageops-cli-sdk-diagnosis`.
 - Performance is the primary concern with no protocol errors → use `storageops-performance-diagnosis`.
 
 ## Safety rules
@@ -61,8 +61,11 @@ recommended_tools:
 
 | Tool | When to call | Example input |
 |---|---|---|
+| `scan_secrets` | 检查日志/命令输出中是否泄漏 AK/SK | `{"text": "<cli debug output>"}` |
+| `detect_domain` | 从报错 XML 或 endpoint URL 确定提供商 | `{"text": "<SignatureDoesNotMatch error response>"}` |
+| `search_memory` | 查找同一 endpoint 的历史签名问题 | `{"query": "SignatureDoesNotMatch <endpoint>"}` |
 
-> **httpmon tip**: `httpmon --format json <storage-command>` captures the exact Authorization header format and error response XML — essential for diagnosing SigV4 vs SigV2 issues and clock skew (check `x-amz-date` in captured request vs server `Date` response header).
+> **诊断提示**: 用 `aws s3api get-object --debug 2>&1 | grep -E "x-amz-date|Date:|SignatureDoesNotMatch|Authorization"` 或 `s5cmd --log debug cp ...` 捕获完整 Authorization 格式——诊断 SigV4 vs SigV2 和时钟偏移的关键（对比请求 `x-amz-date` 与服务器 `Date` 响应头部）。
 
 ## Required evidence
 
@@ -173,16 +176,7 @@ Before finalizing, exclude these cross-domain possibilities:
 category: s3_protocol_compatibility
 subcategory: sigv4 | list_objects | multipart_upload | checksum_etag | copy_object | head_object | delete_object | cors
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 root_cause_type: client_configuration | clock_skew | provider_behavior_difference | provider_bug | protocol_misuse
 evidence_quality: sufficient | partial | insufficient

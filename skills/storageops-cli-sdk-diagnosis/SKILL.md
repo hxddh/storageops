@@ -150,16 +150,7 @@ Classify:
 category: cli_sdk_behavior
 subcategory: awscli | boto3 | bcecmd | rclone | s5cmd | obsutil | go_sdk | java_sdk
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 root_cause_type: tool_misconfiguration | tool_version_bug | tool_sdk_incompatibility | tool_default_behavior | sdk_exception
 tools_compared: [<tool>, ...]

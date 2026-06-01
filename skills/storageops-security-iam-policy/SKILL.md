@@ -46,7 +46,7 @@ recommended_tools:
 
 - 403 with SignatureDoesNotMatch → use `storageops-s3-protocol-compatibility` (signature issue, not policy).
 - The endpoint is unreachable → use `storageops-network-endpoint-access`.
-- The issue is with tool configuration → use `the diagnostic tool-sdk-diagnosis`.
+- The issue is with tool configuration → use `storageops-cli-sdk-diagnosis`.
 
 ## Safety rules
 
@@ -67,8 +67,10 @@ recommended_tools:
 | Tool | When to call | Example input |
 |---|---|---|
 | `scan_secrets` | Before any output, scan all evidence for AK/SK/tokens | `{"text": "<policy document or log>"}` |
+| `detect_domain` | 从 bucket ARN 和 endpoint 确定提供商和 IAM 策略格式 | `{"text": "<403 error response and bucket ARN>"}` |
+| `search_memory` | 搜索同一 bucket/用户的历次权限拒绝记录 | `{"query": "AccessDenied 403 <bucket> <user>"}` |
 
-> **httpmon tip**: `httpmon --format json aws s3 cp ... 2>&1` captures the complete 403 XML response body and `x-amz-request-id` header — far more diagnostic than just the awscli error message.
+> **调试提示**: 用 `aws s3api get-object --bucket <bucket> --key <key> --debug 2>&1` 或 `rclone lsd <remote>: --dump headers -vv` 捕获完整 403 XML 响应和 `x-amz-request-id` 头部——比命令行报错信息更完整。
 
 ## Required evidence
 
@@ -194,16 +196,7 @@ Classify:
 category: security_iam_policy
 subcategory: access_denied | bucket_policy | iam_policy | acl | sts_token | kms_sse | public_access | secret_exposure | least_privilege
 confidence: <0.0–1.0>
-confidence_factors:
-  - factor: evidence_specificity
-    weight: 0.5
-    note: "exact error code and context vs. vague description"
-  - factor: evidence_completeness
-    weight: 0.3
-    note: "required evidence categories present"
-  - factor: cross_domain_exclusion
-    weight: 0.2
-    note: "competing hypotheses ruled out"
+# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
 severity: critical | high | medium | low
 denial_source: iam_policy | bucket_policy | acl | kms | block_public_access | vpc_endpoint | condition_key | sts_expiry
 public_access_risk: none | low | medium | high | confirmed
@@ -259,7 +252,7 @@ KMS/SSE is provider-specific. AWS KMS key policies don't apply to BOS/OSS/COS.
 
 Before finalizing security diagnosis:
 - 403 with SignatureDoesNotMatch → verify not a protocol issue first (storageops-s3-protocol-compatibility)
-- Access denied on specific operation → verify the endpoint/region is correct (the diagnostic tool-sdk-diagnosis)
+- Access denied on specific operation → verify the endpoint/region is correct (storageops-cli-sdk-diagnosis)
 - KMS access denied → verify KMS key policy both source and destination sides
 - Public access concern → check bucket ACL AND bucket policy AND Block Public Access settings
 
