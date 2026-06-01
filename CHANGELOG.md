@@ -60,11 +60,11 @@
 - **`storageops update`**: re-downloads Pi binary and reinstalls skills without a full reinstall.
 - **`storageops scan`**: renamed from `batch`; `batch` retained as a hidden alias.
 - **Hidden aliases**: `agent` → `diagnose`; `batch` → `scan`; `analyse` → `analyze`.
-- **Skills v2 contract**: all 14 skills upgraded with structured frontmatter (`maturity`, `mode`,
+- **Skills v2 contract**: all 15 skills upgraded with structured frontmatter (`maturity`, `mode`,
   `estimated_tokens`, `trigger_keywords`, `recommended_tools`), Output Envelope v2
   (`confidence_factors`, `evidence_quality_score`, `next_actions`), Recommended Tool Calls table,
   Light/Heavy dual mode, and Thinking framework blockquote.
-- **`skill-registry.yaml` v2.0**: updated to reflect v2 contract, maturity levels, and all 14 skills.
+- **`skill-registry.yaml` v2.0**: updated to reflect v2 contract, maturity levels, and all 15 skills.
 - **`storageops-data-consistency`**: expanded from 64-line stub to a full skill with complete
   diagnosis workflow, root cause pattern library, and output requirements.
 - **README**: fully rewritten for human beginners and AI agents; includes REPL demo, session
@@ -96,7 +96,7 @@
 - `analyze_network.py` — DNS/TLS/TCP/VPC endpoint root cause from parsed diagnostics.
 - Makefile targets: `make test`, `make lint`, `make eval`.
 - SKILL.md files translated to English; v1 skill structure.
-- 219 tests (no LLM, Pi, or network required).
+- All tests run without LLM, Pi, or network access.
 
 ## v0.1.0 — Skill Pack
 

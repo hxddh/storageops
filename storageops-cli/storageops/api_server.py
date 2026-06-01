@@ -3,7 +3,7 @@ StorageOps HTTP API server — exposes diagnostic tools over a REST API.
 
 Usage:
     python -m storageops.api_server
-    storageops serve [--host 0.0.0.0] [--port 8000]
+    storageops serve [--host 127.0.0.1] [--port 8080]
 
 Endpoints:
     GET  /                 — Web UI (single-page diagnostic interface)
@@ -257,7 +257,7 @@ else:
 
 # ── Entry point ───────────────────────────────────────────────────────
 
-def run(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> None:
+def run(host: str = "127.0.0.1", port: int = 8080, reload: bool = False) -> None:
     """Start the API server with uvicorn."""
     if not _FASTAPI_AVAILABLE:
         print(

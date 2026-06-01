@@ -1,5 +1,5 @@
 """
-StorageOps CLI v0.4
+StorageOps CLI
 
 Usage:
     storageops triage <file|-|->          # classify evidence (human-readable by default)
