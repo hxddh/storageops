@@ -133,7 +133,7 @@ pi --mode rpc                  ← JSONL RPC: send request, stream events
     │  - parse_httpmon_log(log_text)
     │  - analyze_policy(...)
     │  - search_memory(query)
-    │  - ... (18 registered tools)
+    │  - ... (21 registered tools)
     │
     ▼
 final_report event             ← markdown with YAML frontmatter

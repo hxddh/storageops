@@ -1,5 +1,5 @@
 {
-  "expected_category": "s3_protocol_compatibility",
+  "expected_category": "replication_versioning",
   "expected_root_cause_types": [
     "replication_destination_versioning_disabled",
     "destination_versioning_not_enabled",

@@ -1,5 +1,5 @@
 {
-  "expected_category": "s3_protocol_compatibility",
+  "expected_category": "replication_versioning",
   "expected_root_cause_types": [
     "delete_marker_masking_versions",
     "accidental_delete_markers_created",

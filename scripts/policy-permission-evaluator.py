@@ -34,8 +34,7 @@ def evaluate_policy(policy: dict, action: str, resource: str) -> dict:
         effect = stmt.get('Effect', 'Unknown')
         actions = stmt.get('Action', [])
         resources = stmt.get('Resource', [])
-        condition = stmt.get('Condition', {})
-        
+
         if isinstance(actions, str):
             actions = [actions]
         if isinstance(resources, str):
@@ -96,7 +95,7 @@ def main():
     print("=" * 60)
     print(f"\nAction:    {result['action']}")
     print(f"Resource:  {result['resource']}")
-    print(f"\n--- 评估结果 ---")
+    print("\n--- 评估结果 ---")
     print(f"Verdict:   {result['verdict']}")
     print(f"Reason:    {result['explanation']}")
     
@@ -110,7 +109,7 @@ def main():
     if '"Principal"' in policy_json:
         principal_val = json.dumps(policy.get('Statement', [{}])[0].get('Principal', {}))
         if '*' in principal_val:
-            print(f"\n⚠️  SECURITY: Principal 包含 \"*\" — 检查是否为公开访问风险!")
+            print("\n⚠️  SECURITY: Principal 包含 \"*\" — 检查是否为公开访问风险!")
     
     print("")
     print("NOTE: 本工具仅做基本评估，不处理:")
