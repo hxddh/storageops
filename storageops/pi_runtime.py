@@ -66,7 +66,9 @@ class PiRuntime:
             env["ANTHROPIC_API_KEY"] = self.api_key
             env["OPENAI_API_KEY"] = self.api_key
 
-        cmd = [self.pi_command, "--rpc"]
+        cmd = [self.pi_command, "--mode", "rpc", "--provider", self.pi_provider]
+        if self.api_key:
+            cmd.extend(["--api-key", self.api_key])
         if self.pi_model:
             cmd.extend(["--model", self.pi_model])
 
