@@ -1,18 +1,22 @@
 # Skill Taxonomy
 
-StorageOps golden cases use stable issue categories so routing, eval, and
-documentation do not drift as skill names evolve.
+The taxonomy gives golden cases a stable vocabulary that does not depend on prose wording or skill filenames changing over time.
 
-## Contract
+The source of truth is:
 
-- The machine-readable taxonomy is `docs/skill-taxonomy.json`.
-- Every `expected_category` in a golden case must exist in the taxonomy.
-- Every taxonomy category maps to exactly one primary `storageops-*` skill.
-- Category aliases are accepted for documentation and migration, but golden cases
-  should use canonical category names.
-- Routing cases should set `"case_type": "routing"` and keep input artifacts short.
+```text
+docs/skill-taxonomy.json
+```
 
-## Canonical Categories
+## Rules
+
+- Every golden-case `expected_category` must be canonical.
+- Every category maps to one primary skill.
+- Aliases are documentation aids; new cases should use canonical names.
+- Routing cases should set `"case_type": "routing"`.
+- Diagnosis cases should set `"case_type": "diagnosis"` or omit it.
+
+## Categories
 
 | Category | Primary skill |
 | --- | --- |
@@ -33,12 +37,11 @@ documentation do not drift as skill names evolve.
 | `security_iam_policy` | `storageops-security-iam-policy` |
 | `triage` | `storageops-triage` |
 
-## Size Budget
+## Size Rules
 
-Keep taxonomy and routing cases small:
+- taxonomy JSON must stay under 20 KB,
+- routing inputs should usually stay under 2 KB,
+- golden-case input artifacts must stay under 10 KB,
+- one golden case must stay under 25 KB.
 
-- taxonomy stays under 20 KB unless a new diagnostic domain is added.
-- routing case input should usually be under 2 KB.
-- golden-case input artifacts must stay under 10 KB; whole cases must stay under 25 KB.
-- large real logs belong outside the main repo; commit only reduced, synthetic,
-  redacted samples.
+These limits are enforced by `scripts/skill_integrity_check.py`.

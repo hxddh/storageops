@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-06-02 — v0.4.8: Documentation rewrite and review notes
+
+- **Documentation rewrite**: refreshed README, operator guides, contributor/security notes, architecture docs, CLI reference, quick reference, tutorial, skill quality guide, taxonomy/routing docs, dependency map, API matrix, and rclone examples.
+- **Review visibility**: documented the packaging-data contract where root-level skills are exposed through `storageops_cli/skills -> ../skills` and must remain aligned with installer lookup paths.
+- **Version sync**: bumped the package and registry header to v0.4.8 for the documentation-only release.
+
 ## 2026-06-02 — v0.4.7: Output contracts and size gates
 
 - **Output contracts**: softened all skill output sections from rigid exact templates to required-field contracts.

@@ -1,53 +1,23 @@
-# CLAUDE.md — StorageOps AI Agent Guide
+# Claude Guide
 
-StorageOps is a **Pi Coding Agent extension + skill pack**.
+StorageOps is a Pi Coding Agent extension plus skill pack.
 
-## Project Structure
+## What To Know First
 
-```
-├── storageops_cli/__init__.py          # Install / launch CLI (240 lines)
-├── storageops_cli/extensions/storageops.ts  # 3 inline TypeScript tools
-├── storageops_cli/skills → ../skills   # Symlink for editable install
-├── skills/                             # 16 diagnostic skill packs
-│   ├── storageops-triage/SKILL.md
-│   └── ...
-├── docs/
-└── pyproject.toml
-```
+- `storageops_cli/__init__.py` installs StorageOps and execs `pi`.
+- `storageops_cli/extensions/storageops.ts` registers `scan_secrets`, `detect_domain`, and `search_memory`.
+- `skills/` is the diagnostic system.
+- `scripts/skill_integrity_check.py` is the main repository quality gate.
+- `skills/storageops-eval-golden-cases/` contains the regression corpus.
 
-## How It Works
+## Good Default Behavior
 
-```
-User: storageops "question"
-  → storageops_cli/__init__.py:main()
-    → sets PI_CODING_AGENT_DIR to ~/.storageops/agent
-    → exec's pi with all args forwarded
+- Prefer small, deterministic changes.
+- Keep skills concise and move detail to references.
+- Add tests for helper scripts.
+- Add compact golden cases for behavior changes.
+- Run validation before summarizing work.
 
-Pi (runtime):
-  → loads storageops.ts extension (3 tools inline, TypeScript)
-  → loads skills/*.SKILL.md (16 diagnostic instruction sets)
-  → handles agent loop, sessions, tool dispatch natively
-```
+## Important Review Note
 
-## Key Design Decisions
-
-1. **Zero Python agent code** — Pi handles agent loop / session / tool dispatch
-2. **Tools in TypeScript** — `storageops.ts` has `scan_secrets`, `detect_domain`, `search_memory` — inline, no subprocess
-3. **Skills are markdown** — Each `SKILL.md` has YAML frontmatter + phased diagnostic instructions
-4. **Two install modes** — Isolated (`~/.storageops/`) or merged (`~/.pi/`)
-5. **Pi version guard** — Requires ≥ 0.78.0 (Extension API)
-
-## Making Changes
-
-- **Add tool**: Edit `storageops_cli/extensions/storageops.ts` → `pi.registerTool()`
-- **Add skill**: Create `skills/storageops-<name>/SKILL.md` → update `skill-registry.yaml`
-- **Modify install flow**: Edit `storageops_cli/__init__.py` → `cmd_install()`
-- **Update docs**: Edit files in `docs/`, `README.md`, `AGENTS.md`
-
-## Testing
-
-```bash
-pip install -e .
-storageops install --force
-storageops --print --no-session --api-key sk-xxx 'test query'
-```
+The installer expects packaged skills to be discoverable next to `storageops_cli`. The source layout keeps canonical skills at repository root and exposes them through `storageops_cli/skills -> ../skills` for packaging. Treat packaging changes as high-risk until wheel install has been verified.

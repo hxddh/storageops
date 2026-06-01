@@ -1,62 +1,56 @@
-# StorageOps Skill Routing Flowchart
+# Skill Routing Flowchart
 
-```
-用户描述对象存储问题
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│          storageops-triage                │
-│  分类 · 严重性评估 · 证据缺口 · 路由       │
-│  时间模式检测 · 交叉域排查                  │
-└──────┬──────┬──────┬──────┬──────┬───────┘
-       │      │      │      │      │
-       ▼      ▼      ▼      ▼      ▼
-   ┌──────┐┌─────┐┌──────┐┌─────┐┌──────────┐
-   │协议  ││权限 ││性能  ││网络 ││  CLI/SDK  │
-   │s3-   ││sec- ││perf- ││net- ││  cli-     │
-   │proto ││urity││orm   ││work ││  sdk      │
-   └──┬───┘└──┬──┘└──┬───┘└──┬──┘└────┬─────┘
-      │       │      │       │        │
-      │ 交叉域: 403+签名→ s3-proto      │
-      │ 交叉域: ETag→ s3-proto ←───────┘
-      │       
-      ▼      ▼      ▼       ▼        ▼
-   ┌──────┐┌─────┐┌──────┐┌─────┐┌──────────┐
-   │挂载  ││成本 ││复制  ││日志 ││          │
-   │mount ││life-││repl- ││access││          │
-   │      ││cycle││cation││log  ││          │
-   └──┬───┘└──┬──┘└──┬───┘└─────┘└──────────┘
-      │       │      │
-      │ 交叉域: metadata → perf        │
-      └───────┴──────┴──────────────────┘
-                    │
-                    ▼
-         ┌─────────────────────┐
-         │ evidence-reporting  │
-         │   结构化诊断报告     │
-         └──────────┬──────────┘
-                    │
-                    ▼
-         ┌─────────────────────┐
-         │ eval-golden-cases   │
-         │   质量回归验证       │
-         └─────────────────────┘
+```text
+user evidence
+  |
+  v
+storageops-triage
+  |
+  +-- security_iam_policy --------> storageops-security-iam-policy
+  +-- s3_protocol_compatibility --> storageops-s3-protocol-compatibility
+  +-- performance_throughput -----> storageops-performance-diagnosis
+  +-- network_endpoint_access ----> storageops-network-endpoint-access
+  +-- cli_sdk_behavior -----------> storageops-cli-sdk-diagnosis
+  +-- lifecycle_cost -------------> storageops-lifecycle-cost
+  +-- replication_versioning -----> storageops-replication-versioning
+  +-- mount_filesystem_workspace -> storageops-mount-filesystem-workspace
+  +-- migration_sync -------------> storageops-migration-sync
+  +-- consistency_integrity ------> storageops-data-consistency
+  +-- bigdata_pipeline -----------> storageops-bigdata-pipeline
+  +-- event_notification ---------> storageops-event-notification
+  +-- access_log_analysis --------> storageops-access-log-analysis
 ```
 
-## 常见症状 → Skill 速查
+## First Route
 
-| 症状 | 主 Skill | 可能 Cross |
-|------|---------|-----------|
-| SignatureDoesNotMatch | s3-protocol-compatibility | security (403) |
-| 403 AccessDenied | security-iam-policy | s3-protocol (签名) |
-| corrupted on transfer | cli-sdk-diagnosis | s3-protocol (ETag) |
-| 429 SlowDown | performance-diagnosis | — |
-| 上传/下载慢 | performance-diagnosis | network (RTT) |
-| mount 挂载慢/hang | mount-filesystem-workspace | performance |
-| 端点不通 | network-endpoint-access | — |
-| 成本异常 | lifecycle-cost | — |
-| 复制延迟 | replication-versioning | network |
-| TLS 证书错误 | network-endpoint-access | — |
-| CORS 前端报错 | s3-protocol-compatibility | — |
-| Object Lock 冲突 | replication-versioning | — |
-| 访问日志/错误率尖峰 | access-log-analysis | security / performance / lifecycle-cost |
+| Evidence | Primary route |
+| --- | --- |
+| exact 403 AccessDenied, policy, KMS | security |
+| SignatureDoesNotMatch, malformed XML, CORS | protocol |
+| 429, SlowDown, throughput, hot prefix | performance |
+| DNS, TCP, TLS, VPC endpoint | network |
+| rclone, s5cmd, awscli, boto3, SDK stack trace | CLI/SDK |
+| lifecycle rules, IA/Glacier, cost | lifecycle-cost |
+| CRR/SRR, delete marker, object lock | replication-versioning |
+| s3fs, FUSE, mounted workspace | mount-filesystem |
+| cross-provider copy, verification, metadata parity | migration-sync |
+| stale read, ETag, checksum semantics | data-consistency |
+| Spark, Hive, Trino, S3A committer | bigdata |
+| SQS/SNS/Lambda event delivery | event-notification |
+| server access logs, requester attribution | access-log-analysis |
+
+## Common Cross-Routes
+
+| Start | Escalate when |
+| --- | --- |
+| security -> protocol | 403 contains SignatureDoesNotMatch. |
+| CLI/SDK -> protocol | debug log exposes ETag, SigV4, multipart, or CORS mismatch. |
+| performance -> network | slow request has high RTT, DNS, TLS, or timeout evidence. |
+| mount -> performance | root cause is metadata amplification. |
+| replication -> security | cross-account role or KMS permission appears. |
+| access-log -> security | 403 spike maps to one principal or policy change. |
+| access-log -> performance | logs show 503/SlowDown or hot prefix. |
+
+## Reporting
+
+After specialist diagnosis, route to `storageops-evidence-reporting` when the user asks for customer-facing, internal, or reproducibility documentation.
