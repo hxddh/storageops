@@ -1,0 +1,7 @@
+Trino query profile:
+table: analytics.events
+partitions scanned: 720
+files scanned: 486,000
+median file size: 12 KiB
+query: SELECT count(*) FROM analytics.events WHERE dt >= '2026-06-01'
+symptom: simple count takes 9 minutes; S3 4xx/5xx errors are not present.

@@ -1,0 +1,13 @@
+Source HEAD:
+Key: public/app.js
+Content-Type: application/javascript
+Cache-Control: public,max-age=31536000,immutable
+ETag: "abc123"
+
+Destination HEAD after migration:
+Key: public/app.js
+Content-Type: application/octet-stream
+Cache-Control: <missing>
+ETag: "abc123"
+
+Users report browsers downloading the JS file instead of executing it.

@@ -1,0 +1,12 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "migration_sync",
+  "expected_root_cause_types": ["metadata_not_preserved", "content_type_mismatch"],
+  "expected_min_confidence": 0.85,
+  "must_include_evidence_keywords": ["application/octet-stream", "Cache-Control", "Content-Type"],
+  "should_include_evidence_keywords": ["ETag", "public/app.js"],
+  "must_include_recommendation_keywords": ["metadata", "HEAD", "preserve"],
+  "must_not_include": ["delete bucket", "make public", "disable TLS"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "medium"
+}

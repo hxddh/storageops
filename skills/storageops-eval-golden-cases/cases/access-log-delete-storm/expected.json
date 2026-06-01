@@ -1,0 +1,12 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "access_log_analysis",
+  "expected_root_cause_types": ["delete_storm", "requester_attribution", "cleanup_job_misconfiguration"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["REST.DELETE.OBJECT", "cleanup-lambda", "03:10"],
+  "should_include_evidence_keywords": ["15,000", "requester", "user_agent"],
+  "must_include_recommendation_keywords": ["pause", "versioning", "restore"],
+  "must_not_include": ["delete bucket", "make public", "rm -rf"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "severity": "high"
+}

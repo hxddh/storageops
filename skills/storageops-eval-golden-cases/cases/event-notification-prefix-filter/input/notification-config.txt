@@ -1,0 +1,10 @@
+Notification config:
+destination: arn:aws:sqs:us-east-1:111111111111:image-events
+event: s3:ObjectCreated:*
+filter prefix: images/
+filter suffix: .jpg
+
+Actual uploaded key:
+uploads/images/cat.jpg
+
+PUT returns 200 and the object exists, but no SQS message arrives.
