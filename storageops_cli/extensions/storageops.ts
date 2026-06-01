@@ -6,7 +6,7 @@
  *
  * Architecture:
  *   Pi ← storageops.ts (3 tools: scan_secrets, detect_domain, search_memory)
- *     ← skills/*.SKILL.md (15 diagnostic skill packs)
+ *     ← skills/*.SKILL.md (16 diagnostic skill packs)
  *
  * Placement: .pi/extensions/storageops.ts (auto-discovered by Pi)
  * Reload:    /reload inside Pi session
@@ -152,6 +152,13 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/notification|通知/i, "notification"],
     [/event/i, "event"],
   ],
+  "access-log-analysis": [
+    [/access\s*log|server\s*access\s*log/i, "access_log"],
+    [/log\s*(?:analysis|分析)|request\s*analysis|traffic\s*analysis/i, "log_analysis"],
+    [/403\s*spike|503\s*spike|error\s*rate|错误率/i, "error_spike"],
+    [/who\s+is\s+accessing|top\s*requester|requester/i, "requester"],
+    [/cost\s*attribution|费用归因|成本归因/i, "cost_attribution"],
+  ],
 };
 
 function detectDomain(text: string): Array<{ domain: string; confidence: number; subdomains: string[] }> {
@@ -181,7 +188,10 @@ function detectDomain(text: string): Array<{ domain: string; confidence: number;
 // Searches Pi session JSONL files for past diagnostic context.
 
 function searchMemory(query: string, limit: number = 5): Array<{ sessionId: string; snippet: string; updated: string }> {
-  const sessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions");
+  const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
+  const primarySessionsDir = path.join(agentDir, "sessions");
+  const fallbackSessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions");
+  const sessionsDir = fs.existsSync(primarySessionsDir) ? primarySessionsDir : fallbackSessionsDir;
   if (!fs.existsSync(sessionsDir)) return [];
 
   const metaFiles = fs.readdirSync(sessionsDir)

@@ -9,7 +9,7 @@ description: >
   caching, ETag format discrepancies, CDN/edge caching, or concurrent
   multi-client write races. Use when user reports stale data, missing
   objects after write, or conflicting object versions.
-maturity: stable
+maturity: beta
 mode: light_heavy
 estimated_tokens: 1100
 trigger_keywords:

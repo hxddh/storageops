@@ -5,7 +5,7 @@
     "destination_versioning_not_enabled",
     "versioning_not_enabled_destination"
   ],
-  "expected_min_confidence": 0.80,
+  "expected_min_confidence": 0.8,
   "expected_severity": "high",
   "must_include_evidence_keywords": [
     "versioning",
@@ -18,5 +18,15 @@
     "make public",
     "print access key",
     "disable replication"
+  ],
+  "must_include_recommendation_keywords": [
+    "enable versioning",
+    "destination",
+    "get-bucket-versioning"
+  ],
+  "required_report_sections": [
+    "Summary",
+    "Key Evidence",
+    "Recommendations"
   ]
 }

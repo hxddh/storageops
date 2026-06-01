@@ -13,13 +13,14 @@ StorageOps CLI — 一行安装，开箱即用。
     │   ├── settings.json
     │   ├── api-key                       可选：持久化 API key
     │   └── extensions/storageops.ts
-    └── skills/                            15 个技能包
+    └── skills/                            16 个技能包
 """
 
 import subprocess
 import sys
 import os
 import json
+import re
 import shutil
 from pathlib import Path
 from importlib import resources
@@ -76,13 +77,18 @@ def check_pi_version(exe: str) -> tuple[bool, str]:
     except Exception:
         return False, "无法检测"
 
-    def _parse(v: str) -> tuple:
-        try:
-            return tuple(int(p) for p in v.split(".")[:3])
-        except Exception:
+    def _parse(v: str) -> tuple[int, int, int]:
+        match = re.search(r"(\d+)\.(\d+)\.(\d+)", v)
+        if not match:
             return (0, 0, 0)
+        return tuple(int(p) for p in match.groups())
 
     return _parse(ver) >= _parse(MIN_PI_VERSION), ver
+
+
+def _skills_dir_for_agent(agent_dir: Path) -> Path:
+    """Return the skills directory referenced by the default ../skills setting."""
+    return agent_dir.parent / "skills"
 
 
 def is_installed(agent_dir: Path | None = None) -> bool:
@@ -91,7 +97,7 @@ def is_installed(agent_dir: Path | None = None) -> bool:
     return (
         (ad / "settings.json").exists()
         and (ad / "extensions" / "storageops.ts").exists()
-        and (ROOT / "skills").is_dir()
+        and _skills_dir_for_agent(ad).is_dir()
     )
 
 
@@ -118,7 +124,7 @@ def _inject_auth_env(agent_dir: Path) -> None:
                     val = auth[provider]
                     if isinstance(val, dict):
                         val = val.get("apiKey") or val.get("key") or ""
-                    if val and isinstance(val, str) and val.startswith("sk-"):
+                    if val and isinstance(val, str):
                         os.environ[env_var] = val
         except Exception:
             pass
@@ -127,7 +133,7 @@ def _inject_auth_env(agent_dir: Path) -> None:
     key_file = agent_dir / "api-key"
     if key_file.exists():
         key = key_file.read_text().strip()
-        if key and key.startswith("sk-"):
+        if key:
             # 猜 provider：优先 DEEPSEEK，其次 ANTHROPIC，最后 OPENAI
             for candidate in ["DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]:
                 if candidate not in os.environ:
@@ -165,14 +171,14 @@ def _copy_extension(data: Path, dst_agent: Path) -> None:
     print(f"  ✅ storageops.ts  → {ext_dst}")
 
 
-def _copy_skills(data: Path) -> None:
-    """复制 skills 到 ROOT/skills."""
+def _copy_skills(data: Path, dst_agent: Path) -> None:
+    """复制 skills 到 settings.json 中 ../skills 对应的目录."""
     skills_src = data / "skills"
     if not skills_src.is_dir():
         print(f"  ⚠️  技能目录未找到: {skills_src}")
         return
 
-    skills_dst = ROOT / "skills"
+    skills_dst = _skills_dir_for_agent(dst_agent)
     skills_dst.mkdir(parents=True, exist_ok=True)
     for skill_dir in sorted(skills_src.iterdir()):
         if skill_dir.is_dir() and skill_dir.name.startswith("storageops-"):
@@ -313,6 +319,7 @@ def cmd_install(force: bool = False, merge: bool = False):
             # --force 时自动延续当前模式，不询问
             if is_installed(PI_DEFAULT_AGENT):
                 target_agent = PI_DEFAULT_AGENT
+                merge = True
         else:
             print()
             print("━" * 60)
@@ -335,6 +342,7 @@ def cmd_install(force: bool = False, merge: bool = False):
             print()
             if choice == "m":
                 target_agent = PI_DEFAULT_AGENT
+                merge = True
                 if is_installed(target_agent) and not force:
                     print("StorageOps 已合并安装，无需重复。")
                     print("  如需重装: storageops install --merge --force")
@@ -356,7 +364,7 @@ def cmd_install(force: bool = False, merge: bool = False):
 
     # extension + skills
     _copy_extension(data, target_agent)
-    _copy_skills(data)
+    _copy_skills(data, target_agent)
 
     _print_api_key_hint(api_keys)
     _print_install_help(api_keys, merge, target_agent)

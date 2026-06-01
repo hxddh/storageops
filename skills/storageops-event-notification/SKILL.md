@@ -6,7 +6,7 @@ description: >
   Covers notification configuration, IAM permissions chaining, event type
   filtering, prefix/suffix filters, Lambda concurrency, and event delivery
   latency. Use when user expects events from S3 but targets aren't receiving them.
-maturity: stable
+maturity: beta
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:

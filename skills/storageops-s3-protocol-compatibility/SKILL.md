@@ -6,7 +6,7 @@ description: >
   signature version mismatches (v2/v4), header ordering, chunked encoding,
   query string auth, and provider-specific S3 API differences. Use when errors
   suggest protocol-level issues rather than application errors.
-maturity: stable
+maturity: core
 mode: light_heavy
 estimated_tokens: 1400
 trigger_keywords:
@@ -55,13 +55,13 @@ Protocol error →
 ## Workflow
 
 ### Step 1: Extract Signature Information
-From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/signature-analysis.md`.
+From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/sigv4.md`.
 
 ### Step 2: Compare Against AWS S3 Baseline
-AWS S3 is the reference implementation. Check `references/aws-s3-api-reference.md` for expected behavior of the failing operation.
+AWS S3 is the reference implementation. Check `references/aws-s3-baseline.md` for expected behavior of the failing operation.
 
 ### Step 3: Identify Provider-Specific Quirks
-See `references/provider-protocol-differences.md` for known differences per provider (BOS header naming, OSS signature region requirement, COS chunked encoding behavior).
+See `references/provider-quirks/bos.md` for known differences per provider (BOS header naming, OSS signature region requirement, COS chunked encoding behavior).
 
 ### Step 4: Root Cause Classification
 - **Tool-side**: wrong signature version, clock skew, header reordering by proxy/lib
@@ -72,7 +72,7 @@ See `references/provider-protocol-differences.md` for known differences per prov
 Is this a single-operation issue or a systemic compatibility problem? Test with a simple operation (ListBuckets) to isolate.
 
 ### Step 6: Feedback Loop
-If the root cause is unclear after scope analysis, ask the user: **"Can you provide the debug output with signature headers (`--debug` flag in aws CLI, `-vv --dump headers` in rclone)?"** For `SignatureDoesNotMatch`, compare the `StringToSign` and `CanonicalRequest` from debug output against the expected format in `references/signature-analysis.md`. If confidence < medium, go back to Step 2 and request a complete debug trace with the full authorization header (redact credentials).
+If the root cause is unclear after scope analysis, ask the user: **"Can you provide the debug output with signature headers (`--debug` flag in aws CLI, `-vv --dump headers` in rclone)?"** For `SignatureDoesNotMatch`, compare the `StringToSign` and `CanonicalRequest` from debug output against the expected format in `references/sigv4.md`. If confidence < medium, go back to Step 2 and request a complete debug trace with the full authorization header (redact credentials).
 
 ## User Interaction
 
@@ -116,7 +116,7 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 ### Example 2: Chunked encoding rejected
 **Input**: SDK upload with `x-amz-content-sha256: STREAMING-AWS4-HMAC-SHA256-PAYLOAD`. Error: `InvalidArgument: Chunked transfer encoding not supported`.
 **Diagnosis**: Provider doesn't support AWS chunked upload (aws-chunked).  
-**Fix**: Set `Content-Length` header explicitly (single-shot upload), or use SDK flag to disable chunked encoding. Check `references/provider-protocol-differences.md`.
+**Fix**: Set `Content-Length` header explicitly (single-shot upload), or use SDK flag to disable chunked encoding. Check `references/provider-quirks/bos.md`.
 
 ### Example 3: Virtual-hosted style DNS failure
 **Input**: `https://bucket.s3.bj.bcebos.com/obj` → `NameResolutionError`.
@@ -124,13 +124,13 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 **Fix**: Use `https://s3.bj.bcebos.com/bucket/obj` (path-style).
 
 ## References
-- `references/signature-analysis.md` — SigV2 vs SigV4 deep dive, StringToSign format | **Read when:** user reports SignatureDoesNotMatch or signature-related errors
-- `references/aws-s3-api-reference.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
-- `references/provider-protocol-differences.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** user mentions a non-AWS provider (BOS/OSS/COS/GCS)
-- `references/header-reference.md` — Standard and provider-specific headers | **Read when:** debugging header ordering or specific header issues
-- `references/chunked-encoding.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
-- `references/url-styles.md` — Virtual-hosted vs path-style across providers | **Read when:** user reports DNS errors, NameResolutionError, or endpoint construction issues
-- `references/xml-format.md` — Request/response XML schemas and provider differences | **Read when:** user reports MalformedXML or XML parsing errors
-- `references/error-codes.md` — Per-provider error code mapping | **Read when:** error code is unfamiliar or provider-specific
-- `references/endpoint-construction.md` — Endpoint URL patterns per provider | **Read when:** user is constructing endpoint URLs or troubleshooting connectivity
-- `references/character-encoding.md` — Unicode/encoding in keys and headers | **Read when:** user reports encoding issues with special characters in object keys
+- `references/sigv4.md` — SigV2 vs SigV4 deep dive, StringToSign format | **Read when:** user reports SignatureDoesNotMatch or signature-related errors
+- `references/aws-s3-baseline.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
+- `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** user mentions a non-AWS provider (BOS/OSS/COS/GCS)
+- `references/sigv4.md` — Standard and provider-specific headers | **Read when:** debugging header ordering or specific header issues
+- `references/multipart-upload.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
+- `references/aws-s3-baseline.md` — Virtual-hosted vs path-style across providers | **Read when:** user reports DNS errors, NameResolutionError, or endpoint construction issues
+- `references/list-objects.md` — Request/response XML schemas and provider differences | **Read when:** user reports MalformedXML or XML parsing errors
+- `references/aws-s3-baseline.md` — Per-provider error code mapping | **Read when:** error code is unfamiliar or provider-specific
+- `references/aws-s3-baseline.md` — Endpoint URL patterns per provider | **Read when:** user is constructing endpoint URLs or troubleshooting connectivity
+- `references/list-objects.md` — Unicode/encoding in keys and headers | **Read when:** user reports encoding issues with special characters in object keys

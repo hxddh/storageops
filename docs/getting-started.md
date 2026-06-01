@@ -23,6 +23,7 @@ export ANTHROPIC_API_KEY=sk-xxx
 
 # 方式B：本地文件（不受 shell 影响）
 echo sk-xxx > ~/.storageops/agent/api-key
+chmod 600 ~/.storageops/agent/api-key
 
 # 方式C：Pi 内登录
 storageops  → /login

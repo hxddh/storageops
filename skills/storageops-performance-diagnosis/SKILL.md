@@ -6,7 +6,7 @@ description: >
   prefix hotspotting, and connection pool exhaustion. Use when user reports
   slow transfers, rate limiting, or throughput below expected bandwidth.
   Triggered by 429 SlowDown, 503 SlowDown, timing data, or performance complaints.
-maturity: stable
+maturity: core
 mode: light_heavy
 estimated_tokens: 1400
 trigger_keywords:
@@ -126,4 +126,4 @@ If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_de
 - `references/multipart-tuning.md` — Chunk size, concurrency, provider quirks | **Read when:** user is uploading/downloading files >100MB
 - `references/prefix-hotspot.md` — Key distribution and request rate partitioning | **Read when:** many files share the same prefix and throughput is below expected
 - `references/throughput-model.md` — Expected throughput formulas | **Read when:** user provides timing data and asks why throughput is low
-- `references/provider-limits.md` — Per-provider concurrency and rate limits | **Read when:** user is hitting limits on a specific cloud provider
+- `references/throttling.md` — Per-provider concurrency and rate limits | **Read when:** user is hitting limits on a specific cloud provider

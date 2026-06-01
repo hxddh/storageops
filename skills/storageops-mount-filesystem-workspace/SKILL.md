@@ -7,7 +7,7 @@ description: >
   cache consistency, and workspace/IDE performance on mounted storage. Use when
   user reports slow `ls`, `git` failures, file corruption, or high latency on
   mounted object storage.
-maturity: stable
+maturity: mature
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:
@@ -44,7 +44,7 @@ Mount issue →
   ├─ "compiler/IDE won't work" → Lock/mmap/fcntl unsupported (Step 4)
   ├─ "stale data" → Cache coherence issue (Step 4)
   ├─ rclone mount specifically? → See rclone tuning (references/fuse.md)
-  ├─ s3fs specifically? → See s3fs tuning (references/s3fs-tuning.md)
+  ├─ s3fs specifically? → See s3fs tuning (references/fuse.md)
   └─ Unknown mount tool? → Ask: which mount tool, what filesystem operations fail
 ```
 
@@ -60,7 +60,7 @@ rclone mount (VFS-based), s3fs (FUSE), goofys (FUSE, read-optimized), JuiceFS (m
 - **Metadata-heavy**: git operations, package managers (npm, pip), find
 
 ### Step 3: Measure Metadata Amplification
-A single `ls` on a directory with 1000 files = 1000 HEAD/GET requests to object storage API. Git status = stat() on every file in the repo. This is the #1 performance killer. See `references/metadata-amplification.md`.
+A single `ls` on a directory with 1000 files = 1000 HEAD/GET requests to object storage API. Git status = stat() on every file in the repo. This is the #1 performance killer. See `references/object-storage-as-filesystem.md`.
 
 ### Step 4: Check POSIX Semantic Mismatches
 | Operation | POSIX Expectation | Object Storage Reality | Impact |
@@ -133,6 +133,6 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 ## References
 - `references/fuse.md` — Comprehensive FUSE mount tuning guide | **Read when:** user is using any FUSE-based mount tool (rclone mount, s3fs, goofys)
 - `references/posix-semantics.md` — POSIX vs object storage behavior matrix | **Read when:** user reports git, npm, compilers, or other POSIX-dependent tools failing on mount
-- `references/metadata-amplification.md` — Quantifying and reducing stat/HEAD amplification | **Read when:** user reports slow `ls`, `git status`, or file managers on mount
-- `references/vfs-cache-guide.md` — rclone VFS cache modes explained | **Read when:** user uses rclone mount and needs cache tuning guidance
-- `references/s3fs-tuning.md` — s3fs mount options by workload | **Read when:** user uses s3fs and reports performance or corruption issues
+- `references/object-storage-as-filesystem.md` — Quantifying and reducing stat/HEAD amplification | **Read when:** user reports slow `ls`, `git status`, or file managers on mount
+- `references/fuse.md` — rclone VFS cache modes explained | **Read when:** user uses rclone mount and needs cache tuning guidance
+- `references/fuse.md` — s3fs mount options by workload | **Read when:** user uses s3fs and reports performance or corruption issues

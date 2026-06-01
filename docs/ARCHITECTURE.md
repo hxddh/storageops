@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.0 is a **Pi Coding Agent extension + skill pack**.
+StorageOps v0.4.1 is a **Pi Coding Agent extension + skill pack**.
 
 ## Design Principles
 
@@ -23,7 +23,7 @@ StorageOps v0.4.0 is a **Pi Coding Agent extension + skill pack**.
 │          │               │                   │
 │  ┌───────▼───────┐  ┌────▼──────────────┐   │
 │  │ storageops.ts  │  │ skills/*.SKILL.md  │   │
-│  │ (3 tools)      │  │ (15 skill packs)   │   │
+│  │ (3 tools)      │  │ (16 skill packs)   │   │
 │  └───────────────┘  └────────────────────┘   │
 └─────────────────────────────────────────────┘
 ```
@@ -41,7 +41,7 @@ StorageOps v0.4.0 is a **Pi Coding Agent extension + skill pack**.
 │   ├── extensions/
 │   │   └── storageops.ts         ← TypeScript extension (3 tools)
 │   └── sessions/                 ← Pi-managed session logs
-└── skills/                        ← 15 diagnostic skill packs
+└── skills/                        ← 16 diagnostic skill packs
     ├── storageops-triage/
     ├── storageops-security-iam-policy/
     └── ...
@@ -51,12 +51,13 @@ StorageOps v0.4.0 is a **Pi Coding Agent extension + skill pack**.
 
 ```
 ~/.pi/
-└── agent/                        ← Existing Pi config
-    ├── settings.json             ← Merged: user's + StorageOps keys
-    │   (original backed up as settings.json.storageops-backup)
-    ├── extensions/
-    │   └── storageops.ts
-    └── sessions/
+├── agent/                        ← Existing Pi config
+│   ├── settings.json             ← Merged: user's + StorageOps keys
+│   │   (original backed up as settings.json.storageops-backup)
+│   ├── extensions/
+│   │   └── storageops.ts
+│   └── sessions/
+└── skills/                        ← 16 diagnostic skill packs
 ```
 
 ## Extension (`storageops_cli/extensions/storageops.ts`)
@@ -73,7 +74,7 @@ All tools run inline in Pi's TypeScript runtime. No Python subprocess, no tool_b
 
 ## Skills (`skills/`)
 
-15 skill packs covering 12+ diagnostic domains. Each skill is a directory with:
+16 skill packs covering 12+ diagnostic domains. Each skill is a directory with:
 
 ```
 skills/storageops-<domain>/

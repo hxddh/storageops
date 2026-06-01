@@ -7,7 +7,7 @@ description: >
   and table format issues (Iceberg/Delta/Hudi). Use when user reports
   Spark job failures, FileNotFoundException, FileAlreadyExistsException,
   or slow analytics queries on S3-backed tables.
-maturity: stable
+maturity: alpha
 mode: light_heavy
 estimated_tokens: 1400
 trigger_keywords:

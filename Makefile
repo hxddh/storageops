@@ -9,16 +9,7 @@ help:
 
 validate:
 	@echo "=== Validating skills ==="
-	@ls -d skills/storageops-*/ | wc -l | xargs echo "Skills found:"
-	@for skill in skills/*/SKILL.md; do \
-		name=$$(basename $$(dirname $$skill)); \
-		if grep -q "^name:" $$skill && grep -q "scan_secrets" $$skill; then \
-			echo "  OK: $$name"; \
-		else \
-			echo "  FAIL: $$name"; \
-			exit 1; \
-		fi; \
-	done
+	@python3 scripts/skill_integrity_check.py
 	@echo "=== Validating extension ==="
 	@test -f storageops_cli/extensions/storageops.ts && echo "  OK: extension file exists" || { echo "  FAIL: extension not found"; exit 1; }
 	@grep -q "scan_secrets" storageops_cli/extensions/storageops.ts && echo "  OK: scan_secrets tool" || { echo "  FAIL: scan_secrets missing"; exit 1; }

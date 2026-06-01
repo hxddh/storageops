@@ -25,7 +25,7 @@
 | bcecmd | ✅ Native | `~/.bce/credentials` | Best for BOS |
 | rclone | ✅ Native | Use `bcebos` backend type | Most reliable cross-tool |
 | s5cmd | ⚠️ Via S3 compat | `--endpoint-url` + SigV4 | Path-style only |
-| awscli | ⚠️ Via S3 compat | `--endpoint-url` + `--region` | May need `--no-sign-request` for certain ops |
+| awscli | ⚠️ Via S3 compat | `--endpoint-url` + `--region` | Use signed requests; do not bypass authentication |
 | obsutil | ❌ Not supported | N/A | OBS proprietary only |
 
 ## ListObjects Behavior

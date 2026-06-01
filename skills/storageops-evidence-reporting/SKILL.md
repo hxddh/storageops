@@ -7,7 +7,7 @@ description: >
   confidence scoring, evidence quality assessment, and redaction/safety review.
   Use after specialist Skills have completed their diagnosis — this skill
   formats and polishes, it does NOT diagnose.
-maturity: stable
+maturity: core
 mode: light_heavy
 estimated_tokens: 1200
 trigger_keywords:

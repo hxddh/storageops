@@ -5,7 +5,7 @@ description: >
   Analyze IAM policies, bucket policies, ACLs, block public access settings,
   and cross-account access chains. Scan for credential leaks in logs.
   Use when user reports access denied, forbidden, or authorization failures.
-maturity: stable
+maturity: core
 mode: light_heavy
 estimated_tokens: 1400
 trigger_keywords:
@@ -121,7 +121,7 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 ### Example 3: Credentials in logs
 **Input**: Debug log contains `Authorization: AWS4-HMAC-SHA256 Credential=AKIA.../.../s3/aws4_request`
 **Diagnosis**: CREDENTIAL_LEAK — AWS access key ID in logs
-**Recommendation**: Immediately rotate key. Redact all logs containing this key. Set `--no-sign-request` or redact before sharing logs.
+**Recommendation**: Immediately rotate the exposed key, revoke affected sessions if applicable, and redact all logs containing this key before sharing them. Do not disable authentication as a workaround.
 
 ## References
 - `references/policy-evaluation.md` — Full permission evaluation order with examples | **Read when:** user reports 403/401 and has IAM/bucket policy documents to share

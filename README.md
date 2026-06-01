@@ -15,7 +15,7 @@ storageops 's5cmd sync 报 429 SlowDown'  # 诊断
 | | 传统排查 | StorageOps |
 |---|---------|------------|
 | 504/403/429 诊断 | Google → 论坛 → 工单 | 一个命令，30 秒出结果 |
-| 跨服务商差异 | 逐个查文档 | 15 个技能包覆盖 AWS/BOS/OSS/COS/MinIO |
+| 跨服务商差异 | 逐个查文档 | 16 个技能包覆盖 AWS/BOS/OSS/COS/MinIO |
 | 安全 | 手动脱敏 | `scan_secrets` 自动扫描 + 脱敏 |
 | 安装 | 克隆仓库 + 8 步配置 | `pip install` + `storageops install` |
 
@@ -38,6 +38,7 @@ export DEEPSEEK_API_KEY=sk-xxx
 
 # 方式B：本地文件（不受 shell 影响）
 echo sk-xxx > ~/.storageops/agent/api-key
+chmod 600 ~/.storageops/agent/api-key
 ```
 
 ### 3. 诊断
@@ -66,6 +67,7 @@ pip install --upgrade storageops && storageops install --force
 | 技能包 | 领域 |
 |--------|------|
 | `storageops-triage` | 入口分流 |
+| `storageops-access-log-analysis` | 访问日志 / 错误尖峰 / 流量与成本归因 |
 | `storageops-security-iam-policy` | 403 / KMS / Bucket Policy |
 | `storageops-performance-diagnosis` | 429 / 限流 / 性能瓶颈 |
 | `storageops-s3-protocol-compatibility` | SigV4 / CORS / 协议兼容 |
@@ -103,7 +105,7 @@ storageops install
 ```bash
 storageops install --merge
 ```
-→ 安装到 `~/.pi/`，融入现有的 Pi 环境。自动备份 `settings.json`。
+→ 安装到 `~/.pi/`，融入现有的 Pi 环境；extension 位于 `~/.pi/agent/extensions/`，skills 位于 `~/.pi/skills/`，并自动备份 `settings.json`。
 
 ### 强制重装
 
@@ -121,7 +123,7 @@ storageops install --force
 │   └── storageops.ts          ← 3 inline TypeScript 工具
 └── sessions/                  ← Pi 管理的诊断记录
 
-~/.storageops/skills/           ← 15 个诊断技能包
+~/.storageops/skills/           ← 16 个诊断技能包
 ├── storageops-triage/
 ├── storageops-security-iam-policy/
 └── ...
@@ -141,7 +143,7 @@ pip install -e .
 storageops install
 ```
 
-贡献方式：修改 `skills/` 下的 SKILL.md 或 `storageops_cli/extensions/storageops.ts`，提交 PR。
+贡献方式：修改 `skills/` 下的 SKILL.md 或 `storageops_cli/extensions/storageops.ts`，提交 PR。Skill 质量规范见 `docs/skill-quality-guide.md`。
 
 ## License
 

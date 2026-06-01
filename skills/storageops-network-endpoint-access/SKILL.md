@@ -6,7 +6,7 @@ description: >
   TLS/SSL handshake errors, proxy interference, MTU/fragmentation, VPC
   endpoint configuration, and cross-cloud dedicated line issues. Use when user
   reports connection refused, timeout, DNS errors, or SSL errors to S3 endpoints.
-maturity: stable
+maturity: core
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:
@@ -49,7 +49,7 @@ Connectivity issue →
   │   └─ Intermittent? → MTU black hole or proxy timeout (Step 4)
   ├─ "TLS/SSL error"?
   │   ├─ Certificate name mismatch? → SNI or endpoint URL mismatch
-  │   ├─ Self-signed certificate? → CA cert bundle or --no-verify-ssl (NOT recommended)
+  │   ├─ Self-signed certificate? → install the correct CA cert bundle; do not disable verification
   │   └─ Expired certificate? → Check server cert validity
   └─ "HTTP 400/403 after connection"? → Not network — route to triage
 ```
@@ -139,8 +139,8 @@ If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"
 
 ## References
 - `references/dns-host-header.md` — Virtual-hosted vs path-style, provider support matrix | **Read when:** user reports DNS errors, NameResolutionError, or endpoint URL construction issues
-- `references/tls-certificate-guide.md` — TLS SNI, CA bundles, certificate validation | **Read when:** user reports TLS/SSL/certificate errors
-- `references/vpc-endpoint-setup.md` — VPC endpoint configuration and troubleshooting | **Read when:** user mentions VPC endpoints, private subnets, or PrivateLink
-- `references/proxy-diagnosis.md` — Proxy interference patterns | **Read when:** user is behind a corporate proxy or reports proxy-related errors
-- `references/mtu-path-discovery.md` — MTU and fragmentation analysis | **Read when:** user reports intermittent timeouts or MTU-related issues
+- `references/tls-mtu-rtt.md` — TLS SNI, CA bundles, certificate validation | **Read when:** user reports TLS/SSL/certificate errors
+- `references/private-access.md` — VPC endpoint configuration and troubleshooting | **Read when:** user mentions VPC endpoints, private subnets, or PrivateLink
+- `references/endpoint-routing.md` — Proxy interference patterns | **Read when:** user is behind a corporate proxy or reports proxy-related errors
+- `references/tls-mtu-rtt.md` — MTU and fragmentation analysis | **Read when:** user reports intermittent timeouts or MTU-related issues
 - `references/cross-cloud-dedicated-line.md` — FastConnect/ExpressRoute diagnostics | **Read when:** user mentions cross-cloud dedicated lines, ExpressRoute, or FastConnect

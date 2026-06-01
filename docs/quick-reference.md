@@ -15,6 +15,7 @@ export DEEPSEEK_API_KEY=sk-xxx
 
 # 方式B：本地文件（不受 shell 影响）
 echo sk-xxx > ~/.storageops/agent/api-key
+chmod 600 ~/.storageops/agent/api-key
 ```
 
 ## 常用命令
@@ -51,6 +52,7 @@ storageops -r                 # 选择历史会话
 | DNS/TLS 不通 | storageops-network-endpoint-access |
 | 成本/生命周期问题 | storageops-lifecycle-cost |
 | CRR/版本管理 | storageops-replication-versioning |
+| 访问日志/错误率尖峰 | storageops-access-log-analysis |
 
 ## 目录结构
 
@@ -60,10 +62,12 @@ storageops -r                 # 选择历史会话
 │   ├── settings.json
 │   ├── api-key                   ← 可选，本地持久化 key
 │   └── extensions/storageops.ts
-└── skills/ (15个)
+└── skills/ (16个)
 
-~/.pi/agent/                      ← 合并安装
-├── settings.json                 ← 自动合并，原文件备份
-├── extensions/storageops.ts
-└── sessions/
+~/.pi/                          ← 合并安装
+├── agent/
+│   ├── settings.json             ← 自动合并，原文件备份
+│   ├── extensions/storageops.ts
+│   └── sessions/
+└── skills/ (16个)
 ```
