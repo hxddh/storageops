@@ -309,37 +309,31 @@ def cmd_install(force: bool = False, merge: bool = False):
             print(f"  如需重装: storageops install --force")
             return
 
-        # force 模式下不询问，直接继续安装（默认独立模式）
-        if not force:
-            print()
-            print("━" * 60)
-            print("检测到你已经在使用 Pi Coding Agent (~/.pi/)。")
-            print()
-            print("StorageOps 支持两种安装模式:")
-            print()
-            print("  1. 独立安装 (推荐) — 安装到 ~/.storageops/")
-            print("     不影响你已有的 Pi 配置，两个环境互不干扰。")
-            print()
-            print("  2. 合并安装 — 安装到 ~/.pi/")
-            print("     将 StorageOps 的 skills 和 extension 融入你现有的 Pi。")
-            print("     你的 settings.json 会被自动备份。")
-            print("━" * 60)
-            print()
-            try:
-                choice = input("选择安装模式 [回车=独立安装 / m=合并安装]: ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                choice = ""
-            print()
-            if choice == "m":
-                target_agent = PI_DEFAULT_AGENT
-                if is_installed(target_agent) and not force:
-                    print("StorageOps 已合并安装，无需重复。")
-                    print("  如需重装: storageops install --merge --force")
-                    return
-        # 当 force=True 时，保持默认的 target_agent = AGENT_DIR（独立模式）
-        elif is_installed(PI_DEFAULT_AGENT):
-            # 如果 merge 模式已安装，force 时也延续 merge 模式
+        print()
+        print("━" * 60)
+        print("检测到你已经在使用 Pi Coding Agent (~/.pi/)。")
+        print()
+        print("StorageOps 支持两种安装模式:")
+        print()
+        print("  1. 独立安装 (推荐) — 安装到 ~/.storageops/")
+        print("     不影响你已有的 Pi 配置，两个环境互不干扰。")
+        print()
+        print("  2. 合并安装 — 安装到 ~/.pi/")
+        print("     将 StorageOps 的 skills 和 extension 融入你现有的 Pi。")
+        print("     你的 settings.json 会被自动备份。")
+        print("━" * 60)
+        print()
+        try:
+            choice = input("选择安装模式 [回车=独立安装 / m=合并安装]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            choice = ""
+        print()
+        if choice == "m":
             target_agent = PI_DEFAULT_AGENT
+            if is_installed(target_agent) and not force:
+                print("StorageOps 已合并安装，无需重复。")
+                print("  如需重装: storageops install --merge --force")
+                return
 
     # --- Step 2: 安装 ---
     data = _package_data_dir()
@@ -378,147 +372,6 @@ def cmd_version():
     print(f"  合并安装: {'是' if merged else '否'}  ({PI_DEFAULT_AGENT})")
 
 
-def _detect_install_source() -> str | None:
-    """检测 StorageOps 的安装来源.
-    返回 'pip'、'git' 或 None（无法检测）."""
-    # 1. 检查是否从 git clone 安装（项目目录中有 .git）
-    for path in sys.path:
-        p = Path(path)
-        if (p / ".git").is_dir() and (p / "storageops_cli").is_dir():
-            return "git"
-        if (p / "storageops_cli" / "__init__.py").exists():
-            parent = (p / "storageops_cli").parent
-            if (parent / ".git").is_dir():
-                return "git"
-
-    # 2. 检查是否为 pip editable install
-    try:
-        import storageops_cli
-        if hasattr(storageops_cli, "__path__"):
-            for loc in storageops_cli.__path__:
-                if (Path(loc).parent / ".git").is_dir():
-                    return "git"
-    except Exception:
-        pass
-
-    # 3. 检查 $PATH 中的 storageops 脚本指向哪里
-    exe = shutil.which("storageops")
-    if exe:
-        real = Path(exe).resolve()
-        parts = real.parts
-        if "site-packages" in parts:
-            return "pip"
-
-    # 默认假设是 pip 安装
-    return "pip"
-
-
-def _check_github_version(current: str) -> tuple[str | None, str | None]:
-    """检查 GitHub 上的最新版本.
-    返回 (latest_version, error)."""
-    import urllib.request
-    import re
-    try:
-        url = "https://api.github.com/repos/hxddh/storageops/releases/latest"
-        req = urllib.request.Request(url, headers={"User-Agent": "storageops"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-            latest = data.get("tag_name", "").lstrip("v")
-            if latest:
-                return latest, None
-            return None, "no tag"
-    except Exception as e:
-        return None, str(e)
-
-
-def cmd_update():
-    """升级 StorageOps 到最新版本."""
-    try:
-        from importlib.metadata import version
-        current = version("storageops")
-    except Exception:
-        current = "unknown"
-
-    print(f"📦 StorageOps 当前版本: v{current}")
-    print()
-
-    # 1. 检查最新版本
-    print("🔍 检查最新版本...")
-    latest, err = _check_github_version(current)
-    if err:
-        print(f"  ⚠️  无法检查更新: {err}")
-        print("  继续执行本地升级...")
-    elif latest and latest == current:
-        print(f"  ✅ 已是最新版本 v{current}")
-        print()
-        # 仍然允许强制重装技能
-        print("💡 如需重新部署技能和扩展，运行: storageops install --force")
-        return
-    elif latest:
-        print(f"  🆕 发现新版本: v{latest} (当前 v{current})")
-    print()
-
-    # 2. 检测安装来源
-    source = _detect_install_source()
-
-    if source == "git":
-        print("🔄 检测到 Git 安装，执行 git pull...")
-        # 找到 git 仓库根目录
-        for path in sys.path:
-            p = Path(path)
-            git_dir = None
-            if (p / ".git").is_dir() and (p / "storageops_cli").is_dir():
-                git_dir = p
-            elif (p / "storageops_cli" / "__init__.py").exists():
-                parent = (p / "storageops_cli").parent
-                if (parent / ".git").is_dir():
-                    git_dir = parent
-            if git_dir:
-                try:
-                    r = subprocess.run(
-                        ["git", "pull", "origin", "main"],
-                        cwd=str(git_dir), capture_output=True, text=True
-                    )
-                    if r.returncode == 0:
-                        print("  ✅ git pull 完成")
-                    else:
-                        print(f"  ⚠️  git pull 失败: {r.stderr.strip()[:200]}")
-                        print(f"  手动更新: cd {git_dir} && git pull")
-                except Exception as e:
-                    print(f"  ⚠️  执行失败: {e}")
-                break
-        else:
-            print("  ⚠️  无法定位 Git 仓库，尝试 pip 升级...")
-            source = "pip"
-
-    if source == "pip":
-        print("🔄 pip 升级 storageops...")
-        try:
-            pip_args = [sys.executable, "-m", "pip", "install", "--upgrade", "storageops"]
-            r = subprocess.run(pip_args, capture_output=True, text=True)
-            if r.returncode == 0:
-                print("  ✅ pip upgrade 完成")
-            else:
-                tail = r.stderr.strip()[-300:] if r.stderr else ""
-                print(f"  ⚠️  pip 升级失败")
-                print(f"  手动更新: pip install --upgrade storageops")
-                if tail:
-                    print(f"  详情: {tail}")
-        except Exception as e:
-            print(f"  ⚠️  执行失败: {e}")
-            print(f"  手动更新: pip install --upgrade storageops")
-
-    print()
-
-    # 3. 重新部署技能和扩展
-    print("🔄 重新部署技能和扩展...")
-    try:
-        cmd_install(force=True)
-    except Exception as e:
-        print(f"  ⚠️  部署失败: {e}")
-        print(f"  手动重装: storageops install --force")
-
-
 def cmd_help():
     """显示帮助."""
     print("🧰 StorageOps — S3 兼容对象存储 AI 诊断工具")
@@ -534,9 +387,6 @@ def cmd_help():
     print("    storageops install                 独立安装（默认）")
     print("    storageops install --merge         合并到已有 Pi 配置")
     print("    storageops install --force         强制重装")
-    print()
-    print("  更新升级:")
-    print("    storageops update                  升级 StorageOps（CLI + 技能）")
     print()
     print("  其他命令:")
     print("    storageops --version               版本与安装状态")
@@ -555,10 +405,6 @@ def main():
         force = "--force" in args or "-f" in args
         merge = "--merge" in args or "-m" in args
         cmd_install(force=force, merge=merge)
-        return
-
-    if len(args) >= 1 and args[0] == "update":
-        cmd_update()
         return
 
     if len(args) >= 1 and args[0] in ("--version", "-V"):

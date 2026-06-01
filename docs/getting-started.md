@@ -38,14 +38,6 @@ storageops
 storageops --print 's5cmd sync 报了大量 429 SlowDown，帮我分析原因'
 ```
 
-## 4. 保持更新
-
-```bash
-storageops update
-```
-
-> 此命令会自动检测安装来源（Git/pip），拉取最新版本，然后重新部署技能包和扩展。
-
 ## 4. 分析日志
 
 ```bash

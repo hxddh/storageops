@@ -53,16 +53,6 @@ storageops --print 's5cmd sync 报 429 SlowDown 错误，快速诊断'
 storageops --print @/path/to/rclone-debug.log '这个 rclone 日志分析一下'
 ```
 
-### 4. 更新升级
-
-保持 StorageOps 为最新版本（CLI + 技能包 + 扩展全部更新）：
-
-```bash
-storageops update
-```
-
-> `storageops update` 会自动检测安装来源（Git 或 pip），拉取最新代码/包，然后重新部署技能和扩展。已在云主机或本地环境长期运行？定期执行此命令即可。
-
 ## 支持的诊断场景
 
 | 技能包 | 领域 |
