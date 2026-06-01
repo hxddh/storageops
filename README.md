@@ -156,13 +156,21 @@ Requires: `pip install "storageops[api]"` (FastAPI + uvicorn).
 
 ---
 
-## For AI agents (MCP / programmatic)
+## For AI agents
+
+### Pi Coding Agent (built-in)
+
+StorageOps registers all 21 tools in Pi via a TypeScript Extension auto-discovered from
+`.pi/extensions/storageops.ts`. No extra setup needed — tools are available as soon as Pi
+starts in the project directory.
+
+### Claude Desktop (MCP)
 
 ```bash
 storageops mcp     # start MCP stdio server
 ```
 
-**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+**Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -174,7 +182,7 @@ storageops mcp     # start MCP stdio server
 }
 ```
 
-**21 registered tools:**
+**21 registered tools** (available to both Pi Extension and MCP):
 
 | Tool | Description |
 |---|---|

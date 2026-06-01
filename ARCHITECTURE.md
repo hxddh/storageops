@@ -9,23 +9,27 @@ and a CLI/runtime layer (`storageops-cli`) that bridges the engine with Pi Codin
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                   User / CI / Claude Desktop / AI Agents                 │
 └───────────┬───────────────────────────┬─────────────────────────────────┘
-            │ storageops triage/analyze  │ storageops (REPL/diagnose) / MCP
+            │ storageops triage/analyze  │ storageops (REPL/diagnose)
             ▼                           ▼
 ┌───────────────────────────┐   ┌──────────────────────────────────────────┐
 │   storageops-cli          │   │          Pi Coding Agent (external)      │
 │                           │   │                                          │
 │  cli.py                   │   │  - Owns LLM provider, model registry     │
 │  repl.py                  │   │  - Owns ReAct loop, streaming            │
-│  session.py               │◄──│  - Calls storageops tools via MCP/CLI    │
-│  agent.py                 │   │  - Loads StorageOps skills               │
-│  tool_registry.py         │   │                                          │
-│  api_server.py (opt)      │   └──────────────────────────────────────────┘
-│  mcp_server.py (opt)      │
-│  memory_store.py          │
-│  audit_logger.py          │
-│  config.py                │
-│  runtime/pi_rpc.py        │
-└───────────┬───────────────┘
+│  session.py               │◄──│  - Calls tools via .pi/extensions/       │
+│  agent.py                 │   │    storageops.ts (Pi Extension)          │
+│  tool_registry.py         │   │  - Loads StorageOps skills               │
+│  api_server.py (opt)      │   │                                          │
+│  mcp_server.py (opt)      │   └──────────────────────────────────────────┘
+│  memory_store.py          │              │
+│  audit_logger.py          │              │ tool call
+│  config.py                │              ▼
+│  runtime/pi_rpc.py        │   ┌──────────────────────────────────────────┐
+│  runtime/tool_bridge.py   │◄──│  .pi/extensions/storageops.ts            │
+└───────────┬───────────────┘   │  (TypeScript, auto-discovered by Pi)     │
+            │                   │  pi.registerTool() × 21                  │
+            │                   │  → spawnSync python3 tool_bridge.py      │
+            │                   └──────────────────────────────────────────┘
             │  sys.path bridge (storageops/__init__.py)
             ▼
 ┌───────────────────────────────────────────────────────────────────────┐
@@ -86,19 +90,20 @@ adds the relevant `storageops-core` subdirectories to `sys.path` at import time.
 | `session.py` | Session persistence: save/load/list sessions in `~/.storageops/sessions/` |
 | `agent.py` | Domain classification, evidence assessment, analysis routing, report generation |
 | `config.py` | Read/write `~/.storageops/config.json` (api_key, provider) |
-| `tool_registry.py` | Declares tools (name + schema) for Pi/MCP; dispatches calls to core |
+| `tool_registry.py` | Declares tools (name + schema) for MCP and HTTP API; `dispatch_tool()` routes to core |
 | `api_server.py` | FastAPI: REST endpoints + SSE streaming for the web UI |
-| `mcp_server.py` | MCP stdio server wrapping the tool registry |
+| `mcp_server.py` | MCP stdio server for Claude Desktop and other MCP clients (independent of Pi) |
 | `memory_store.py` | BM25 case memory (JSONL, zero deps): save/search/export/import |
 | `audit_logger.py` | Append-only JSONL audit log of Pi sessions |
-| `runtime/pi_rpc.py` | Start Pi in `--mode rpc`, send JSONL request, collect events, validate report |
+| `runtime/pi_rpc.py` | Start Pi in `--mode rpc`, send `prompt` command via JSONL, collect events until `agent_end`, validate report |
+| `runtime/tool_bridge.py` | Subprocess entry point called by the Pi Extension; reads `{tool, inputs}` from stdin, calls `dispatch_tool()`, writes JSON result to stdout |
 
 ### `agents/skills/` — Pi Skill Pack
 
 StorageOps skill definitions (v2 contract) that Pi loads. Each skill provides domain-specific
 diagnostic workflows, evidence checklists, recommended tool calls, and safety constraints.
 
-Skills instruct Pi on *how* to diagnose; `storageops-core` provides the *tools* Pi calls.
+Skills instruct Pi on *how* to diagnose; `.pi/extensions/storageops.ts` provides the *tools* Pi calls natively.
 
 **Skills v2 contract** — every skill has:
 - Frontmatter: `maturity`, `mode`, `estimated_tokens`, `trigger_keywords`, `recommended_tools`
@@ -126,17 +131,17 @@ auto_detect(text)              ← rule-based domain classification (signatures.
 memory.search()                ← BM25 prior case lookup (optional hint to Pi)
     │
     ▼
-pi --mode rpc                  ← JSONL RPC: send request, stream events
-    │  Pi calls tools via MCP / CLI:
-    │  - scan_secrets(text)
-    │  - parse_rclone_log(log_text)
-    │  - parse_httpmon_log(log_text)
-    │  - analyze_policy(...)
-    │  - search_memory(query)
-    │  - ... (21 registered tools)
+pi --mode rpc                  ← JSONL RPC stdin/stdout (bidirectional, stdin stays open)
+    │  {"type":"prompt","message":"..."}
+    │
+    │  Pi calls tools natively via .pi/extensions/storageops.ts:
+    │  - scan_secrets        parse_rclone_log     analyze_policy
+    │  - parse_awscli_debug  parse_sigv4_error    analyze_cost
+    │  - detect_throttling   analyze_throughput   search_memory
+    │  - ... (21 tools total, each → python3 tool_bridge.py)
     │
     ▼
-final_report event             ← markdown with YAML frontmatter
+agent_end event                ← {messages: [{role:"assistant", content:[{type:"text",...}]}]}
     │
     ▼
 validate_agent_report()        ← check frontmatter, evidence section, safety
@@ -181,7 +186,8 @@ evidence.log → parse_*()     → structured dict
 ```
 storageops-core  ──has no deps──►  (zero imports from storageops-cli or agents/)
 storageops-cli   ──imports──►  storageops-core (via sys.path bridge)
-agents/skills    ──calls──►  storageops-cli tools (via Pi tool dispatch)
+agents/skills    ──loaded by──►  Pi (workflow guidance only; tools registered separately)
+.pi/extensions   ──calls──►  storageops-cli (via tool_bridge.py subprocess)
 ```
 
 **storageops-core must never import from storageops-cli.** This ensures core parsers and
@@ -192,9 +198,15 @@ analyzers can be used standalone, called from Pi directly, or tested without the
 ## Key Design Decisions
 
 **Flat module imports in storageops-core**: parsers and analyzers use `from parse_rclone_log import parse`
-rather than `from storageops_core.parsers.parse_rclone_log import parse`. This allows Pi to
-call individual parser scripts directly via its tool interface without installing the package.
-The CLI bridges this with a `sys.path` injection in `storageops/__init__.py`.
+rather than `from storageops_core.parsers.parse_rclone_log import parse`. The CLI bridges this
+with a `sys.path` injection in `storageops/__init__.py`; `tool_bridge.py` sets up the same paths
+for standalone invocation from the Pi Extension.
+
+**Pi Extension as the tool bridge**: Pi does not support MCP as a client ("No MCP" — pi.dev/docs).
+Tools are registered via a TypeScript Pi Extension (`.pi/extensions/storageops.ts`) using
+`pi.registerTool()`. Each tool call spawns `python3 tool_bridge.py` as a subprocess, which
+calls `dispatch_tool()` and returns the JSON result. This is the only supported way to give
+Pi access to StorageOps diagnostic functions.
 
 **Pi owns the agent loop**: StorageOps does not implement a ReAct loop, model registry, or
 token streaming. Pi Coding Agent handles all of that. StorageOps sends Pi a redacted evidence
