@@ -46,7 +46,7 @@ storageops install [--merge] [--force]
 | 方式 | 命令 | 说明 |
 |------|------|------|
 | A. 环境变量 | `export DEEPSEEK_API_KEY=sk-xxx` | 推荐，一劳永逸 |
-| B. 本地文件 | `echo sk-xxx > ~/.storageops/agent/api-key` | 不受 shell 影响 |
+| B. 本地文件 | `echo sk-xxx > ~/.storageops/agent/api-key && chmod 600 ~/.storageops/agent/api-key` | 不受 shell 影响，建议仅当前用户可读 |
 | C. 命令行 | `storageops --api-key sk-xxx ...` | 每次传入 |
 | D. Pi 内登录 | `storageops` → `/login` | Pi 原生 |
 
@@ -54,7 +54,7 @@ storageops install [--merge] [--force]
 
 ```
 $ storageops --version
-StorageOps v0.4.0  (pi: 0.78.0)
+StorageOps v0.4.1  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```

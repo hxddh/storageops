@@ -7,7 +7,7 @@
                     (入口: 分类 + 证据评估 + 路由)
                     /      |      |     |     \
                    /       |      |     |      \
-    s3-protocol  cli-sdk  perf   mount  network  security  lifecycle  replication
+    s3-protocol  cli-sdk  perf   mount  network  security  lifecycle  replication  access-log
         |          |       |      |      |         |         |          |
         └──────────┴───────┴──────┴──────┴─────────┴─────────┴──────────┘
                                     |
@@ -23,6 +23,7 @@
 | Skill | 依赖 | 被依赖 |
 |-------|------|--------|
 | **triage** | (所有 — 入口) | 所有 specialist skills |
+| **access-log-analysis** | provider log formats, anomaly thresholds, cost attribution | security (403 spikes), performance (503/SlowDown), lifecycle-cost |
 | **s3-protocol-compatibility** | provider-quirks (BOS/OSS/COS/MinIO), sigv4.md, cors.md | cli-sdk, security, replication |
 | **cli-sdk-diagnosis** | s3-protocol (ETag/sig errors), rclone.md, awscli.md, s5cmd.md, ... | (triage routes tool errors here) |
 | **performance-diagnosis** | network (RTT baseline), throughput-model.md, throttling.md | mount (metadata amplification) |
@@ -61,3 +62,6 @@
 | lifecycle-cost | → performance-diagnosis | High request cost from metadata storms |
 | mount-filesystem-workspace | → performance-diagnosis | Quantify metadata amplification |
 | network-endpoint-access | → s3-protocol-compatibility | TLS error with provider-specific cert |
+| access-log-analysis | → security-iam-policy | AccessDenied/403 spike tied to requester/policy |
+| access-log-analysis | → performance-diagnosis | 503/SlowDown spike or hot-prefix pattern in logs |
+| access-log-analysis | → lifecycle-cost | Request/cost attribution anomaly |

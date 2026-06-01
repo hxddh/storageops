@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-01 — Review fixes: merge skills path, memory search, skill registry sync
+
+- **Merge install fix**: copy skills to the directory referenced by each target agent's `../skills` setting, so `storageops install --merge` uses `~/.pi/skills`.
+- **Session memory fix**: `search_memory` now resolves sessions from `PI_CODING_AGENT_DIR` before falling back to `~/.pi/agent`.
+- **Skill registry sync**: added `storageops-access-log-analysis` to registry and routing docs; updated skill-pack counts from 15 to 16.
+- **Robustness**: pi version detection now extracts semver from prefixed version output; auth env injection accepts provider keys that do not start with `sk-`.
+
 ## 2026-06-01 — Smart install, PI_CODING_AGENT_DIR fix, api-key persistence
 
 - **PI_CODING_AGENT_DIR fix**: Pi 0.78.0 uses `PI_CODING_AGENT_DIR` to resolve agent config, not `PI_HOME`. Directory restructured to `~/.storageops/agent/`.
