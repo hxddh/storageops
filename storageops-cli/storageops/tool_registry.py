@@ -579,9 +579,14 @@ def dispatch_tool(name: str, inputs: dict) -> dict:
         elif name == "search_memory":
             from storageops.memory_store import search_cases
             query = inputs.get("query", "")
+            if not query or not isinstance(query, str):
+                return {"results": [], "count": 0, "query": str(query)}
             domain_filter = inputs.get("domain")
             top_k = min(int(inputs.get("top_k", 3)), 5)
-            results = search_cases(query, domain=domain_filter, top_k=top_k)
+            try:
+                results = search_cases(query, domain=domain_filter, top_k=top_k)
+            except Exception:
+                results = []
             return {"results": results, "count": len(results), "query": query}
 
         elif name == "parse_s5cmd_log":

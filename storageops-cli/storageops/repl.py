@@ -312,6 +312,8 @@ class _StreamDisplay:
         self._header_printed = False
         self._tool_count = 0
         self._t_start: float | None = None
+        self._think_printed_len = 0  # track cumulative delta position to avoid dupes
+        self._report_printed_len = 0  # track cumulative report output position
 
     def _emit_think_line(self, text: str) -> None:
         """Print one line of thinking output (only first 2 lines, rest suppressed)."""
@@ -323,6 +325,17 @@ class _StreamDisplay:
         if self._thinking_lines < 2:
             print(f"     {_c(text[:120], 'dim')}")
         self._thinking_lines += 1
+
+    def _smart_think_suffix(self, delta: str) -> str:
+        """Pi sends cumulative thinking text — deduplicate against what we already printed."""
+        if len(delta) > self._think_printed_len and delta[:self._think_printed_len] == self._think_buf[:self._think_printed_len]:
+            # Cumulative delta — skip already-printed prefix
+            suffix = delta[self._think_printed_len:]
+        else:
+            suffix = delta
+        self._think_buf = delta
+        self._think_printed_len = len(delta)
+        return suffix
 
     def _flush_think_buf(self) -> None:
         """Flush any remaining thinking buffer as a line."""
@@ -361,9 +374,11 @@ class _StreamDisplay:
                 self._flush_think_buf()
                 # Find YAML start position within delta
                 yaml_idx = delta.find("---")
-                # Print anything before YAML as thinking
-                if yaml_idx > 0:
-                    self._emit_think_line(delta[:yaml_idx].strip())
+                # Print anything before YAML as thinking (use suffix to avoid dupes)
+                pre_yaml = delta[:yaml_idx].strip()
+                pre_suffix = self._smart_think_suffix(pre_yaml) if pre_yaml else ""
+                if pre_suffix:
+                    self._emit_think_line(pre_suffix)
                 # Enter report phase
                 if self._thinking_lines > 0 and self._thinking_header_shown:
                     print()
@@ -389,21 +404,24 @@ class _StreamDisplay:
                 return
 
             if self._report_started:
-                # Stream report body
-                print(delta, end="", flush=True)
+                # Pi sends cumulative deltas — only print new suffix
+                if len(delta) > self._report_printed_len:
+                    suffix = delta[self._report_printed_len:]
+                    print(suffix, end="", flush=True)
+                    self._report_printed_len = len(delta)
                 return
 
-            # Thinking phase: aggregate tiny deltas into full lines before printing
-            self._think_buf += delta
-            # Only print when we have a complete line or substantial content
-            lines = self._think_buf.split("\n")
+            # Thinking phase: aggregate tiny deltas into full lines before printing.
+            # Pi sends cumulative deltas — deduplicate via _smart_think_suffix.
+            suffix = self._smart_think_suffix(delta)
+            if not suffix:
+                return
+            lines = suffix.split("\n")
             for l in lines[:-1]:  # complete lines
                 self._emit_think_line(l.strip())
-            self._think_buf = lines[-1]  # keep incomplete last line
-            # Also flush if buffer has substantial content but no newline yet
-            if len(self._think_buf) > 80:
-                self._emit_think_line(self._think_buf.strip())
-                self._think_buf = ""
+            # Also flush if suffix has substantial content but no newline yet
+            if not suffix.endswith("\n") and len(suffix) > 80:
+                self._emit_think_line(suffix.strip())
             return
 
         # ── Tool calls (Pi uses tool_execution_start/tool_execution_end) ──

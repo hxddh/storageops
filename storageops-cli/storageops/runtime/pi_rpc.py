@@ -80,22 +80,28 @@ def redact_for_pi(text: str) -> tuple[str, int]:
     return redacted, int(result.get("count", 0)) + extra_count
 
 
-def _load_prompt_template() -> str:
-    return (Path(__file__).resolve().parents[1] / "prompts" / "pi_diagnosis_prompt.md").read_text(
-        encoding="utf-8"
-    )
+def _load_prompt_template(mode: str = "diagnose") -> str:
+    """Load the prompt template for the given mode."""
+    prompt_dir = Path(__file__).resolve().parents[1] / "prompts"
+    if mode == "chat":
+        path = prompt_dir / "pi_chat_prompt.md"
+    else:
+        path = prompt_dir / "pi_diagnosis_prompt.md"
+    return path.read_text(encoding="utf-8")
 
 
 def build_pi_prompt(
-    *, evidence_file: Path, original_filename: str, redaction_count: int, max_turns: int
+    *, evidence_file: Path, original_filename: str, redaction_count: int, max_turns: int,
+    user_message: str = "", mode: str = "diagnose"
 ) -> str:
     """Build the StorageOps prompt sent to Pi. It contains no raw evidence content."""
-    prompt = _load_prompt_template()
+    prompt = _load_prompt_template(mode)
     replacements = {
         "{{ evidence_file }}": str(evidence_file),
         "{{ original_filename }}": original_filename,
         "{{ redaction_count }}": str(redaction_count),
         "{{ max_turns }}": str(max_turns),
+        "{{ user_message }}": user_message,
     }
     for key, value in replacements.items():
         prompt = prompt.replace(key, value)
@@ -269,14 +275,14 @@ def _synthesise_yaml(raw: str) -> str | None:
     )
 
 
-def reconstruct_report_from_events(events: list[dict[str, Any]]) -> str:
+def reconstruct_report_from_events(events: list[dict[str, Any]], mode: str = "diagnose") -> str:
     """Extract final markdown report from Pi RPC JSONL event stream.
 
     Prefers the assistant text in the agent_end messages list.
     Falls back to concatenating text_delta chunks from message_update events.
 
-    Also strips leading non-YAML prose (some models preface the report with
-    conversational text) and unwraps code-fenced YAML frontmatter.
+    For diagnose mode: strips leading non-YAML prose and unwraps code-fenced YAML.
+    For chat mode: returns the raw assistant response as-is.
     """
     # Primary: extract from agent_end.messages (most reliable)
     raw = ""
@@ -307,10 +313,26 @@ def reconstruct_report_from_events(events: list[dict[str, Any]]) -> str:
                         chunks.append(delta)
         raw = "".join(chunks)
 
-    # Normalise: skip leading prose before YAML frontmatter (some models
-    # like DeepSeek output conversational preamble before the structured report).
-    # Also unwrap code-fenced YAML (```yaml / ``` fences).
+    # Normalise: for diagnose mode, skip leading prose before YAML frontmatter
+    # and unwrap code-fenced YAML. Chat mode returns raw text as-is.
+    if mode == "chat":
+        return raw
     return _normalise_report(raw)
+
+
+def _is_chat_message(text: str) -> bool:
+    """Detect if the user input is a casual chat message (greeting, question) rather than diagnostic evidence."""
+    text = text.strip()
+    if not text:
+        return True
+    if len(text) < 80 and not any(kw in text.lower() for kw in (
+        "error", "fail", "403", "404", "429", "500", "denied", "timeout",
+        "stack", "trace", "exception", "<error>", "fatal", "panic",
+        "xml", "json", "<?xml", "http", "dig ", "curl", "ping",
+        "latency", "throughput", "throttl", "slowdown", "slow down",
+    )):
+        return True
+    return False
 
 
 class PiRpcRuntime:
@@ -339,11 +361,17 @@ class PiRpcRuntime:
         with tempfile.TemporaryDirectory(prefix="storageops-pi-") as tmpdir:
             evidence_path = Path(tmpdir) / "redacted-evidence.txt"
             evidence_path.write_text(redacted_text, encoding="utf-8")
+
+            # Detect chat vs diagnostic mode
+            mode = "chat" if _is_chat_message(raw_text) else "diagnose"
+            user_msg = redacted_text[:500]  # truncate for chat prompt
             prompt = build_pi_prompt(
                 evidence_file=evidence_path,
                 original_filename=input_path.name,
                 redaction_count=redaction_count,
                 max_turns=self.options.max_turns,
+                user_message=user_msg,
+                mode=mode,
             )
             prompt = redact_for_pi(prompt)[0]
 
@@ -357,7 +385,7 @@ class PiRpcRuntime:
                 })
             commands.append({"type": "prompt", "message": prompt})
 
-            result = self._run_rpc(commands, session_id)
+            result = self._run_rpc(commands, session_id, mode=mode)
             log_pi_result(
                 session_id,
                 ok=result.ok,
@@ -371,6 +399,9 @@ class PiRpcRuntime:
     # Default models per provider when no explicit --model is set.
     _DEFAULT_MODELS: dict[str, str] = {
         "deepseek": "deepseek/deepseek-v4-flash:off",
+        "openai": "openai/gpt-4o-mini",
+        "anthropic": "anthropic/claude-sonnet-4-20250514",
+        "google": "google/gemini-3-flash-preview",
     }
 
     def _command(self) -> list[str]:
@@ -402,7 +433,7 @@ class PiRpcRuntime:
             env.setdefault(env_var, api_key)
         return env
 
-    def _run_rpc(self, commands: list[dict[str, Any]], session_id: str = "") -> AgentRunResult:
+    def _run_rpc(self, commands: list[dict[str, Any]], session_id: str = "", mode: str = "diagnose") -> AgentRunResult:
         try:
             proc = subprocess.Popen(
                 self._command(),
@@ -515,7 +546,23 @@ class PiRpcRuntime:
                     err = redact_for_pi(stderr_raw or "Pi RPC failed")[0]
                     return AgentRunResult(False, self.runtime_name, raw_events=events, error=err)
 
-            report = reconstruct_report_from_events(events)
+            report = reconstruct_report_from_events(events, mode=mode)
+            # Chat mode: skip YAML normalisation and validation
+            if mode == "chat":
+                # Extract raw chat response without YAML synthesis
+                # reconstruct already returns raw text from events; use it as-is
+                result = AgentRunResult(True, self.runtime_name, raw_events=events, report_markdown=report)
+                log_pi_result(
+                    session_id,
+                    ok=True,
+                    redaction_count=0,
+                    validation_ok=True,
+                    event_count=len(events),
+                )
+                log_session_end(session_id, "success")
+                return result
+
+            # Diagnostic mode: normalise and validate
             validation = validate_agent_report(report)
             if not validation["valid"]:
                 return AgentRunResult(
