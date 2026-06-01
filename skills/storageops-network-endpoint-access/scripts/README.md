@@ -1,16 +1,22 @@
 # storageops-network-endpoint-access Scripts
 
-Future scripts for this domain (not yet implemented in v0.1):
+## `endpoint_reachability_test.py`
 
-## Planned Scripts
-
-### `endpoint_reachability_test.sh`
-Given an endpoint URL, perform a systematic reachability check:
+Given an endpoint URL, perform a systematic read-only reachability check:
 1. DNS resolution (A, AAAA, CNAME).
 2. TCP connect on port 443.
 3. TLS handshake and certificate validation.
 4. HTTP HEAD request.
 5. Report pass/fail at each layer.
+
+```bash
+./endpoint_reachability_test.py https://s3.example.com --json-out endpoint-check.json
+./endpoint_reachability_test.py bucket.s3.example.com --skip-http
+```
+
+Use only for endpoints the user is authorized to test. The script does not send credentials or mutate data.
+
+## Planned Scripts
 
 ### `rtt_analyzer.py`
 Given ping/mtr output for multiple endpoints or time periods:

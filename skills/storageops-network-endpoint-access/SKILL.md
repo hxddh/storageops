@@ -66,7 +66,7 @@ Public endpoint, VPC endpoint (gateway/interface), PrivateLink endpoint, or cust
 - Non-AWS providers may NOT support virtual-hosted style (BOS, early OSS)
 
 ### Step 3: Basic Connectivity
-What the user can test (do NOT execute, suggest commands):
+What the user can test. If the user provides an endpoint and wants an active check from this machine, use `scripts/endpoint_reachability_test.py`; otherwise suggest equivalent commands:
 ```bash
 # DNS resolution test
 nslookup <endpoint>
@@ -87,7 +87,7 @@ curl -w "DNS: %{time_namelookup}s TCP: %{time_connect}s TLS: %{time_appconnect}s
 - **Cross-cloud**: Dedicated line (ExpressRoute/FastConnect), check BGP, MTU 1500 vs 9001
 
 ### Step 6: Feedback Loop
-If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"Run `curl -w 'DNS: %{time_namelookup}s TCP: %{time_connect}s TLS: %{time_appconnect}s Total: %{time_total}s' -o /dev/null -s https://<endpoint>` and share the results."** This breaks down latency by network layer (DNS, TCP, TLS). If timeout is the issue: **"Test with `nc -zv -w 5 <endpoint> 443` to check basic TCP reachability."** If confidence < medium, go back to Step 1 and reclassify the endpoint type.
+If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"Run `curl -w 'DNS: %{time_namelookup}s TCP: %{time_connect}s TLS: %{time_appconnect}s Total: %{time_total}s' -o /dev/null -s https://<endpoint>` and share the results."** This breaks down latency by network layer (DNS, TCP, TLS). If timeout is the issue: **"Test with `nc -zv -w 5 <endpoint> 443` or `python3 scripts/endpoint_reachability_test.py https://<endpoint> --skip-http` to check basic reachability."** If confidence < medium, go back to Step 1 and reclassify the endpoint type.
 
 ## User Interaction
 
@@ -138,6 +138,7 @@ If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"
 **Recommendation**: Add S3 endpoint to `NO_PROXY`. Or configure proxy to pass-through Authorization header.
 
 ## References
+- `scripts/endpoint_reachability_test.py` — Read-only DNS/TCP/TLS/HTTP HEAD checker | **Read when:** user asks for an active endpoint check or provides a URL to test from this environment
 - `references/dns-host-header.md` — Virtual-hosted vs path-style, provider support matrix | **Read when:** user reports DNS errors, NameResolutionError, or endpoint URL construction issues
 - `references/tls-mtu-rtt.md` — TLS SNI, CA bundles, certificate validation | **Read when:** user reports TLS/SSL/certificate errors
 - `references/private-access.md` — VPC endpoint configuration and troubleshooting | **Read when:** user mentions VPC endpoints, private subnets, or PrivateLink
