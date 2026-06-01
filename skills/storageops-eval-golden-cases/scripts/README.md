@@ -31,6 +31,14 @@ Compare one diagnostic output against one golden case. The runner checks require
 ./eval_runner.py --case ../cases/workspace-mount-slow-git/ --output diagnosis.md
 ```
 
+## `eval_all.py`
+Evaluate a directory of saved diagnostic outputs against many golden cases. It expects output files named `<case>.md` by default and emits a deterministic JSON summary with counts and per-category status.
+
+```bash
+./eval_all.py --cases ../cases --outputs ./diagnoses --json-out eval-current.json
+./eval_all.py --cases ../cases/routing-cors-preflight --outputs ./diagnoses --quiet
+```
+
 ## `regression_reporter.py`
 Compare two JSON result files and report cases that moved from PASS → SOFT_FAIL/HARD_FAIL or disappeared.
 

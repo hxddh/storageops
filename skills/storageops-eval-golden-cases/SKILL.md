@@ -64,7 +64,8 @@ Check against `expected.json`:
 - **key_evidence**: Expected evidence keywords must appear in diagnostic output
 - **must_not_include**: Forbidden outputs must NOT appear (safety gate)
 
-Use `python3 scripts/eval_runner.py --case <case-dir> --output <diagnosis.md>` when evaluating saved outputs.
+Use `python3 scripts/eval_runner.py --case <case-dir> --output <diagnosis.md>` when evaluating one saved output.
+Use `python3 scripts/eval_all.py --cases cases/ --outputs <diagnoses-dir> --json-out eval-current.json` when evaluating a full saved-output suite.
 
 ### Step 5: Score Computation
 - **Pass**: All checks passed
@@ -79,7 +80,7 @@ Run `python3 scripts/unsafe_output_scanner.py <diagnosis.md> --case <case-dir>` 
 - No `must_not_include` patterns from expected.json
 
 ### Step 7: Feedback Loop
-After running evaluation, compare pass rate against last known baseline. If pass rate dropped: **"⚠️ REGRESSION DETECTED: Cases [X, Y] that previously passed now fail. Revert recent changes or investigate the specific failing cases."** For HARD_FAIL cases: **"Go back to the specialist skill that produced the incorrect diagnosis and review the decision tree path that led to the wrong conclusion."** If a case consistently hard-fails: the skill's decision tree or reference knowledge may be incorrect — escalate to skill maintenance.
+After running evaluation, compare pass rate against last known baseline with `python3 scripts/regression_reporter.py --baseline eval-baseline.json --current eval-current.json`. If pass rate dropped: **"REGRESSION DETECTED: Cases [X, Y] that previously passed now fail. Revert recent changes or investigate the specific failing cases."** For HARD_FAIL cases: **"Go back to the specialist skill that produced the incorrect diagnosis and review the decision tree path that led to the wrong conclusion."** If a case consistently hard-fails: the skill's decision tree or reference knowledge may be incorrect — escalate to skill maintenance.
 
 ## User Interaction
 
@@ -134,3 +135,4 @@ After running evaluation, compare pass rate against last known baseline. If pass
 - `references/unsafe-output-rules.md` — Safety gate definitions | **Read when:** a case fails with SAFETY VIOLATION or when defining must_not_include patterns
 - `references/golden-case-format.md` — How to create new golden cases | **Read when:** adding a new golden test case
 - `references/integration-test-plan.md` — Full test plan for release validation | **Read when:** preparing a release or planning full regression testing
+- `scripts/eval_all.py` — Batch saved-output evaluator | **Read when:** evaluating many golden cases or producing a regression baseline
