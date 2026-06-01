@@ -53,19 +53,43 @@ _SLASH_CMD_HELP = {
     "/exit":    "Exit StorageOps",
 }
 
+_SLASH_CMD_GROUPS = [
+    ("Session",       ["/resume", "/clear", "/status"]),
+    ("Configuration", ["/config", "/setup", "/doctor", "/update"]),
+    ("Memory",        ["/memory"]),
+    ("Other",         ["/verbose", "/help", "/exit"]),
+]
+
 
 # ── Banner ────────────────────────────────────────────────────────────
 
 def _make_banner() -> str:
-    provider = ""
+    provider_str = ""
     try:
         from storageops.config import get_provider, get_api_key
         if get_api_key():
-            provider = f"  {_dim(get_provider())}"
+            provider_str = f"  {_cyan(get_provider())}"
+        else:
+            provider_str = f"  {_yellow('no api key — /setup')}"
     except Exception:
         pass
     hint = _dim("type / for commands  ·  Ctrl+C to interrupt  ·  /exit to quit")
-    return f"{_bold('StorageOps')}{provider}  ·  {hint}"
+    return f"{_bold('StorageOps')}{provider_str}  ·  {hint}"
+
+
+def _make_prompt(session_id: str) -> str:
+    """Build the input prompt line: `  session_id · provider ›  `"""
+    provider_str = ""
+    try:
+        from storageops.config import get_provider, get_api_key
+        if get_api_key():
+            provider_str = f"  {_dim(get_provider())}"
+    except Exception:
+        pass
+    sid = _dim(session_id[:8])
+    sep = _dim("·")
+    arrow = _cyan("›")
+    return f"  {sid}{provider_str}  {sep}  {arrow}  " if _IS_TTY else "> "
 
 
 # ── Live progress (spinner + tool calls) ─────────────────────────────
@@ -305,7 +329,7 @@ def _init_readline() -> None:
 
 # ── Input reading ─────────────────────────────────────────────────────
 
-def _read_input() -> str | None:
+def _read_input(prompt: str | None = None) -> str | None:
     """
     Read one logical user input.
 
@@ -318,9 +342,9 @@ def _read_input() -> str | None:
         data = sys.stdin.read()
         return data if data.strip() else None
 
-    prompt = f"{_cyan('>') if _IS_TTY else '>'} "
+    _prompt = prompt if prompt is not None else (f"{_cyan('>')} " if _IS_TTY else "> ")
     try:
-        line = input(prompt)
+        line = input(_prompt)
     except EOFError:
         return None
 
@@ -365,9 +389,13 @@ def _expand_file_refs(text: str) -> tuple[str, list[str]]:
 
 def _print_slash_menu() -> None:
     print()
-    print(f"  {_bold('Commands')}")
-    for cmd, desc in _SLASH_CMD_HELP.items():
-        print(f"  {_cyan(cmd):<22}  {_dim(desc)}")
+    for group_name, cmds in _SLASH_CMD_GROUPS:
+        print(f"  {_dim(group_name)}")
+        for cmd in cmds:
+            desc = _SLASH_CMD_HELP.get(cmd, "")
+            print(f"    {_cyan(cmd):<18}  {_dim(desc)}")
+        print()
+    print(f"  {_dim('Tip: use @/path/to/file to include a file in your message')}")
     print()
 
 
@@ -517,17 +545,14 @@ def _handle_memory(parts: list[str]) -> None:
         print(f"\n  {_dim('No cases in memory yet.')}\n")
         return
     print()
+    print(f"  {'Domain':<30} {'Root cause':<36} {'Date'}")
+    print(f"  {_dim('─' * 78)}")
     for c in cases:
-        ts      = (c.get("timestamp") or "")[:16].replace("T", " ")
-        domain  = (c.get("domain") or "unknown").replace("_", " ")
-        summary = (c.get("summary") or "")[:72]
-        rc      = c.get("root_cause_type") or ""
-        print(f"  {_cyan(domain)}  {_dim(ts)}")
-        if rc:
-            print(f"  {_dim(rc)}")
-        if summary:
-            print(f"  {_dim(summary)}")
-        print()
+        ts     = (c.get("timestamp") or "")[:10]
+        domain = (c.get("domain") or "unknown").replace("_", " ")[:28]
+        rc     = (c.get("root_cause_type") or "")[:34]
+        print(f"  {_cyan(domain):<30} {_dim(rc):<36} {_dim(ts)}")
+    print()
     print(f"  {_dim('/memory search <query> to search by keyword')}\n")
 
 
@@ -548,8 +573,8 @@ def _print_result(result, *, elapsed: float | None = None, session_id: str | Non
                 f"{_dim('to install Pi, or type')} {_bold('/setup')} {_dim('here.')}"
             )
         else:
-            print(f"  {_red('Diagnosis failed')}")
-            print(f"  {_dim(err)}")
+            print(f"  {_red('✗')}  Diagnosis failed: {_dim(err)}")
+            print(f"  {_dim('/doctor to check installation  ·  /setup to reconfigure')}")
         print()
         return
 
@@ -683,7 +708,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         session = DiagnosticSession()
         if _IS_TTY:
             print(_make_banner())
-            print(f"  {_dim('Session')}  {_bold(session.session_id)}")
+            print(f"  {_dim('Session')}  {_bold(session.session_id)}  {_dim('·  new')}")
             print()
 
     # First-run: if no API key, configure inline (like Claude Code / Pi)
@@ -694,6 +719,9 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
 
     # One-shot mode (pipe or direct argument)
     if initial_text:
+        if not _IS_INPUT_TTY and _IS_TTY:
+            lines = initial_text.count("\n") + 1
+            print(f"  {_green('✓')}  {_dim(f'Received {lines} line(s) from stdin')}")
         expanded, errs = _expand_file_refs(initial_text)
         for e in errs:
             print(e)
@@ -701,11 +729,12 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         return
 
     # Interactive loop
+    _empty_hint_shown = False
     while True:
         try:
-            text = _read_input()
+            text = _read_input(_make_prompt(session.session_id))
         except KeyboardInterrupt:
-            print(f"\n  {_dim('Interrupted. Type /exit to quit.')}\n")
+            print(f"\n  {_dim('/exit to quit')}\n")
             continue
 
         if text is None:
@@ -720,7 +749,11 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
 
         text = text.strip()
         if not text:
+            if not _empty_hint_shown and _IS_TTY:
+                print(f"  {_dim('Ask a question, or type / for commands')}")
+                _empty_hint_shown = True
             continue
+        _empty_hint_shown = False
 
         first = text.split()[0].lower()
 
@@ -747,7 +780,8 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             session.reset()
             import uuid
             session.session_id = str(uuid.uuid4())[:8]
-            print(f"\n  {_dim('New session')}  {_bold(session.session_id)}\n")
+            _empty_hint_shown = False
+            print(f"\n  {_green('✓')}  New session  {_bold(session.session_id)}\n")
 
         elif first == "/doctor":
             import argparse
@@ -782,4 +816,4 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             try:
                 _run_turn(expanded, session)
             except KeyboardInterrupt:
-                print(f"\n  {_dim('Interrupted. Type /exit to quit.')}\n")
+                print(f"\n  {_yellow('⊘')}  Stopped.  {_dim('Continue asking or type /exit to quit.')}\n")

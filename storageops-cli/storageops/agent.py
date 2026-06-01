@@ -254,24 +254,23 @@ def run_analysis(domain: str, text: str) -> dict:
 
         elif domain == 'mount_filesystem_workspace':
             from analyze_metadata_amplification import analyze as analyze_amp
-            import re as _re
-            # Extract RTT from text if present (e.g. "rtt=50ms", "latency: 80ms")
-            rtt_match = _re.search(r'rtt[= :]?\s*(\d+(?:\.\d+)?)\s*ms', text, _re.IGNORECASE)
+            # Extract RTT from text if present (e.g. "rtt=50ms", "rtt: 80ms")
+            rtt_match = re.search(r'rtt[= :]?\s*(\d+(?:\.\d+)?)\s*ms', text, re.IGNORECASE)
             rtt_ms = float(rtt_match.group(1)) if rtt_match else 50
             # Extract syscall counts if strace-style output is present
-            syscalls: dict[str, int] = {}
+            found_syscalls: dict[str, int] = {}
             for name in ('stat', 'lstat', 'open', 'read', 'write', 'readdir', 'getdents', 'rename', 'unlink', 'fsync'):
-                m = _re.search(rf'\b{name}\b.*?(\d{{3,}})', text, _re.IGNORECASE)
+                m = re.search(rf'\b{name}\b.*?(\d{{3,}})', text, re.IGNORECASE)
                 if m:
-                    syscalls[name] = int(m.group(1))
-            if not syscalls:
-                syscalls = {"stat": 10000, "open": 2000, "readdir": 200, "read": 5000}
+                    found_syscalls[name] = int(m.group(1))
+            using_defaults = not found_syscalls and not rtt_match
+            syscalls = found_syscalls or {"stat": 10000, "open": 2000, "readdir": 200, "read": 5000}
             result = analyze_amp({
                 "rtt_ms": rtt_ms,
                 "syscalls": syscalls,
-                "operation_name": "detected from input",
-                "note": "Syscall counts extracted from input text." if rtt_match or any(syscalls) else
-                        "Default estimation — provide strace output for accurate analysis.",
+                "operation_name": "detected from input" if not using_defaults else "git status (estimated)",
+                "note": "Default estimation — provide strace output for accurate analysis." if using_defaults else
+                        "Values extracted from input text.",
             })
 
         elif domain == 'security_iam_policy':
