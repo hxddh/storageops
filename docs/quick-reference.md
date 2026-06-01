@@ -7,6 +7,16 @@ pip install storageops
 storageops install
 ```
 
+## 配置 API Key
+
+```bash
+# 方式A：环境变量（推荐）
+export DEEPSEEK_API_KEY=sk-xxx
+
+# 方式B：本地文件（不受 shell 影响）
+echo sk-xxx > ~/.storageops/agent/api-key
+```
+
 ## 常用命令
 
 ```bash
@@ -42,23 +52,15 @@ storageops -r                 # 选择历史会话
 ## 目录结构
 
 ```
-~/.storageops/                ← 独立安装
-├── .pi/settings.json
-├── agent/extensions/storageops.ts
+~/.storageops/                    ← 独立安装
+├── agent/                        ← PI_CODING_AGENT_DIR
+│   ├── settings.json
+│   ├── api-key                   ← 可选，本地持久化 key
+│   └── extensions/storageops.ts
 └── skills/ (15个)
 
-~/.pi/                        ← 合并安装（覆盖已有 Pi 目录）
-├── settings.json              ← 自动合并，原文件备份
-├── agent/extensions/storageops.ts
-└── skills/ (15个)
+~/.pi/agent/                      ← 合并安装
+├── settings.json                 ← 自动合并，原文件备份
+├── extensions/storageops.ts
+└── sessions/
 ```
-
-## API Key 配置
-
-```bash
-export ANTHROPIC_API_KEY=sk-xxx   # 环境变量（推荐）
-export DEEPSEEK_API_KEY=sk-xxx
-export OPENAI_API_KEY=sk-xxx
-```
-
-或每次运行时传入 `--api-key sk-xxx --provider deepseek`。

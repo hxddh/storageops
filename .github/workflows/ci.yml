@@ -46,19 +46,19 @@ jobs:
       - name: Validate extension
         run: |
           echo "=== Checking extension file ==="
-          if [ ! -f .pi/extensions/storageops.ts ]; then
-            echo "ERROR: Extension file not found"
+          if [ ! -f storageops_cli/extensions/storageops.ts ]; then
+            echo "ERROR: Extension file not found at storageops_cli/extensions/storageops.ts"
             exit 1
           fi
-          if ! grep -q "scan_secrets" .pi/extensions/storageops.ts; then
+          if ! grep -q "scan_secrets" storageops_cli/extensions/storageops.ts; then
             echo "ERROR: scan_secrets tool not found in extension"
             exit 1
           fi
-          if ! grep -q "detect_domain" .pi/extensions/storageops.ts; then
+          if ! grep -q "detect_domain" storageops_cli/extensions/storageops.ts; then
             echo "ERROR: detect_domain tool not found in extension"
             exit 1
           fi
-          if ! grep -q "search_memory" .pi/extensions/storageops.ts; then
+          if ! grep -q "search_memory" storageops_cli/extensions/storageops.ts; then
             echo "ERROR: search_memory tool not found in extension"
             exit 1
           fi

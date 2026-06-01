@@ -35,17 +35,28 @@ storageops install [--merge] [--force]
 | `--force`, `-f` | 强制重装 |
 
 检测逻辑：
-- 如果 `~/.pi/settings.json` 不存在 → 静默独立安装
+- 如果 `~/.pi/agent/settings.json` 不存在 → 静默独立安装
 - 如果存在 → 提示用户选择模式
 - pi 版本 < 0.78.0 → 警告 + 升级建议
+
+## API Key 配置
+
+四种方式，任选其一：
+
+| 方式 | 命令 | 说明 |
+|------|------|------|
+| A. 环境变量 | `export DEEPSEEK_API_KEY=sk-xxx` | 推荐，一劳永逸 |
+| B. 本地文件 | `echo sk-xxx > ~/.storageops/agent/api-key` | 不受 shell 影响 |
+| C. 命令行 | `storageops --api-key sk-xxx ...` | 每次传入 |
+| D. Pi 内登录 | `storageops` → `/login` | Pi 原生 |
 
 ## storageops --version / -V
 
 ```
 $ storageops --version
 StorageOps v0.4.0  (pi: 0.78.0)
-  独立安装: 是  (~/.storageops)
-  合并安装: 否  (~/.pi)
+  独立安装: 是  (~/.storageops/agent)
+  合并安装: 否  (~/.pi/agent)
 ```
 
 ## storageops --help / -h

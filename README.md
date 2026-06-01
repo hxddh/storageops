@@ -33,7 +33,11 @@ storageops install
 ### 2. 配置 API Key
 
 ```bash
-export ANTHROPIC_API_KEY=sk-xxx
+# 方式A：环境变量
+export DEEPSEEK_API_KEY=sk-xxx
+
+# 方式B：本地文件（不受 shell 影响）
+echo sk-xxx > ~/.storageops/agent/api-key
 ```
 
 ### 3. 诊断
@@ -102,15 +106,23 @@ storageops install --force
 ## 架构
 
 ```
-User → storageops CLI (25 行)
-         └→ pi (Pi Coding Agent, 原生)
-               ├→ storageops.ts (3 inline TypeScript 扩展工具)
-               └→ skills/*.SKILL.md (15 个诊断技能包)
+~/.storageops/agent/           ← Pi 配置目录 (PI_CODING_AGENT_DIR)
+├── settings.json              ← skills + provider/model 配置
+├── api-key                    ← 可选：持久化 API key
+├── extensions/
+│   └── storageops.ts          ← 3 inline TypeScript 工具
+└── sessions/                  ← Pi 管理的诊断记录
+
+~/.storageops/skills/           ← 15 个诊断技能包
+├── storageops-triage/
+├── storageops-security-iam-policy/
+└── ...
 ```
 
-- **零 Python agent 代码** — 所有 agent loop / session / tool dispatch 由 Pi 原生处理
+- **零 Python agent 代码** — agent loop / session / tool dispatch 由 Pi 原生处理
 - **零子进程** — 工具在 Pi TypeScript 运行时内联执行
-- **零配置** — `storageops install` 一键完成
+- **两行安装** — `pip install` + `storageops install`
+- **API key 持久化** — 写入 `~/.storageops/agent/api-key`，不受 shell 启动文件影响
 
 ## 开发
 

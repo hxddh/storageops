@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-06-01 — Smart install, PI_CODING_AGENT_DIR fix, api-key persistence
+
+- **PI_CODING_AGENT_DIR fix**: Pi 0.78.0 uses `PI_CODING_AGENT_DIR` to resolve agent config, not `PI_HOME`. Directory restructured to `~/.storageops/agent/`.
+- **API key persistence**: Added `~/.storageops/agent/api-key` plain-text file support. `_inject_auth_env()` reads it before launching Pi — completely shell-independent, works regardless of `.bashrc`/`.profile` sourcing.
+- **Smart install detection**: `storageops install` detects existing Pi config (`~/.pi/`) and offers interactive choice: isolated (`~/.storageops/`) or merged (`~/.pi/`).
+- **Pi version guard**: Warns if pi < 0.78.0 (Extension API requirement).
+- **Extension moved**: `storageops_cli/extensions/storageops.ts` — removed from `.pi/extensions/` to avoid Pi auto-discovery conflicts.
+- **Improved install guidance**: Three API key configuration methods shown at install completion.
+
 ## v0.4.0 — 2026-06-01: Lightweight Pi Extension Redesign
 
 **Zero Python agent code** — the entire 48-file Python agent package has been deleted.

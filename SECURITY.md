@@ -4,7 +4,7 @@
 
 StorageOps is a Pi Coding Agent extension + skill pack. It contains **zero Python agent code** — no subprocess execution, no shell access, no network calls from StorageOps code.
 
-- **Extension** (`.pi/extensions/storageops.ts`): 3 inline TypeScript tools — `scan_secrets`, `detect_domain`, `search_memory`
+- **Extension** (`storageops_cli/extensions/storageops.ts`): 3 inline TypeScript tools — `scan_secrets`, `detect_domain`, `search_memory`
 - **Skills** (`skills/`): 15 markdown files with YAML frontmatter — pure instructions, no code execution
 
 All tool execution happens in Pi's sandboxed TypeScript runtime.
@@ -39,7 +39,7 @@ All findings are redacted to `[REDACTED]` before text is passed to the LLM or st
 
 ## Audit Trail
 
-Pi Coding Agent maintains an append-only JSONL audit log at `~/.pi/agent/sessions/`. Each session entry records:
+Pi Coding Agent maintains an append-only JSONL audit log at the configured agent directory (e.g., `~/.storageops/agent/sessions/` or `~/.pi/agent/sessions/`). Each session entry records:
 - Session ID and timestamps
 - User and assistant messages
 - Tool calls (name, input, output)

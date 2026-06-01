@@ -20,7 +20,7 @@ StorageOps is a **Pi Coding Agent extension + skill pack**.
 ```
 User: storageops "question"
   → storageops_cli/__init__.py:main()
-    → sets PI_HOME=~/.storageops
+    → sets PI_CODING_AGENT_DIR to ~/.storageops/agent
     → exec's pi with all args forwarded
 
 Pi (runtime):
@@ -32,7 +32,7 @@ Pi (runtime):
 ## Key Design Decisions
 
 1. **Zero Python agent code** — Pi handles agent loop / session / tool dispatch
-2. **Tools in TypeScript** — `storageops.ts` has `scan_secrets`, `detect_domain`, `search_memory` — no spawn, no subprocess
+2. **Tools in TypeScript** — `storageops.ts` has `scan_secrets`, `detect_domain`, `search_memory` — inline, no subprocess
 3. **Skills are markdown** — Each `SKILL.md` has YAML frontmatter + phased diagnostic instructions
 4. **Two install modes** — Isolated (`~/.storageops/`) or merged (`~/.pi/`)
 5. **Pi version guard** — Requires ≥ 0.78.0 (Extension API)

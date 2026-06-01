@@ -14,12 +14,18 @@ storageops install
 
 ## 2. 配置 API Key
 
+任选一种方式：
+
 ```bash
-# 环境变量（推荐）
+# 方式A：环境变量（推荐）
+export DEEPSEEK_API_KEY=sk-xxx
 export ANTHROPIC_API_KEY=sk-xxx
 
-# 或在 Pi REPL 中登录
-pi /login
+# 方式B：本地文件（不受 shell 影响）
+echo sk-xxx > ~/.storageops/agent/api-key
+
+# 方式C：Pi 内登录
+storageops  → /login
 ```
 
 ## 3. 第一次诊断

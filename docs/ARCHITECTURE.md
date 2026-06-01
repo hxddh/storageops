@@ -28,7 +28,38 @@ StorageOps v0.4.0 is a **Pi Coding Agent extension + skill pack**.
 └─────────────────────────────────────────────┘
 ```
 
-## Extension (`.pi/extensions/storageops.ts`)
+## Installation Layout
+
+### Independent Mode
+
+```
+~/.storageops/
+├── agent/                        ← PI_CODING_AGENT_DIR
+│   ├── settings.json             ← Pi config (skills path, provider, model)
+│   ├── api-key                   ← Optional: persistent API key (plain text)
+│   ├── auth.json                  ← Optional: Pi-native provider credentials
+│   ├── extensions/
+│   │   └── storageops.ts         ← TypeScript extension (3 tools)
+│   └── sessions/                 ← Pi-managed session logs
+└── skills/                        ← 15 diagnostic skill packs
+    ├── storageops-triage/
+    ├── storageops-security-iam-policy/
+    └── ...
+```
+
+### Merge Mode
+
+```
+~/.pi/
+└── agent/                        ← Existing Pi config
+    ├── settings.json             ← Merged: user's + StorageOps keys
+    │   (original backed up as settings.json.storageops-backup)
+    ├── extensions/
+    │   └── storageops.ts
+    └── sessions/
+```
+
+## Extension (`storageops_cli/extensions/storageops.ts`)
 
 The extension registers 3 tools with Pi's tool system:
 
@@ -67,8 +98,7 @@ Each SKILL.md has:
 ## Session Model
 
 Sessions are managed entirely by Pi Coding Agent:
-- Append-only JSONL files stored at `~/.pi/agent/sessions/`
-- `session.replay()` for context retrieval
+- Append-only JSONL files stored at `{agent_dir}/sessions/`
 - Automatic compaction when context window is full
 - Multi-session support with resume
 
