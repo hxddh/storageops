@@ -14,7 +14,6 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Text } from "@earendil-works/pi-tui";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -247,14 +246,6 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       text: Type.String({ description: "Text to scan for secrets" }),
     }),
-    renderResult(result, { expanded }, theme, _ctx) {
-      const count = result.details?.secretCount ?? 0;
-      if (count === 0) return new Text(theme.fg("success", "✓ No secrets"), 0, 0);
-      const types: string[] = result.details?.secretTypes ?? [];
-      const head = types.slice(0, 3).join(", ");
-      const tail = types.length > 3 ? ` +${types.length - 3}` : "";
-      return new Text(theme.fg("error", `⚠ ${count} secrets: ${head}${tail}`), 0, 0);
-    },
     async execute(_toolCallId, params) {
       if (!params.text || params.text.length === 0) {
         return {
@@ -294,13 +285,6 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       text: Type.String({ description: "Evidence text to analyze (log output, error messages, user report)" }),
     }),
-    renderResult(result, { expanded }, theme, _ctx) {
-      const top = result.details?.topDomain as string | undefined;
-      const conf = result.details?.topConfidence as number | undefined;
-      if (!top || top === "unknown") return new Text(theme.fg("muted", "No domain match"), 0, 0);
-      const pct = Math.round((conf ?? 0) * 100);
-      return new Text(theme.fg("accent", `→ ${top} (${pct}%)`), 0, 0);
-    },
     async execute(_toolCallId, params) {
       if (!params.text || params.text.length === 0) {
         return {
@@ -362,14 +346,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  // ── Status bar: show tool activity in footer ──
-  const SLOT = "sops";
-  const TOOL_LABELS: Record<string, string> = {
-    scan_secrets: "Scanning secrets",
-    detect_domain: "Detecting domain",
-    search_memory: "Searching memory",
-  };
-
+  // ── Session startup: log available skills ──
   pi.on("session_start", async (_event, ctx) => {
     const skillsDir = path.resolve(__dirname, "..", "..", "skills");
     if (fs.existsSync(skillsDir)) {
@@ -377,31 +354,6 @@ export default function (pi: ExtensionAPI) {
         .filter(f => fs.statSync(path.join(skillsDir, f)).isDirectory())
         .sort();
       ctx.logger?.log(`StorageOps: ${skillNames.length} skill packs loaded (${skillNames.join(", ")})`);
-    }
-    ctx.ui.setStatus(SLOT, ctx.ui.theme.fg("dim", "StorageOps ready"));
-  });
-
-  pi.on("turn_start", async (_event, ctx) => {
-    ctx.ui.setStatus(SLOT, "");
-  });
-
-  pi.on("tool_execution_start", async (event, ctx) => {
-    const label = TOOL_LABELS[event.toolName];
-    if (label) ctx.ui.setStatus(SLOT, ctx.ui.theme.fg("accent", `▸ ${label}`));
-  });
-
-  pi.on("tool_execution_end", async (event, ctx) => {
-    const th = ctx.ui.theme;
-    if (event.toolName === "scan_secrets") {
-      const count = event.result?.details?.secretCount ?? 0;
-      ctx.ui.setStatus(SLOT, count > 0
-        ? th.fg("warning", `⚠ ${count} secrets`)
-        : th.fg("success", "✓ Clean"));
-    } else if (event.toolName === "detect_domain") {
-      const top = event.result?.details?.topDomain as string | undefined;
-      ctx.ui.setStatus(SLOT, top && top !== "unknown"
-        ? th.fg("muted", `→ ${top}`)
-        : th.fg("dim", "✓ Done"));
     }
   });
 }
