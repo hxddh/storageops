@@ -29,7 +29,7 @@ skills:
       - "storage problem"
       - "bucket issue"
     domains: [triage]
-    recommended_tools: [scan_secrets, search_memory]
+    recommended_tools: [scan_secrets, parse_httpmon_log, search_memory]
     routes_to:
       - storageops-s3-protocol-compatibility
       - storageops-cli-sdk-diagnosis
@@ -115,7 +115,7 @@ skills:
       - "S3 compatible"
       - "S3 protocol"
     domains: [s3_protocol_compatibility, sigv4, list_objects, multipart_upload, checksum_etag]
-    recommended_tools: [parse_sigv4_error, parse_awscli_debug, scan_secrets]
+    recommended_tools: [parse_sigv4_error, parse_awscli_debug, parse_cors_error, analyze_cors, parse_httpmon_log, scan_secrets]
 
   - name: storageops-cli-sdk-diagnosis
     path: agents/skills/storageops-cli-sdk-diagnosis/SKILL.md
@@ -254,7 +254,7 @@ skills:
       - "WORM"
       - "ReplicationStatus FAILED"
     domains: [replication_versioning, object_lock]
-    recommended_tools: [analyze_replication, scan_secrets]
+    recommended_tools: [parse_replication_status, analyze_replication, scan_secrets]
 
   - name: storageops-bigdata-pipeline
     path: agents/skills/storageops-bigdata-pipeline/SKILL.md
@@ -276,7 +276,7 @@ skills:
       - "Delta Lake conflict"
       - "大数据"
     domains: [bigdata_pipeline]
-    recommended_tools: [scan_secrets, search_memory]
+    recommended_tools: [parse_hadoop_s3a, parse_httpmon_log, scan_secrets, search_memory]
 
   - name: storageops-data-consistency
     path: agents/skills/storageops-data-consistency/SKILL.md

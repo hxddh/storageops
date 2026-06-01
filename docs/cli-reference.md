@@ -165,6 +165,28 @@ storageops analyze network_endpoint_access dig-output.txt
 `bigdata_pipeline`, `cli_sdk_behavior`, `performance_throughput`, `security_iam_policy`,
 `lifecycle_cost`, `mount_filesystem_workspace`, `network_endpoint_access`
 
+### `storageops eval` (offline — no Pi required)
+
+Run golden case evaluation. Without `--outputs-dir`, runs **fast triage eval**: loads
+`input/` files from each case, runs rule-based `auto_detect()`, and checks the top domain
+against `expected_category` in `expected.json`. No LLM or Pi needed.
+
+```bash
+storageops eval --all                         # fast triage eval, 17/20 pass out of the box
+storageops eval --case rclone-corrupted-transfer   # fast eval for one case
+storageops eval --all --outputs-dir ./diagnoses/   # compare pre-generated LLM outputs
+```
+
+**Options:**
+```
+--cases-dir <path>     Golden cases directory (default: agents/skills/.../cases)
+--outputs-dir <path>   Dir with pre-generated <case>.md files (omit for fast eval)
+--case <name>          Evaluate a single case
+--all                  Evaluate all cases
+```
+
+---
+
 ### `storageops scan <files…>`
 
 Triage multiple files at once and print a summary table.
