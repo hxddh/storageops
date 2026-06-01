@@ -5,19 +5,19 @@
 # 用法: ./scripts/skill-health-check.sh [skills-dir]
 # 默认检测两种安装模式:
 #   ~/.storageops/skills (独立模式, 优先)
-#   ~/.pi/agent/skills   (合并模式)
+#   ~/.pi/skills         (合并模式)
 
 # 自动检测 skills 目录
 if [ -n "$1" ]; then
   SKILLS_DIR="$1"
 elif [ -d "$HOME/.storageops/skills" ]; then
   SKILLS_DIR="$HOME/.storageops/skills"
-elif [ -d "$HOME/.pi/agent/skills" ]; then
-  SKILLS_DIR="$HOME/.pi/agent/skills"
+elif [ -d "$HOME/.pi/skills" ]; then
+  SKILLS_DIR="$HOME/.pi/skills"
 else
   echo "错误: 未找到 StorageOps skills 目录"
   echo "  尝试: $HOME/.storageops/skills"
-  echo "  尝试: $HOME/.pi/agent/skills"
+  echo "  尝试: $HOME/.pi/skills"
   echo "  运行: storageops install 重新安装"
   exit 1
 fi

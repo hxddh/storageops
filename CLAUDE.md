@@ -8,7 +8,7 @@ StorageOps is a **Pi Coding Agent extension + skill pack**.
 ├── storageops_cli/__init__.py          # Install / launch CLI (240 lines)
 ├── storageops_cli/extensions/storageops.ts  # 3 inline TypeScript tools
 ├── storageops_cli/skills → ../skills   # Symlink for editable install
-├── skills/                             # 15 diagnostic skill packs
+├── skills/                             # 16 diagnostic skill packs
 │   ├── storageops-triage/SKILL.md
 │   └── ...
 ├── docs/
@@ -25,7 +25,7 @@ User: storageops "question"
 
 Pi (runtime):
   → loads storageops.ts extension (3 tools inline, TypeScript)
-  → loads skills/*.SKILL.md (15 diagnostic instruction sets)
+  → loads skills/*.SKILL.md (16 diagnostic instruction sets)
   → handles agent loop, sessions, tool dispatch natively
 ```
 

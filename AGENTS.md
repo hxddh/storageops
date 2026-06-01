@@ -15,7 +15,7 @@ storageops/
 │   ├── __init__.py               ← install / launch logic (240 行)
 │   ├── extensions/storageops.ts  ← 3 inline TypeScript 工具 (359 行)
 │   └── skills/                   ← 符号链接 → repo root skills/
-├── skills/                        ← 15 个诊断技能包
+├── skills/                        ← 16 个诊断技能包
 │   ├── storageops-triage/
 │   ├── storageops-security-iam-policy/
 │   └── ...
