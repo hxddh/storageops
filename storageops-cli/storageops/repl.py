@@ -49,7 +49,7 @@ _SLASH_CMD_HELP = {
     "/memory":  "Browse past cases  (/memory search <query>)",
     "/update":  "Download latest Pi binary and reinstall skills",
     "/doctor":  "Run environment health check",
-    "/setup":   "Re-run setup wizard",
+    "/setup":   "Re-run setup (API key, Pi install)",
     "/verbose": "Toggle verbose mode (show tool calls)",
     "/exit":    "Exit StorageOps",
 }

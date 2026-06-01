@@ -74,7 +74,7 @@
 - `analyze_network.py` — DNS/TLS/TCP/VPC endpoint root cause from parsed diagnostics.
 - Makefile targets: `make test`, `make lint`, `make eval`.
 - SKILL.md files translated to English; v1 skill structure.
-- 107 tests (no LLM, Pi, or network required).
+- 219 tests (no LLM, Pi, or network required).
 
 ## v0.1.0 — Skill Pack
 

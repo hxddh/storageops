@@ -24,7 +24,7 @@ Inside a session, type `/` to see all available commands:
 | `/memory` | Browse past diagnosed cases (`/memory search <query>`) |
 | `/update` | Download latest Pi binary and reinstall skills |
 | `/doctor` | Check environment health |
-| `/setup` | Re-run setup wizard |
+| `/setup` | Re-run setup (API key, Pi install) |
 | `/verbose` | Toggle verbose output (shows tool calls) |
 | `/exit` | Quit |
 

@@ -69,7 +69,7 @@ Reference a local file by prefixing with `@`:
 | `/memory` | Browse past diagnosed cases |
 | `/update` | Download latest Pi binary and reinstall skills |
 | `/doctor` | Check environment health |
-| `/setup` | Re-run setup wizard |
+| `/setup` | Re-run setup (API key, Pi install) |
 | `/verbose` | Toggle verbose output (shows tool calls) |
 | `/exit` | Quit |
 

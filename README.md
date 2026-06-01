@@ -96,7 +96,7 @@ Type `/` inside the session to see the full list:
 | `/update` | Download latest Pi binary and reinstall skills |
 | `/verbose` | Toggle verbose mode — shows each tool call and result |
 | `/doctor` | Run environment health check |
-| `/setup` | Re-run the setup wizard |
+| `/setup` | Re-run setup (API key, Pi install) |
 | `/exit` | Quit (`Ctrl+C` also works) |
 
 Sessions are saved automatically to `~/.storageops/sessions/`.

@@ -204,8 +204,7 @@ file path and receives a validated diagnostic report.
 attack surface, makes it auditable, and ensures it runs anywhere Python ≥ 3.10 is available.
 
 **Session persistence**: the REPL auto-saves each session (evidence blocks + conversation turns)
-to `~/.storageops/sessions/<id>.json`. `storageops resume` loads any past session without loss
-of context.
+to `~/.storageops/sessions/<id>.json`. Type `/resume` inside a session to load any past session without loss of context.
 
 **Report validation as a safety gate**: every Pi-generated report passes through
 `validate_agent_report()` before being shown to the user. This catches unsafe recommendations,
