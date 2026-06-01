@@ -5,7 +5,6 @@ import os
 import platform
 import shutil
 import stat
-import sys
 import urllib.request
 from pathlib import Path
 

@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import json
 import re
-import sys
-from pathlib import Path
 
 from secret_scanner import scan as scan_secrets
 from signatures import auto_detect

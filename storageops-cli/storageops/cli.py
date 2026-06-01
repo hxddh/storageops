@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -509,10 +508,7 @@ def cmd_eval(args: argparse.Namespace) -> None:
     result["module"] = "eval"
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-    if not result.get("passed", True):
-        if isinstance(result.get("cases"), list):
-            if any(not c.get("passed", True) for c in result["cases"]):
-                sys.exit(1)
+    if result.get("failed", 0) > 0:
         sys.exit(1)
 
 
@@ -1004,7 +1000,6 @@ def _cmd_memory_list(args: argparse.Namespace) -> None:
         ts = entry.get("ts", "")[:19].replace("T", " ")
         domain = entry.get("domain", "?")
         rc = entry.get("root_cause", "unknown")
-        sid = entry.get("session_id", "")[:8]
         summary = entry.get("summary", "")[:80]
         print(f"  {_dim(ts)}  {_cyan(domain)}")
         print(f"            {_bold(rc)}")
@@ -1061,7 +1056,7 @@ def _cmd_memory_save(args: argparse.Namespace) -> None:
         keywords = [k.strip() for k in keywords.split(",") if k.strip()]
     session_id = f"manual-{str(uuid.uuid4())[:8]}"
 
-    entry = save_case(session_id, domain, root_cause, summary, keywords)
+    save_case(session_id, domain, root_cause, summary, keywords)
     _ok(f"Case saved  [{session_id}]  {domain}  →  {root_cause}")
 
 
@@ -1134,7 +1129,6 @@ def cmd_audit(args: argparse.Namespace) -> None:
                 extra = f"  {ev.get('domain')} runtime={ev.get('runtime')} {ev.get('outcome', '')}"
             elif event == "memory_save":
                 extra = f"  {ev.get('domain')} → {ev.get('root_cause')}"
-            color = _green if event == "session_end" else _dim
             print(f"  {_dim(ts)}  {_cyan(event)}{_dim(extra)}")
         print()
         return
@@ -1158,7 +1152,6 @@ def cmd_audit(args: argparse.Namespace) -> None:
     print(_hr(70))
     for s in sessions:
         ts = s["ts"]
-        sid = s["session_id"]
         domain = s["domain"]
         outcome = s["outcome"]
         outcome_c = _green(outcome) if outcome == "success" else _yellow(outcome)

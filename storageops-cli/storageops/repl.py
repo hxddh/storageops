@@ -1,7 +1,6 @@
 """Interactive REPL — Pi Coding Agent-style S3 diagnostic interface."""
 from __future__ import annotations
 
-import os
 import re
 import sys
 import select as _select

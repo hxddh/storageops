@@ -229,8 +229,8 @@ class TestCmdEvalFast(unittest.TestCase):
             all=True, case=None, regression=False,
             cases_dir=str(_CASES_DIR), outputs_dir=None,
         )
-        captured = []
-        import builtins, io, contextlib
+        import io
+        import contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             try:
@@ -253,7 +253,8 @@ class TestCmdEvalFast(unittest.TestCase):
             all=False, case="rclone-corrupted-transfer", regression=False,
             cases_dir=str(_CASES_DIR), outputs_dir=None,
         )
-        import io, contextlib
+        import io
+        import contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             try:

@@ -5,7 +5,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 _CLI_DIR = Path(__file__).parent.parent
 _CORE_DIR = _CLI_DIR.parent / "storageops-core"
@@ -23,7 +23,6 @@ class TestConfig(unittest.TestCase):
 
     def test_save_and_load_roundtrip(self, tmp_path=None):
         import tempfile
-        import os
         with tempfile.TemporaryDirectory() as td:
             cfg_file = Path(td) / "config.json"
             with patch("storageops.config._DIR", Path(td)), \
@@ -68,7 +67,6 @@ class TestFindBundledSkills(unittest.TestCase):
 class TestSetupCommand(unittest.TestCase):
     def _run_setup(self, tmp_home: Path, pi_path: str) -> int:
         """Run cmd_setup with mocked Pi binary and home dir. Returns exit code (0=ok)."""
-        import shutil
         import argparse
         from storageops.cli import cmd_setup
 
@@ -86,7 +84,8 @@ class TestSetupCommand(unittest.TestCase):
 
     def test_setup_continues_when_pi_download_fails(self):
         """Pi download failure shows a warning but does not abort setup."""
-        import argparse, tempfile
+        import argparse
+        import tempfile
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             home = tmp / "home"
@@ -104,7 +103,8 @@ class TestSetupCommand(unittest.TestCase):
                 cmd_setup(args)  # should not raise
 
     def test_setup_creates_expected_files(self):
-        import argparse, tempfile
+        import argparse
+        import tempfile
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             home = tmp / "home"

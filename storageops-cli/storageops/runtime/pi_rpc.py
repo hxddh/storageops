@@ -6,14 +6,12 @@ import os
 import re
 import subprocess
 import select
-import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
 from storageops.audit_logger import log_session_start, log_pi_result, log_session_end
-from storageops.config import get_pi_command as _cfg_pi_command
 from storageops.config import get_workdir as _cfg_workdir
 from storageops.config import get_skills_dir as _cfg_skills_dir
 from storageops.config import get_api_key as _cfg_api_key
@@ -202,7 +200,7 @@ class PiRpcRuntime:
             if self.options.pi_provider:
                 request["provider"] = self.options.pi_provider
 
-            result = self._run_rpc(request)
+            result = self._run_rpc(request, session_id)
             log_pi_result(
                 session_id,
                 ok=result.ok,
@@ -235,7 +233,7 @@ class PiRpcRuntime:
             env.setdefault(env_var, api_key)
         return env
 
-    def _run_rpc(self, request: dict[str, Any]) -> AgentRunResult:
+    def _run_rpc(self, request: dict[str, Any], session_id: str = "") -> AgentRunResult:
         try:
             proc = subprocess.Popen(
                 self._command(),
