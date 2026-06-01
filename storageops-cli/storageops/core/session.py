@@ -112,6 +112,7 @@ class Session:
         self._name: str = ""
         self._domain: str = ""
         self._dirty: bool = False
+        self._meta_written: bool = False
 
     # ── Properties ───────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ class Session:
 
     def append(self, event: Event) -> None:
         """Add an event to the session. Auto-saves to JSONL."""
+        self._ensure_meta()  # Write meta before first event
         self._events.append(event)
         self._write_line(event_to_json(event))
         self._dirty = True
@@ -169,20 +171,61 @@ class Session:
         with open(self._path, "a", encoding="utf-8") as f:
             f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
+    def _ensure_meta(self) -> None:
+        """Write the SessionMeta as the first line if not already written."""
+        if self._meta_written:
+            return
+        if not self._path.exists():
+            self._write_line(self._meta.to_json())
+            self._meta_written = True
+            return
+        # File exists — check if first line is already meta
+        try:
+            with open(self._path, encoding="utf-8") as f:
+                first = f.readline().strip()
+            if first:
+                obj = json.loads(first)
+                if obj.get("type") == "session_meta":
+                    self._meta_written = True
+                    return
+        except (OSError, json.JSONDecodeError):
+            pass
+        # Need to prepend meta
+        self._prepend_meta()
+        self._meta_written = True
+
+    def _prepend_meta(self) -> None:
+        """Insert SessionMeta at the beginning of the file."""
+        meta_line = json.dumps(self._meta.to_json(), ensure_ascii=False) + "\n"
+        lines: list[str] = []
+        try:
+            with open(self._path, encoding="utf-8") as f:
+                lines = f.readlines()
+        except OSError:
+            lines = []
+        with open(self._path, "w", encoding="utf-8") as f:
+            f.write(meta_line)
+            f.writelines(lines)
+
     def _update_meta(self) -> None:
-        """Rewrite the session metadata as the first line."""
+        """Rewrite the session metadata line (first line only)."""
         if not self._path.exists():
             return
-        lines: list[str] = []
         try:
             with open(self._path, encoding="utf-8") as f:
                 lines = f.readlines()
         except OSError:
             return
         if lines:
-            lines[0] = json.dumps(self._meta.to_json(), ensure_ascii=False) + "\n"
-            with open(self._path, "w", encoding="utf-8") as f:
-                f.writelines(lines)
+            # Only replace if first line is actually session_meta
+            try:
+                obj = json.loads(lines[0].strip())
+                if obj.get("type") == "session_meta":
+                    lines[0] = json.dumps(self._meta.to_json(), ensure_ascii=False) + "\n"
+                    with open(self._path, "w", encoding="utf-8") as f:
+                        f.writelines(lines)
+            except json.JSONDecodeError:
+                pass
 
     # ── Save / finalize ──────────────────────────────────────────────
 
@@ -287,7 +330,10 @@ class Session:
             else:
                 return None
         try:
-            session = cls(session_id=session_id)
+            # Extract the true session ID from the filename (not the prefix)
+            true_id = path.stem
+            session = cls(session_id=true_id)
+            session._path = path  # Override to point at the real file
             with open(path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
@@ -328,10 +374,31 @@ class Session:
         if query:
             session_ids = _fts_search(query, limit=limit)
         else:
-            session_ids = [p.stem for p in sorted(
+            # Gather all JSONL files, exclude FTS index and orphan prefix-only files
+            all_files = sorted(
                 sessions_dir.glob("*.jsonl"),
                 key=lambda p: p.stat().st_mtime, reverse=True,
-            )]
+            )
+            # Filter out orphan prefix-only files (created by pre-fix bug)
+            # A valid session file has a full UUID (36 chars); prefix files are shorter
+            filtered: list[str] = []
+            for p in all_files:
+                sid = p.stem
+                if len(sid) < 32:
+                    # This is a prefix-only orphan — skip it unless it's the only file
+                    continue
+                filtered.append(sid)
+            # Also skip orphan entries: files < 2 lines (only meta, no events)
+            session_ids = []
+            for sid in filtered:
+                p = sessions_dir / f"{sid}.jsonl"
+                try:
+                    with open(p, encoding="utf-8") as f:
+                        line_count = sum(1 for _ in f)
+                    if line_count >= 2:
+                        session_ids.append(sid)
+                except OSError:
+                    continue
 
         results: list[SessionEntry] = []
         for sid in session_ids:
@@ -355,8 +422,28 @@ class Session:
 
     @staticmethod
     def count() -> int:
-        """Total number of session files."""
-        return len(list(_sessions_dir().glob("*.jsonl")))
+        """Total number of valid session files."""
+        count = 0
+        for p in _sessions_dir().glob("*.jsonl"):
+            if len(p.stem) >= 32:
+                count += 1
+        return count
+
+    @staticmethod
+    def cleanup_orphans() -> int:
+        """Remove orphaned prefix-only session files (from pre-fix bug).
+        Returns count of deleted files."""
+        deleted = 0
+        for p in _sessions_dir().glob("*.jsonl"):
+            stem = p.stem
+            # Orphan: short name (< 32 chars, not a full UUID)
+            if len(stem) < 32:
+                # Check if a full-UUID sibling exists
+                full_matches = list(_sessions_dir().glob(f"{stem}-*.jsonl"))
+                if full_matches:
+                    p.unlink(missing_ok=True)
+                    deleted += 1
+        return deleted
 
     @staticmethod
     def prune_old(days: int = 30) -> int:
