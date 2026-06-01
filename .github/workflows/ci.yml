@@ -29,6 +29,11 @@ jobs:
               echo "ERROR: $name SKILL.md missing 'name:' field"
               exit 1
             fi
+            frontmatter_name=$(grep "^name:" "$skill" | head -1 | sed 's/name: *//')
+            if ! echo "$frontmatter_name" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+              echo "ERROR: $name SKILL.md has invalid name '$frontmatter_name' (must be a-z, 0-9, hyphens only)"
+              exit 1
+            fi
             if ! grep -q "scan_secrets" "$skill"; then
               echo "ERROR: $name SKILL.md missing scan_secrets reference"
               exit 1

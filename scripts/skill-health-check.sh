@@ -2,13 +2,32 @@
 # ============================================================================
 # StorageOps Skill Pack — Self-Diagnostic Health Check
 # ============================================================================
+# 用法: ./scripts/skill-health-check.sh [skills-dir]
+# 默认检测两种安装模式:
+#   ~/.storageops/skills (独立模式, 优先)
+#   ~/.pi/agent/skills   (合并模式)
 
-SKILLS_DIR="${1:-$HOME/.pi/agent/skills}"
+# 自动检测 skills 目录
+if [ -n "$1" ]; then
+  SKILLS_DIR="$1"
+elif [ -d "$HOME/.storageops/skills" ]; then
+  SKILLS_DIR="$HOME/.storageops/skills"
+elif [ -d "$HOME/.pi/agent/skills" ]; then
+  SKILLS_DIR="$HOME/.pi/agent/skills"
+else
+  echo "错误: 未找到 StorageOps skills 目录"
+  echo "  尝试: $HOME/.storageops/skills"
+  echo "  尝试: $HOME/.pi/agent/skills"
+  echo "  运行: storageops install 重新安装"
+  exit 1
+fi
+
 PASS=0
 FAIL=0
 
 echo "========================================="
 echo "StorageOps Skill Pack — 健康检查"
+echo "Skills 目录: $SKILLS_DIR"
 echo "========================================="
 
 # 1. Skill count
@@ -33,7 +52,7 @@ for skill in "$SKILLS_DIR"/storageops-*/; do
     FAIL=$((FAIL+1))
     continue
   fi
-  
+
   # Check frontmatter
   has_name=$(head -5 "$skill/SKILL.md" | grep -c "^name:")
   has_desc=$(head -5 "$skill/SKILL.md" | grep -c "^description:")
@@ -46,33 +65,44 @@ for skill in "$SKILLS_DIR"/storageops-*/; do
   fi
 done
 
-# 3. References
+# 3. Skill name validity (Pi convention: a-z, 0-9, hyphens only)
 echo ""
-echo "--- 3. Reference 文档 ---"
+echo "--- 3. Skill 名称合法性 ---"
+NAME_FAILS=0
+for skill in "$SKILLS_DIR"/storageops-*/; do
+  name=$(basename "$skill")
+  frontmatter_name=$(grep "^name:" "$skill/SKILL.md" | head -1 | sed 's/name: *//')
+  if ! echo "$frontmatter_name" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+    echo "  ❌ $name: name '$frontmatter_name' 含非法字符 (仅允许 a-z, 0-9, -)"
+    NAME_FAILS=$((NAME_FAILS+1))
+    FAIL=$((FAIL+1))
+  fi
+done
+if [ "$NAME_FAILS" -eq 0 ]; then
+  echo "  ✅ 全部名称合法"
+  PASS=$((PASS+1))
+fi
+
+# 4. References
+echo ""
+echo "--- 4. Reference 文档 ---"
 REF_COUNT=$(find "$SKILLS_DIR" -name "*.md" -path "*/references/*" | wc -l | tr -d ' ')
 echo "  📚 Reference 文档: $REF_COUNT"
 
-# 4. Golden cases
+# 5. Golden cases
 echo ""
-echo "--- 4. Golden Cases ---"
+echo "--- 5. Golden Cases ---"
 CASES_DIR="$SKILLS_DIR/storageops-eval-golden-cases/cases"
 if [ -d "$CASES_DIR" ]; then
   CASE_COUNT=$(ls "$CASES_DIR" | wc -l | tr -d ' ')
   echo "  📋 Golden cases: $CASE_COUNT"
-  
-  # Check adversarial cases
+
   ADV_COUNT=$(ls "$CASES_DIR" | grep "adversarial" | wc -l | tr -d ' ')
   echo "  🛡️  Adversarial cases: $ADV_COUNT"
 else
   echo "  ❌ Cases directory not found"
   FAIL=$((FAIL+1))
 fi
-
-# 5. Scripts
-echo ""
-echo "--- 5. 脚本 ---"
-SCRIPT_COUNT=$(ls "$SKILLS_DIR/scripts/"*.sh "$SKILLS_DIR/scripts/"*.py 2>/dev/null | wc -l | tr -d ' ')
-echo "  🔧 可执行脚本: $SCRIPT_COUNT"
 
 # 6. Safety coverage
 echo ""
