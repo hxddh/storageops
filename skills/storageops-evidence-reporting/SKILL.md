@@ -1,244 +1,119 @@
 ---
 name: storageops-evidence-reporting
 description: >
-  Produce structured diagnostic reports for object storage issues:
-  customer-facing reports, internal engineering analysis notes,
-  reproduction checklists, and standardized diagnosis reports with
-  evidence tables, root cause ranking, confidence scoring, validation
-  commands, remediation plans, and next-step checklists. Use after
-  completing diagnosis with one or more specialist Skills, when the
-  user requests a formal written report, or when documenting findings
-  for handoff to another team.
-maturity: core
+  Transform diagnostic findings into structured, audience-appropriate reports.
+  Supports four templates: customer-facing report, internal engineering note,
+  reproduction checklist, and formal diagnosis report. Applies consistent
+  confidence scoring, evidence quality assessment, and redaction/safety review.
+  Use after specialist Skills have completed their diagnosis — this skill
+  formats and polishes, it does NOT diagnose.
+maturity: stable
 mode: light_heavy
-estimated_tokens: 2000
+estimated_tokens: 1200
 trigger_keywords:
-  - report
-  - write up
-  - document
-  - customer summary
+  - generate report
+  - customer report
+  - engineering note
   - diagnosis report
   - reproduction steps
+  - format diagnosis
+  - evidence summary
+  - confidence scoring
 recommended_tools:
   - scan_secrets
-  - detect_domain
   - search_memory
 ---
 
 # Evidence-Based Reporting
 
-## When to use this skill
+This skill consumes diagnostic output from specialist skills and produces audience-appropriate reports. It does NOT perform diagnosis — it formats and quality-checks existing findings.
 
-- After completing diagnosis with one or more specialist Skills.
-- When the user requests a formal diagnostic report.
-- When findings need to be handed off to another team (engineering, support, customer).
-- When documenting a complex issue for future reference or regression testing.
-- When creating a reproduction guide for an issue.
-- When summarizing diagnostic findings for a non-technical audience (customer report).
+## Decision Tree
 
-## Do not use this skill when
-
-- Diagnosis is not yet complete → return to the appropriate specialist Skill for more analysis.
-- The user only wants a quick answer, not a formal report.
-- The issue is trivially resolved and needs no documentation.
-- You are still collecting evidence → complete triage first.
-
-## Safety rules
-
-- All report content must be evidence-based. Never fabricate or assume findings.
-- Never include secrets in reports. Redact AK/SK/token/cookie/Authorization as `[REDACTED]`.
-- Never include raw credentials in command examples. Use placeholders.
-- Mark all remediation steps as `manual-only` unless they are read-only validations.
-- Include risk warnings for any recommended changes.
-- Do not include destructive or security-weakening recommendations.
-- Label confidence levels honestly — do not overstate certainty.
-
-## Recommended Tool Calls
-
-| Tool | When to call | Example input |
-|---|---|---|
-| `scan_secrets` | Before finalizing any report, scan all content for credentials | `{"text": "<full report draft>"}` |
-| `search_memory` | At start, retrieve prior diagnostic sessions for context | `{"query": "prior diagnosis <category> <symptom>"}` |
-
-## Required evidence
-
-Before generating a report, verify:
-1. All diagnostic conclusions cite specific evidence.
-2. Root cause(s) are ranked by confidence.
-3. Validation commands are included and read-only by default.
-4. Risk notes cover the impact of recommendations.
-5. No secrets remain in the report.
-
-## Report Templates
-
-### 1. Customer Report (`templates/customer-report.md`)
-- For external/customer audiences.
-- Non-technical language where possible.
-- Focus on impact, resolution, and timeline.
-- Minimize internal detail.
-
-### 2. Internal Engineering Note (`templates/internal-engineering-note.md`)
-- For internal engineering teams.
-- Full technical detail.
-- Include all evidence, analysis steps, and rejected hypotheses.
-- May include speculation clearly labeled as such.
-
-### 3. Reproduction Checklist (`templates/reproduction-checklist.md`)
-- Step-by-step reproduction guide.
-- Required environment and data.
-- Expected result at each step.
-- Common pitfalls.
-
-### 4. Diagnosis Report (`templates/diagnosis-report.md`)
-- Standard format for general diagnostic output.
-- Evidence table, root cause ranking, validation commands.
-- Used by most specialist Skills as default output format.
+```
+Need a report →
+  ├─ For customer/external? → Customer Report (templates/customer-report.md)
+  │   └─ Must be: non-technical summary, clear next steps, NO internal speculation
+  ├─ For internal engineering team? → Engineering Note (templates/internal-engineering-note.md)
+  │   └─ Must include: technical details, debugging steps, root cause evidence chain
+  ├─ For reproduction? → Reproduction Checklist (templates/reproduction-checklist.md)
+  │   └─ Must include: step-by-step commands, expected vs actual output
+  └─ For formal record? → Diagnosis Report (templates/diagnosis-report.md)
+      └─ Must include: complete evidence chain, confidence scoring, limitations
+```
 
 ## Workflow
 
-> **Mode**: This skill supports **Light** (quick classification, <2 min) and **Heavy** (full deep-dive, up to 10 min) modes.
-> Light mode: steps 1–3 only. Heavy mode: all steps.
-
-> **Thinking framework**: Before outputting, reason through: (1) What evidence is present? (2) What is the most likely root cause? (3) What am I uncertain about? (4) What is the minimum next action?
-
 ### Step 1: Collect Diagnostic Outputs
-Gather the structured YAML/JSON outputs from all specialist skills invoked during diagnosis.
-Each output should include `category`, `confidence`, `severity`, `root_cause_type`, and `evidence` items.
+Gather outputs from all specialist skills that were invoked. Each should have a one-line conclusion, evidence list, and root cause.
 
-### Step 2: Select Report Template
-Choose the appropriate template based on audience:
-- `templates/customer-report.md` — External/customer-facing (non-technical language)
-- `templates/internal-engineering-note.md` — Internal engineering team (full technical detail)
-- `templates/reproduction-checklist.md` — Step-by-step reproduction guide
-- `templates/diagnosis-report.md` — Standard comprehensive diagnostic report (default)
+### Step 2: Select Template
+Match audience to template. Read the template file for section structure.
 
-### Step 3: Run Redaction Checklist
-Before writing any content, scan ALL evidence for secrets:
-- [ ] AK/SK values → `[REDACTED]`
-- [ ] Authorization headers → `[REDACTED]`
-- [ ] Session tokens → `[REDACTED]`
-- [ ] IAM/KMS ARN account IDs → mask account portion
-- [ ] Real IP addresses → mask if identifying user infrastructure
-See `references/reporting-best-practices.md` for the complete checklist.
+### Step 3: Redaction Checklist
+Run `scan_secrets` on all diagnostic outputs before including in any report. Redact: access keys, secret keys, session tokens, signed URLs with credentials, internal IPs if customer-facing.
 
-### Step 4: Populate Report Sections
-Fill each section from the template, citing evidence items by reference number (E-1, E-2, ...).
-See `references/reporting-best-practices.md` for section requirements and anti-patterns.
+### Step 4: Confidence Scoring
+Apply consistent confidence scoring across all findings:
+- **High (≥0.8)**: Multiple independent evidence sources converge on same root cause, validation command confirmed
+- **Medium (0.5–0.8)**: Evidence consistent with root cause but missing validation or alternative explanations possible
+- **Low (<0.5)**: Single evidence source, alternative explanations likely, recommend further data collection
+See `references/reporting-best-practices.md` for scoring methodology.
 
-### Step 5: Apply Confidence Scoring (if not already done)
-Use the rubric from `storageops-triage/references/confidence-rubric.md`:
-- Count independent evidence items → base score
-- Apply adjustment factors (+/- 0.1 each, max ±0.3)
-- If final confidence < 0.50, add explicit "Further evidence needed" section
+### Step 5: Quality Gates
+Before finalizing: every recommendation marked manual-only if destructive, no credentials in report, confidence matches evidence quality, report matches audience needs.
 
-### Step 6: Quality Gates
-Before finalizing, verify:
-1. **Evidence Gate:** ≥2 independent evidence items support primary root cause
-2. **Safety Gate:** Zero secrets, zero unsafe recommendations unmasked
-3. **Completeness Gate:** All Minimum Required Sections present
-4. **Confidence Gate:** Score is honest, limitations declared
-5. **Actionability Gate:** ≥1 concrete `manual-only` recommendation
+## Output Format
 
-## Diagnosis Report Structure
-
-Every diagnosis report MUST include these sections:
+Varies by template. Core Diagnosis Report structure:
 
 ```markdown
-# 诊断报告 (Diagnosis Report)
+# Diagnosis: [one-line conclusion]
+**Confidence**: high | medium | low (score: 0.0–1.0)
+**Date**: [timestamp]
 
-## 摘要 (Summary)
-- One paragraph summarizing the issue and the primary finding.
+## Summary
+[One paragraph for broader audience]
 
-## 问题现象 (Symptoms)
-- What the user observed.
-- Error messages, status codes, timing.
-- Scope and impact.
+## Key Evidence
+| # | Evidence | Source | Confidence Impact |
+|---|----------|--------|-------------------|
+| 1 | [description] | [where from] | +X (increases because...) |
+| 2 | ... | ... | −X (decreases because...) |
 
-## 诊断结论 (Diagnosis Conclusion)
-- Primary root cause(s).
-- Confidence level with justification.
-- Category and subcategory.
+## Root Cause Analysis
+1. **Primary** (confidence: X%): [explanation + supporting evidence IDs]
+2. **Alternative** (confidence: Y%): [explanation — if applicable]
 
-## 置信度 (Confidence)
-- Overall confidence: <0.0–1.0>
-- Factors increasing confidence.
-- Factors decreasing confidence.
-- Additional evidence needed to increase confidence.
+## Recommendations
+1. **[action]** (manual-only | safe) — Risk: [low/medium/high]
+2. ...
 
-## 关键证据 (Key Evidence)
-- Evidence table:
-
-| # | Evidence | Source | Relevance |
-|---|---|---|---|
-| 1 | Description | Where it came from | Why it matters |
-| 2 | ... | ... | ... |
-
-## 根因排序 (Root Cause Ranking)
-1. **Root Cause 1** (confidence: X%) — Description, evidence.
-2. **Root Cause 2** (confidence: Y%) — Description, evidence.
-...
-
-## 验证命令 (Validation Commands)
-- Commands to verify the diagnosis (all read-only or marked manual-only).
-
-## 修复建议 (Remediation Recommendations)
-- Ranked by effectiveness and risk.
-- Each marked as manual-only if destructive or mutating.
-- Include risk notes for each recommendation.
-
-## 风险提示 (Risk Notes)
-- Risks of the current state (what happens if not fixed).
-- Risks of proposed changes.
-- Security considerations.
-
-## 后续排查清单 (Next-Step Checklist)
-- [ ] Action item 1 — rationale
-- [ ] Action item 2 — rationale
+## Limitations
+- [what this diagnosis does NOT cover]
+- [what additional evidence would improve confidence]
 ```
 
-## Output requirements
+## Examples
 
-The report must include in its structured output:
+### Example 1: Customer-facing report from performance diagnosis
+**Input**: Performance diagnosis found: "s5cmd 429 from excessive concurrency (256 workers)". Customer asks for report.
+**Report type**: Customer Report  
+**Output**: Non-technical summary: "Your sync tool was sending too many simultaneous requests, causing rate limiting. Reducing parallelism from 256 to 16 resolved the issue." No internal speculation, no alternative theories.
 
-```yaml
-# Output Envelope v2
-report_type: customer_report | internal_engineering_note | reproduction_checklist | diagnosis_report
-category: <from specialist Skill>
-confidence: <0.0–1.0>
-# confidence_factors: see skills/storageops-evidence-reporting/references/reporting-best-practices.md
-severity: critical | high | medium | low
-evidence_count: <number of evidence items>
-evidence_quality_score: <0.0–1.0>
-unsafe_recommendations: <count of manual-only items>
-secret_scan_passed: true | false
-next_actions:
-  - type: request_evidence | invoke_skill | ask_user
-    target: <skill_name or evidence_type>
-    reason: <why>
-    priority: 1
-```
+### Example 2: Internal engineering note from security diagnosis
+**Input**: Security diagnosis found cross-account policy gap. Engineering team needs details.
+**Report type**: Engineering Note  
+**Output**: Full policy chain trace, specific policy statement IDs, IAM role ARNs, CloudTrail event IDs, reproduction commands.
 
-## Common mistakes to avoid
+### Example 3: Reproduction checklist from CLI/SDK diagnosis
+**Input**: rclone ETag mismatch on BOS. QA needs exact reproduction steps.
+**Report type**: Reproduction Checklist  
+**Output**: Step-by-step: (1) rclone v1.65.0, (2) BOS bucket bj, (3) `rclone copy 50MB-file BOS:bucket --s3-upload-concurrency 4`, (4) expected MD5=X, actual MD5=Y, (5) workaround `--s3-use-multipart-etag=false` resolves.
 
-1. **Writing reports without evidence** — Every claim must cite evidence.
-2. **Overstating confidence** — Be honest about uncertainty.
-3. **Including secrets in reports** — Always scan before finalizing.
-4. **Recommending unsafe actions without manual-only label** — Any destructive change must be flagged.
-5. **Skipping the next-step checklist** — Reports should be actionable.
-6. **Using inappropriate template for audience** — Customer report ≠ engineering note.
-7. **Omitting risk notes** — Every recommendation has trade-offs.
-
-## Degradation Diagnosis
-
-### Only one specialist skill invoked
-- Report can still be generated with single-diagnosis findings
-- Note: "diagnosis is based on a single specialist analysis; multi-perspective verification not performed"
-- Confidence inherit from specialist skill, no cross-domain boost
-
-### Report target audience unclear
-- Default to `diagnosis-report` template
-- Note: "target audience not specified — using internal diagnostic format; use customer-report template for external distribution"
-
-### Missing evidence for some report sections
-- Mark missing sections as "insufficient evidence" rather than fabricating
-- Note: "evidence gap annotated in report; recommend collecting missing items before handoff"
+## References
+- `references/reporting-best-practices.md` — Confidence scoring methodology, evidence rules
+- `templates/customer-report.md` — Customer-facing report template
+- `templates/internal-engineering-note.md` — Internal engineering note template
+- `templates/reproduction-checklist.md` — Reproduction checklist template
+- `templates/diagnosis-report.md` — Formal diagnosis report template
