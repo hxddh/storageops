@@ -91,7 +91,7 @@ storageops/
 ## Testing
 
 ```bash
-# Full suite (219 tests, no LLM/Pi required)
+# Full suite (221 tests, no LLM/Pi required)
 make test
 
 # Core engine only

@@ -219,5 +219,52 @@ class TestTriageConfidenceThresholds(unittest.TestCase):
         self._check("versioned-delete-marker")
 
 
+class TestCmdEvalFast(unittest.TestCase):
+    """storageops eval --all runs fast triage eval when no --outputs-dir is given."""
+
+    def test_eval_all_returns_results_without_outputs_dir(self):
+        import argparse
+        from storageops.cli import cmd_eval
+        args = argparse.Namespace(
+            all=True, case=None, regression=False,
+            cases_dir=str(_CASES_DIR), outputs_dir=None,
+        )
+        captured = []
+        import builtins, io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            try:
+                cmd_eval(args)
+            except SystemExit:
+                pass
+        output = buf.getvalue()
+        self.assertTrue(output.strip(), "cmd_eval produced no output")
+        result = json.loads(output)
+        self.assertEqual(result.get("mode"), "fast")
+        self.assertIn("total_cases", result)
+        self.assertGreater(result["total_cases"], 0)
+        self.assertGreater(result["passed"], 0,
+                           "Fast eval should pass at least 1 case")
+
+    def test_eval_case_fast_without_outputs_dir(self):
+        import argparse
+        from storageops.cli import cmd_eval
+        args = argparse.Namespace(
+            all=False, case="rclone-corrupted-transfer", regression=False,
+            cases_dir=str(_CASES_DIR), outputs_dir=None,
+        )
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            try:
+                cmd_eval(args)
+            except SystemExit:
+                pass
+        result = json.loads(buf.getvalue())
+        self.assertEqual(result.get("mode"), "fast")
+        self.assertEqual(result.get("expected_category"), "cli_sdk_behavior")
+        self.assertTrue(result.get("passed"), "rclone-corrupted-transfer should pass fast eval")
+
+
 if __name__ == "__main__":
     unittest.main()

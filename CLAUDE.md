@@ -29,7 +29,7 @@ storageops eval --all
 storageops audit list
 storageops serve
 storageops mcp
-storageops memory list  # also accessible as /memory inside the REPL
+storageops memory list  # prefer /memory inside the REPL; CLI form for scripting
 ```
 
 ## storageops agent requires Pi
