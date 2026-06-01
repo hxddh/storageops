@@ -1,5 +1,5 @@
 ---
-name: the diagnostic tool-sdk-diagnosis
+name: storageops-cli-sdk-diagnosis
 description: >
   Diagnose client tool and SDK behavioral issues including awscli debug log
   analysis, boto3/botocore exception traces, rclone corrupted-on-transfer / size
