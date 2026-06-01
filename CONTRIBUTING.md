@@ -45,6 +45,17 @@ skills/storageops-eval-golden-cases/cases/<case>/
 
 Keep inputs synthetic, redacted, and small. The integrity check enforces size budgets.
 
+### Add a Baseline Output
+
+Baseline outputs live in:
+
+```text
+skills/storageops-eval-golden-cases/baseline-outputs/<case>.md
+```
+
+Keep them short and structural. They are quality sentinels for route, evidence,
+confidence, recommendations, and safety boundaries, not long model answers.
+
 ### Change the Extension
 
 Edit `storageops_cli/extensions/storageops.ts`. It currently registers `scan_secrets`, `detect_domain`, and `search_memory` via Pi's extension API.
@@ -66,6 +77,12 @@ Run:
 python3 scripts/skill_integrity_check.py
 python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
   skills/storageops-eval-golden-cases/cases
+python3 scripts/repo_size_gate.py
+python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
+  --cases skills/storageops-eval-golden-cases/cases \
+  --outputs skills/storageops-eval-golden-cases/baseline-outputs \
+  --only-with-outputs
+python3 scripts/package_check.py
 make validate
 .venv/bin/python -m pytest
 ```
@@ -74,6 +91,7 @@ make validate
 
 - The change is scoped and documented.
 - No real credentials, customer logs, or large raw artifacts are committed.
+- New baseline outputs are short, synthetic, and pass the repo size gate.
 - New helper scripts have tests.
 - New golden cases use canonical categories from `docs/skill-taxonomy.json`.
 - Version and changelog are updated for user-visible behavior.

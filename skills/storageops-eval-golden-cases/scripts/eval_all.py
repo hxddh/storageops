@@ -37,11 +37,13 @@ def missing_result(case: Path, output: Path) -> dict:
     }
 
 
-def evaluate_all(cases_root: Path, outputs_root: Path, suffix: str) -> dict:
+def evaluate_all(cases_root: Path, outputs_root: Path, suffix: str, only_with_outputs: bool = False) -> dict:
     results = []
     for case in iter_cases(cases_root):
         output = find_output(outputs_root, case.name, suffix)
         if not output.exists():
+            if only_with_outputs:
+                continue
             results.append(missing_result(case, output))
             continue
         result = evaluate(case, output)
@@ -73,10 +75,11 @@ def main() -> int:
     parser.add_argument("--outputs", required=True, type=Path, help="Directory containing <case>.md outputs")
     parser.add_argument("--suffix", default=".md", help="Output filename suffix; default: .md")
     parser.add_argument("--json-out", type=Path, help="Write JSON report to this path")
+    parser.add_argument("--only-with-outputs", action="store_true", help="Evaluate only cases with matching output files")
     parser.add_argument("--quiet", action="store_true", help="Only print JSON or write json-out")
     args = parser.parse_args()
 
-    report = evaluate_all(args.cases, args.outputs, args.suffix)
+    report = evaluate_all(args.cases, args.outputs, args.suffix, args.only_with_outputs)
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if args.json_out:
         args.json_out.write_text(text + "\n", encoding="utf-8")

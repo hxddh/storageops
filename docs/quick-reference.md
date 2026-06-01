@@ -53,6 +53,9 @@ python3 skills/storageops-eval-golden-cases/scripts/eval_all.py --cases skills/s
 
 ```bash
 python3 scripts/skill_integrity_check.py
+python3 scripts/repo_size_gate.py
+python3 scripts/package_check.py
+python3 skills/storageops-eval-golden-cases/scripts/eval_all.py --cases skills/storageops-eval-golden-cases/cases --outputs skills/storageops-eval-golden-cases/baseline-outputs --only-with-outputs
 make validate
 .venv/bin/python -m pytest
 ```

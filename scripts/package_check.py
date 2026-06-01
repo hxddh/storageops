@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Build wheel/sdist in a temp dir and verify packaged StorageOps assets."""
+
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+import tarfile
+import tempfile
+import zipfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_SKILLS = 16
+EXTENSION_PATH = "storageops_cli/extensions/storageops.ts"
+
+
+def run_build(out_dir: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "build", "--wheel", "--sdist", "--outdir", str(out_dir)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        print(result.stdout)
+        print(result.stderr, file=sys.stderr)
+        raise SystemExit(result.returncode)
+
+
+def check_names(names: list[str], artifact: Path) -> list[str]:
+    errors: list[str] = []
+    skill_count = sum(1 for name in names if name.endswith("/SKILL.md"))
+    has_extension = any(name.endswith(EXTENSION_PATH) for name in names)
+    pycache_count = sum(1 for name in names if name.endswith(".pyc") or "/__pycache__/" in name)
+
+    if skill_count != EXPECTED_SKILLS:
+        errors.append(f"{artifact.name}: expected {EXPECTED_SKILLS} SKILL.md files, found {skill_count}")
+    if not has_extension:
+        errors.append(f"{artifact.name}: missing {EXTENSION_PATH}")
+    if pycache_count:
+        errors.append(f"{artifact.name}: contains {pycache_count} pyc/__pycache__ entries")
+    return errors
+
+
+def check_wheel(path: Path) -> list[str]:
+    with zipfile.ZipFile(path) as zf:
+        return check_names(zf.namelist(), path)
+
+
+def check_sdist(path: Path) -> list[str]:
+    with tarfile.open(path) as tf:
+        return check_names(tf.getnames(), path)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.parse_args()
+
+    with tempfile.TemporaryDirectory(prefix="storageops-package-") as tmp:
+        out_dir = Path(tmp)
+        run_build(out_dir)
+        artifacts = sorted(out_dir.iterdir())
+        wheels = [p for p in artifacts if p.suffix == ".whl"]
+        sdists = [p for p in artifacts if p.name.endswith(".tar.gz")]
+        errors: list[str] = []
+
+        if len(wheels) != 1:
+            errors.append(f"expected exactly one wheel, found {len(wheels)}")
+        if len(sdists) != 1:
+            errors.append(f"expected exactly one sdist, found {len(sdists)}")
+
+        for wheel in wheels:
+            errors.extend(check_wheel(wheel))
+        for sdist in sdists:
+            errors.extend(check_sdist(sdist))
+
+    if errors:
+        print("Package check failed:")
+        for error in errors:
+            print(f"  - {error}")
+        return 1
+
+    print("Package check passed: wheel/sdist include skills + extension and exclude pyc")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
