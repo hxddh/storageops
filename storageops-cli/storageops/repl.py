@@ -249,8 +249,6 @@ class _StreamDisplay:
         self._current_tool: str | None = None
         self._tool_count = 0
         self._t_start: float | None = None
-        self._think_printed_len = 0
-        self._think_buf = ""
         self._response_started = False
         self._verbose = verbose
 
@@ -277,17 +275,12 @@ class _StreamDisplay:
             if not delta:
                 return
 
-            # Once we start getting real response text, switch to inline mode
+            # Print every delta directly (Pi v0.78+ sends incremental, not cumulative)
             if not self._response_started:
                 self._response_started = True
                 if self._thinking_lines > 0 and self._thinking_header_shown:
                     print()
-
-            # Pi sends cumulative deltas — print only new suffix
-            if len(delta) > self._think_printed_len:
-                suffix = delta[self._think_printed_len:]
-                print(suffix, end="", flush=True)
-                self._think_printed_len = len(delta)
+            print(delta, end="", flush=True)
             return
 
         # ── Tool calls ─────────────────────────────────────────
