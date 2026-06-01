@@ -126,14 +126,15 @@ Config is stored at `~/.storageops/config.json`.
 
 ---
 
-## Offline triage (no API key needed)
+## Offline commands (no API key needed)
 
-Rule-based triage works without Pi or an API key:
+Rule-based triage, analysis, and eval work without Pi or an API key:
 
 ```bash
 storageops triage error.log
 storageops analyze security_iam_policy policy.json
 storageops scan logs/*.log
+storageops eval --all           # fast triage eval of all 20 golden cases
 ```
 
 ---
