@@ -84,7 +84,7 @@ If s5cmd `--log debug` output is available, run `python3 scripts/parse_s5cmd_log
 - After diagnosis: **"After applying the fix, validate with a small test first (e.g., 1 small file) before running at full scale."**
 - If a tool upgrade is recommended: **"Check the tool's changelog for breaking changes before upgrading."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [tool] — [one-line]

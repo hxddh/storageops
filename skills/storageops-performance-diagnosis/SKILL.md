@@ -83,7 +83,7 @@ If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_de
 - Before recommending any tool: *"I recommend running <tool> with <flags>. This is non-destructive."*
 - After diagnosis: *"Please validate this fix in a staging environment before applying to production."*
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]

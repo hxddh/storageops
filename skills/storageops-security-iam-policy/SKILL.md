@@ -79,7 +79,7 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 - For credential leaks: '⚠️ CRITICAL: Rotate exposed credentials immediately. Redact logs containing these secrets.'
 - After diagnosis: 'Please validate the fix in a staging/test environment before applying to production.'
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]

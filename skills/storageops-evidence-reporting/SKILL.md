@@ -77,7 +77,7 @@ Before delivering any report, run `scan_secrets` on the full report text. If cre
 - Before including any output: **"I will run a credential scan and redact any sensitive information before finalizing."**
 - After report generation: **"Review the report carefully before sharing. All sensitive internal details (account IDs, IPs, ARNs) have been redacted."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 Varies by template. Core Diagnosis Report structure:
 

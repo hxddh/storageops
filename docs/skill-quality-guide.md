@@ -20,7 +20,7 @@ Every `skills/storageops-*/SKILL.md` should include:
 - Evidence requirements and user clarification prompts.
 - A step-by-step workflow.
 - Tool/script usage instructions when deterministic helpers exist.
-- A structured output template with evidence, root cause, confidence, recommendations, and limitations.
+- A structured output contract with evidence, root cause, confidence, recommendations, and limitations. The exact prose and section order can vary when the conversation calls for it.
 - A `References` section with `Read when:` guidance for each file.
 
 ## Validation Commands
@@ -47,8 +47,9 @@ Routing cases should set `"case_type": "routing"`, keep input artifacts short, a
 
 ## Repository Size Budget
 
-- Keep `SKILL.md` files focused on workflow and evidence requirements; move details into references.
-- Keep golden-case inputs synthetic, redacted, and small; avoid committing full debug logs.
+- Keep `SKILL.md` files focused on workflow and evidence requirements; move details into references. The integrity check enforces a 40KB `SKILL.md` budget.
+- Keep golden-case inputs synthetic, redacted, and small; avoid committing full debug logs. The integrity check enforces 10KB per input artifact, 25KB per case, and 512KB for all cases.
+- Keep `docs/skill-taxonomy.json` under 20KB unless the taxonomy contract is intentionally expanded.
 - Keep deterministic helper scripts narrow and parse-oriented.
 - Store large regression corpora outside the main repository and commit only manifests or reduced samples.
 

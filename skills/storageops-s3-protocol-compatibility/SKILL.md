@@ -85,7 +85,7 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 - Before suggesting a provider-side fix: **"This is the expected behavior of this provider's S3 implementation. Here's how to work around it."**
 - After diagnosis: **"If the issue is a provider bug, please open a support ticket with the provider and reference the debug trace."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]

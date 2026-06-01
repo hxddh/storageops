@@ -7,6 +7,7 @@ Checks:
 - All `references/...` and `scripts/...` links in SKILL.md exist.
 - recommended_tools are registered by the TypeScript extension.
 - Golden cases have valid expected.json and non-empty input artifacts.
+- Repository size budgets keep golden cases compact.
 """
 
 from __future__ import annotations
@@ -23,6 +24,11 @@ REGISTRY = ROOT / "skill-registry.yaml"
 EXTENSION = ROOT / "storageops_cli" / "extensions" / "storageops.ts"
 EVAL_CASES = SKILLS_DIR / "storageops-eval-golden-cases" / "cases"
 TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
+MAX_GOLDEN_INPUT_BYTES = 10 * 1024
+MAX_GOLDEN_CASE_BYTES = 25 * 1024
+MAX_GOLDEN_CASES_BYTES = 512 * 1024
+MAX_TAXONOMY_BYTES = 20 * 1024
+MAX_SKILL_MD_BYTES = 40 * 1024
 
 REQUIRED_FRONTMATTER = {"name", "description", "maturity", "mode", "trigger_keywords", "recommended_tools"}
 REQUIRED_EXPECTED = {
@@ -129,6 +135,8 @@ def validate_skills(errors: list[str]) -> dict[str, dict[str, Any]]:
         except ValueError as exc:
             fail(errors, f"{skill_file}: {exc}")
             continue
+        if skill_file.stat().st_size > MAX_SKILL_MD_BYTES:
+            fail(errors, f"{skill_file}: exceeds {MAX_SKILL_MD_BYTES} byte SKILL.md budget")
         missing = REQUIRED_FRONTMATTER - set(meta)
         if missing:
             fail(errors, f"{skill_file}: missing frontmatter fields: {sorted(missing)}")
@@ -176,6 +184,8 @@ def validate_registry(errors: list[str], metas: dict[str, dict[str, Any]]) -> No
 
 
 def validate_taxonomy(errors: list[str], metas: dict[str, dict[str, Any]], category_to_skill: dict[str, str]) -> None:
+    if TAXONOMY.exists() and TAXONOMY.stat().st_size > MAX_TAXONOMY_BYTES:
+        fail(errors, f"{TAXONOMY}: exceeds {MAX_TAXONOMY_BYTES} byte taxonomy budget")
     for category, skill in sorted(category_to_skill.items()):
         if skill not in metas:
             fail(errors, f"{TAXONOMY}: category {category!r} maps to unknown skill {skill!r}")
@@ -184,7 +194,12 @@ def validate_taxonomy(errors: list[str], metas: dict[str, dict[str, Any]], categ
 def validate_golden_cases(errors: list[str], category_to_skill: dict[str, str]) -> None:
     if not EVAL_CASES.exists():
         return
+    total_bytes = 0
     for case_dir in sorted(p for p in EVAL_CASES.iterdir() if p.is_dir()):
+        case_bytes = sum(path.stat().st_size for path in case_dir.rglob("*") if path.is_file())
+        total_bytes += case_bytes
+        if case_bytes > MAX_GOLDEN_CASE_BYTES:
+            fail(errors, f"{case_dir}: exceeds {MAX_GOLDEN_CASE_BYTES} byte golden-case budget")
         expected_path = case_dir / "expected.json"
         input_dir = case_dir / "input"
         if not expected_path.exists():
@@ -192,6 +207,8 @@ def validate_golden_cases(errors: list[str], category_to_skill: dict[str, str]) 
             continue
         if not input_dir.is_dir() or not any(input_dir.iterdir()):
             fail(errors, f"{case_dir}: missing or empty input/ directory")
+        elif any(path.stat().st_size > MAX_GOLDEN_INPUT_BYTES for path in input_dir.rglob("*") if path.is_file()):
+            fail(errors, f"{case_dir}: input artifact exceeds {MAX_GOLDEN_INPUT_BYTES} byte budget")
         try:
             expected = json.loads(expected_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
@@ -209,6 +226,8 @@ def validate_golden_cases(errors: list[str], category_to_skill: dict[str, str]) 
         must_not = expected.get("must_not_include")
         if not isinstance(must_not, list) or not must_not:
             fail(errors, f"{expected_path}: must_not_include must be a non-empty list")
+    if total_bytes > MAX_GOLDEN_CASES_BYTES:
+        fail(errors, f"{EVAL_CASES}: exceeds {MAX_GOLDEN_CASES_BYTES} byte total golden-cases budget")
 
 
 def main() -> int:

@@ -100,7 +100,7 @@ If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"
 - **"If you're on a private subnet, you MUST use a VPC endpoint or NAT gateway to reach public S3 endpoints."**
 - **"Path-style URLs always work. Virtual-hosted style requires DNS and may not be supported by all providers."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]

@@ -93,7 +93,7 @@ After running evaluation, compare pass rate against last known baseline with `py
 - **"⚠️ HARD_FAIL: The diagnostic category was WRONG. This means triage or the specialist skill is misclassifying the problem."**
 - **"⚠️ SAFETY VIOLATION: The diagnostic output contained forbidden content (credential leak, destructive advice without manual-only)."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Eval Results

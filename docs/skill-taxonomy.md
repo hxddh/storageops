@@ -39,5 +39,6 @@ Keep taxonomy and routing cases small:
 
 - taxonomy stays under 20 KB unless a new diagnostic domain is added.
 - routing case input should usually be under 2 KB.
+- golden-case input artifacts must stay under 10 KB; whole cases must stay under 25 KB.
 - large real logs belong outside the main repo; commit only reduced, synthetic,
   redacted samples.

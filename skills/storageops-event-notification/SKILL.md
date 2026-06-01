@@ -86,7 +86,7 @@ If the notification chain appears correct but events are still missing, ask the 
 - **"S3 silently drops events if the target lacks proper permissions — there is NO error returned to the caller."** — this surprises most users
 - **"S3 event notifications are at-least-once delivery, NOT exactly-once. Your target must be idempotent."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]

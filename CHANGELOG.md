@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-06-02 — v0.4.7: Output contracts and size gates
+
+- **Output contracts**: softened all skill output sections from rigid exact templates to required-field contracts.
+- **Size gates**: added integrity-check budgets for SKILL.md files, taxonomy JSON, golden-case inputs, individual cases, and total golden-case corpus size.
+- **Documentation**: updated skill quality and taxonomy docs with enforced repository size budgets.
+
 ## 2026-06-02 — v0.4.6: Endpoint reachability checker
 
 - **Network tooling**: added `endpoint_reachability_test.py` for read-only DNS, TCP, TLS, and HTTP HEAD checks against an explicitly provided endpoint.

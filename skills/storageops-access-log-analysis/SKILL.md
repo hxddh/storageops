@@ -121,7 +121,7 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 - **"Access logs can be 1-24 hours delayed depending on the provider. For real-time analysis, use CloudTrail (AWS) or equivalent audit logs."**
 - **"The log bucket incurs storage costs. Consider lifecycle rules to auto-delete logs older than 90 days."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Access Log Analysis: [one-line summary]
