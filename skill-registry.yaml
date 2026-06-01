@@ -26,6 +26,23 @@ skills:
     domains: [triage]
     recommended_tools: [scan_secrets, detect_domain, search_memory]
 
+  - name: storageops-access-log-analysis
+    path: skills/storageops-access-log-analysis/SKILL.md
+    maturity: stable
+    mode: light_heavy
+    trigger_keywords:
+      - "access log"
+      - "server access log"
+      - "error rate"
+      - "403 spike"
+      - "503 spike"
+      - "request analysis"
+      - "traffic analysis"
+      - "cost attribution"
+      - "who is accessing"
+    domains: [access-log, observability]
+    recommended_tools: [scan_secrets, detect_domain, search_memory]
+
   - name: storageops-security-iam-policy
     path: skills/storageops-security-iam-policy/SKILL.md
     maturity: core

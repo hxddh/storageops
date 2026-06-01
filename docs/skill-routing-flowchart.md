@@ -22,9 +22,9 @@
       │       
       ▼      ▼      ▼       ▼        ▼
    ┌──────┐┌─────┐┌──────┐┌─────┐┌──────────┐
-   │挂载  ││成本 ││复制  ││     ││          │
-   │mount ││life-││repl- ││     ││          │
-   │      ││cycle││cation││     ││          │
+   │挂载  ││成本 ││复制  ││日志 ││          │
+   │mount ││life-││repl- ││access││          │
+   │      ││cycle││cation││log  ││          │
    └──┬───┘└──┬──┘└──┬───┘└─────┘└──────────┘
       │       │      │
       │ 交叉域: metadata → perf        │
@@ -59,3 +59,4 @@
 | TLS 证书错误 | network-endpoint-access | — |
 | CORS 前端报错 | s3-protocol-compatibility | — |
 | Object Lock 冲突 | replication-versioning | — |
+| 访问日志/错误率尖峰 | access-log-analysis | security / performance / lifecycle-cost |
