@@ -169,3 +169,8 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 - `references/cos-access-log-format.md` — Tencent COS log delivery, CSV fields, bucket-level configuration | **Read when:** user provides COS logs or mentions Tencent Cloud
 - `references/error-code-reference.md` — Per-provider error code meanings: 403 variants, 404 distinctions, 503 subtypes | **Read when:** user reports error codes and you need provider-specific semantics
 - `references/cost-attribution-guide.md` — Request pricing by operation type across providers, data transfer cost models | **Read when:** user asks about cost, billing, or "why is my bill so high"
+- `references/logging-setup.md` — How to enable access logging on S3/BOS/COS/OSS | **Read when:** user doesn't have access logs yet and needs to enable logging
+- `references/log-pattern-reference.md` — Status code → root cause → skill routing map | **Read when:** identifying root cause from error patterns in logs
+- `references/cloudtrail-event-reference.md` — CloudTrail data event field reference for API-level auditing | **Read when:** user provides CloudTrail logs or needs CloudTrail-specific field definitions
+- `references/anomaly-thresholds.md` — Statistical thresholds for hot key, traffic spike, error rate anomaly detection | **Read when:** determining whether a detected pattern is statistically significant
+- `references/provider-log-formats.md` — BOS/COS/OSS/S3 log format comparison table and field mapping | **Read when:** user provides logs from non-S3 provider and you need format-specific parsing rules
