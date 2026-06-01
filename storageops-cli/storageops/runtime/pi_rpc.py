@@ -139,13 +139,59 @@ def _event_is_final(event: dict[str, Any]) -> bool:
     return typ == "agent_end"
 
 
+def _normalise_report(raw: str) -> str:
+    """Strip conversational preamble and unwrap code-fenced YAML frontmatter."""
+    if not raw:
+        return raw
+    # Find the first YAML frontmatter fence (--- at line start)
+    lines = raw.split("\n")
+    yaml_start = -1
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Match opening --- that starts YAML frontmatter (not inside a code fence)
+        if stripped == "---" and i + 1 < len(lines):
+            # Check the next non-empty line looks like a YAML key:value
+            next_line = lines[i + 1].strip()
+            if ":" in next_line and not next_line.startswith(("#", "```", "|||")):
+                yaml_start = i
+                break
+    # Also check if a code fence (``` or ```yaml) precedes the YAML
+    fence_before = -1
+    fence_after = -1
+    for i, line in enumerate(lines):
+        if line.strip().startswith("```"):
+            if fence_before < 0:
+                fence_before = i
+            else:
+                fence_after = i
+                break
+    if 0 <= fence_before < (yaml_start if yaml_start >= 0 else len(lines)):
+        # Remove fence lines
+        keep = []
+        for i, line in enumerate(lines):
+            if i == fence_before or i == fence_after:
+                continue
+            keep.append(line)
+        lines = keep
+        # Recalculate yaml_start after removing fences
+        if yaml_start >= 0:
+            yaml_start = yaml_start - 1 if fence_before < yaml_start else yaml_start
+    if yaml_start > 0:
+        lines = lines[yaml_start:]
+    return "\n".join(lines)
+
+
 def reconstruct_report_from_events(events: list[dict[str, Any]]) -> str:
     """Extract final markdown report from Pi RPC JSONL event stream.
 
     Prefers the assistant text in the agent_end messages list.
     Falls back to concatenating text_delta chunks from message_update events.
+
+    Also strips leading non-YAML prose (some models preface the report with
+    conversational text) and unwraps code-fenced YAML frontmatter.
     """
     # Primary: extract from agent_end.messages (most reliable)
+    raw = ""
     for event in reversed(events):
         if str(event.get("type") or "").lower() == "agent_end":
             for msg in reversed(event.get("messages", [])):
@@ -156,18 +202,27 @@ def reconstruct_report_from_events(events: list[dict[str, Any]]) -> str:
                         if isinstance(block, dict) and block.get("type") == "text"
                     ]
                     if texts:
-                        return "\n".join(texts)
+                        raw = "\n".join(texts)
+                        break
+            if raw:
+                break
 
     # Fallback: reassemble from streaming text_delta events
-    chunks: list[str] = []
-    for event in events:
-        if str(event.get("type") or "").lower() == "message_update":
-            ae = event.get("assistantMessageEvent", {})
-            if isinstance(ae, dict) and ae.get("type") == "text_delta":
-                delta = ae.get("delta", "")
-                if delta:
-                    chunks.append(delta)
-    return "".join(chunks)
+    if not raw:
+        chunks: list[str] = []
+        for event in events:
+            if str(event.get("type") or "").lower() == "message_update":
+                ae = event.get("assistantMessageEvent", {})
+                if isinstance(ae, dict) and ae.get("type") == "text_delta":
+                    delta = ae.get("delta", "")
+                    if delta:
+                        chunks.append(delta)
+        raw = "".join(chunks)
+
+    # Normalise: skip leading prose before YAML frontmatter (some models
+    # like DeepSeek output conversational preamble before the structured report).
+    # Also unwrap code-fenced YAML (```yaml / ``` fences).
+    return _normalise_report(raw)
 
 
 class PiRpcRuntime:
@@ -225,15 +280,32 @@ class PiRpcRuntime:
             log_session_end(session_id, "success" if result.ok else "failed")
             return result
 
-    def _command(self) -> list[str]:
-        return [self.options.pi_command, "--mode", "rpc"]
+    # Default models per provider when no explicit --model is set.
+    _DEFAULT_MODELS: dict[str, str] = {
+        "deepseek": "deepseek/deepseek-v4-flash:off",
+    }
 
-    def _pi_env(self) -> dict:
-        """Build subprocess environment: inherit + inject LLM API key."""
-        env = os.environ.copy()
+    def _command(self) -> list[str]:
+        cmd = [self.options.pi_command, "--mode", "rpc"]
+        provider = self.options.pi_provider or _cfg_provider() or ""
+        if provider:
+            cmd.extend(["--provider", provider])
         api_key = _cfg_api_key()
         if api_key:
-            provider = _cfg_provider()
+            cmd.extend(["--api-key", api_key])
+        model = self.options.pi_model or self._DEFAULT_MODELS.get(provider, "")
+        if model:
+            cmd.extend(["--model", model])
+        return cmd
+
+    def _pi_env(self) -> dict:
+        """Build subprocess environment: inherit only — keys passed via CLI."""
+        env = os.environ.copy()
+        # Also set the provider-specific env var as a fallback for any
+        # provider that reads env vars instead of CLI flags.
+        api_key = _cfg_api_key()
+        if api_key:
+            provider = self.options.pi_provider or _cfg_provider() or ""
             env_map = {
                 "anthropic": "ANTHROPIC_API_KEY",
                 "openai":    "OPENAI_API_KEY",
