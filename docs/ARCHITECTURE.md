@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.8 is a Pi Coding Agent extension and skill pack.
+StorageOps v0.4.9 is a Pi Coding Agent extension and skill pack.
 
 ## Components
 

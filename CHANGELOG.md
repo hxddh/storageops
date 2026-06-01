@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-06-02 — v0.4.9: Merge install settings preservation
+
+- **Merge install fix**: `storageops install --merge` now preserves existing Pi `skills` paths and appends StorageOps' `../skills` path once instead of replacing the whole list.
+- **Tests**: added CLI installer coverage for skill-path merging and settings preservation.
+- **Version sync**: bumped the package and registry header to v0.4.9 for the installer bugfix release.
+
 ## 2026-06-02 — v0.4.8: Documentation rewrite and review notes
 
 - **Documentation rewrite**: refreshed README, operator guides, contributor/security notes, architecture docs, CLI reference, quick reference, tutorial, skill quality guide, taxonomy/routing docs, dependency map, API matrix, and rclone examples.

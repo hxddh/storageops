@@ -211,11 +211,27 @@ def _merge_settings(dst_agent: Path, settings: dict) -> None:
 
     merged = {**existing}
     for key in STORAGEOPS_KEYS:
-        if key in settings:
+        if key not in settings:
+            continue
+        if key == "skills":
+            merged[key] = _merge_skill_paths(existing.get(key), settings[key])
+        else:
             merged[key] = settings[key]
 
     dst.write_text(json.dumps(merged, indent=2, ensure_ascii=False) + "\n")
     print(f"  ✅ settings.json  → {dst} (合并完成)")
+
+
+def _merge_skill_paths(existing: object, required: object) -> list[str]:
+    """Preserve existing Pi skill paths and append StorageOps paths once."""
+    merged: list[str] = []
+    for value in (existing, required):
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            if isinstance(item, str) and item not in merged:
+                merged.append(item)
+    return merged
 
 
 def _write_settings(dst_agent: Path, settings: dict) -> None:
