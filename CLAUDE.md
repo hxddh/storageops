@@ -17,6 +17,18 @@ Configure providers, models, API keys, and base URLs in Pi Coding Agent.
 `storageops-core` is the deterministic, offline diagnostic engine. It must remain
 independent of Pi, LLM APIs, model providers, and real cloud credentials.
 
+## System prompt
+
+Pi receives its identity prompt from `prompts/pi_diagnosis_prompt.md`. This is a
+natural conversational prompt (~500 tokens) that establishes StorageOps as a
+helpful S3 diagnostic assistant. There is no chat/diagnose mode switching — the
+model decides naturally whether to use tools, analyze logs, or chat.
+
+Safety lint (`safety_lint()`) runs non-blocking after every response:
+- Scans for secret leaks (AKIA keys, signed URLs)
+- Detects destructive ops without `# manual-only:` label
+- Appends warnings as gentle reminders (never blocks output)
+
 ## Commands that work without Pi
 
 All non-agent commands work offline without Pi:

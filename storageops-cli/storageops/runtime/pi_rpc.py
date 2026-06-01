@@ -16,7 +16,7 @@ from storageops.config import get_workdir as _cfg_workdir
 from storageops.config import get_skills_dir as _cfg_skills_dir
 from storageops.config import get_api_key as _cfg_api_key
 from storageops.config import get_provider as _cfg_provider
-from storageops.report_validator import validate_agent_report
+from storageops.report_validator import safety_lint
 from storageops.runtime.base import AgentRunOptions, AgentRunResult
 
 from secret_scanner import scan as _scan_secrets
@@ -34,7 +34,6 @@ def _skills_path() -> str:
     d = _cfg_skills_dir()
     if d and d.exists():
         return str(d)
-    # Fallback: repo layout for editable installs
     repo = Path(__file__).resolve().parents[3] / "agents" / "skills"
     if repo.exists():
         return str(repo)
@@ -80,22 +79,19 @@ def redact_for_pi(text: str) -> tuple[str, int]:
     return redacted, int(result.get("count", 0)) + extra_count
 
 
-def _load_prompt_template(mode: str = "diagnose") -> str:
-    """Load the prompt template for the given mode."""
+def _load_prompt() -> str:
+    """Load the single StorageOps identity prompt template."""
     prompt_dir = Path(__file__).resolve().parents[1] / "prompts"
-    if mode == "chat":
-        path = prompt_dir / "pi_chat_prompt.md"
-    else:
-        path = prompt_dir / "pi_diagnosis_prompt.md"
+    path = prompt_dir / "pi_diagnosis_prompt.md"
     return path.read_text(encoding="utf-8")
 
 
 def build_pi_prompt(
     *, evidence_file: Path, original_filename: str, redaction_count: int, max_turns: int,
-    user_message: str = "", mode: str = "diagnose"
+    user_message: str = "",
 ) -> str:
-    """Build the StorageOps prompt sent to Pi. It contains no raw evidence content."""
-    prompt = _load_prompt_template(mode)
+    """Build the StorageOps prompt sent to Pi. No mode switching — one unified prompt."""
+    prompt = _load_prompt()
     replacements = {
         "{{ evidence_file }}": str(evidence_file),
         "{{ original_filename }}": original_filename,
@@ -128,162 +124,14 @@ def _safe_event(event: dict[str, Any]) -> dict[str, Any]:
     return safe
 
 
-def _extract_text(event: dict[str, Any]) -> str:
-    for key in ("markdown", "report_markdown", "final_report", "content", "text", "delta"):
-        value = event.get(key)
-        if isinstance(value, str):
-            return value
-    data = event.get("data")
-    if isinstance(data, dict):
-        return _extract_text(data)
-    return ""
-
-
 def _event_is_final(event: dict[str, Any]) -> bool:
     """Return True when Pi signals the agent turn is complete."""
     typ = str(event.get("type") or event.get("event") or "").lower()
     return typ == "agent_end"
 
 
-def _normalise_report(raw: str) -> str:
-    """Strip conversational preamble, unwrap code-fenced YAML, and synthesise YAML if missing."""
-    if not raw:
-        return raw
-    lines = raw.split("\n")
-    yaml_start = _find_yaml_start(lines)
-
-    # Remove code fences around YAML if present
-    lines = _strip_yaml_fences(lines, yaml_start)
-    if yaml_start is not None:
-        yaml_start = max(0, yaml_start - 1) if yaml_start > 0 else yaml_start
-
-    if yaml_start is not None and yaml_start > 0:
-        lines = lines[yaml_start:]
-
-    # If YAML still missing after cleanup, auto-synthesise from markdown content
-    if not lines or not lines[0].strip().startswith("---"):
-        synthesis = _synthesise_yaml(raw)
-        if synthesis:
-            lines = [synthesis, ""] + lines
-
-    return "\n".join(lines)
-
-
-def _find_yaml_start(lines: list[str]) -> int | None:
-    """Find the first YAML frontmatter line, if any."""
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == "---" and i + 1 < len(lines):
-            next_line = lines[i + 1].strip()
-            if ":" in next_line and not next_line.startswith(("#", "```", "|||")):
-                return i
-    return None
-
-
-def _strip_yaml_fences(lines: list[str], yaml_start: int | None) -> list[str]:
-    """Remove code fences that wrap the YAML block."""
-    fence_before = -1
-    fence_after = -1
-    in_fence = False
-    for i, line in enumerate(lines):
-        marker = line.strip()
-        if marker in ("```yaml", "```"):
-            if not in_fence:
-                fence_before = i
-                in_fence = True
-            else:
-                fence_after = i
-                break
-    if 0 <= fence_before < (yaml_start if yaml_start is not None else len(lines)):
-        return [l for i, l in enumerate(lines) if i not in (fence_before, fence_after)]
-    return lines
-
-
-def _synthesise_yaml(raw: str) -> str | None:
-    """Extract YAML fields from markdown headings/text and return a YAML block."""
-    import re
-    category_map: dict[str, str] = {
-        "security": "security_iam_policy",
-        "networking": "network_endpoint_access",
-        "dns": "network_endpoint_access",
-        "tls": "network_endpoint_access",
-        "endpoint": "network_endpoint_access",
-        "429": "performance_throughput",
-        "slowdown": "performance_throughput",
-        "slow down": "performance_throughput",
-        "throughput": "performance_throughput",
-        "throttl": "performance_throughput",
-        "s3 protocol": "s3_protocol_compatibility",
-        "sigv4": "s3_protocol_compatibility",
-        "signature": "s3_protocol_compatibility",
-        "cors": "s3_protocol_compatibility",
-        "lifecycle": "lifecycle_cost",
-        "cost": "lifecycle_cost",
-        "replicat": "replication_versioning",
-        "mount": "mount_filesystem_workspace",
-        "fuse": "mount_filesystem_workspace",
-        "rclone": "cli_sdk_behavior",
-        "s5cmd": "cli_sdk_behavior",
-        "aws cli": "cli_sdk_behavior",
-        "boto3": "cli_sdk_behavior",
-        "spark": "bigdata_pipeline",
-        "hadoop": "bigdata_pipeline",
-        "evidence": "evidence_reporting",
-        "diagnosis": "evidence_reporting",
-    }
-    severity_pattern = re.compile(
-        r"(?:severity|Severity|SEVERITY)[:\s]+(critical|high|medium|low)\b", re.IGNORECASE
-    )
-    confidence_pattern = re.compile(
-        r"(?:confidence|Confidence|CONFIDENCE)[:\s]+([0-9]+(?:\.[0-9]+)?)\b", re.IGNORECASE
-    )
-
-    sev_match = severity_pattern.search(raw)
-    severity = sev_match.group(1).lower() if sev_match else "medium"
-    conf_match = confidence_pattern.search(raw)
-    confidence = min(max(float(conf_match.group(1)), 0.0), 1.0) if conf_match else 0.6
-
-    # Infer category from text
-    raw_lower = raw.lower()
-    category = "evidence_reporting"
-    root_cause = "insufficient_evidence"
-    for keyword, cat in category_map.items():
-        if keyword in raw_lower:
-            category = cat
-            break
-    # Infer root_cause_type from first ## heading or Key Evidence section
-    heading_match = re.search(r"^#{2,3}\s+(.+)$", raw, re.MULTILINE)
-    if heading_match:
-        heading = heading_match.group(1).strip().lower()
-        heading = re.sub(r"[^a-z0-9\s]", "", heading)
-        heading = heading.replace(" ", "_")[:50]
-        if heading not in ("summary", "key_evidence", "root_cause_ranking", "verification_plan",
-                           "remediation", "safety_notes", "limitations"):
-            root_cause = heading
-    # Special case: if the report says "evidence" or "no evidence", mark as insufficient
-    if "insufficient evidence" in raw_lower or "no diagnostic artifact" in raw_lower:
-        root_cause = "insufficient_evidence"
-        confidence = 0.0
-
-    return (
-        f"---\n"
-        f"category: {category}\n"
-        f"root_cause_type: {root_cause}\n"
-        f"confidence: {confidence}\n"
-        f"severity: {severity}\n"
-        f"---"
-    )
-
-
-def reconstruct_report_from_events(events: list[dict[str, Any]], mode: str = "diagnose") -> str:
-    """Extract final markdown report from Pi RPC JSONL event stream.
-
-    Prefers the assistant text in the agent_end messages list.
-    Falls back to concatenating text_delta chunks from message_update events.
-
-    For diagnose mode: strips leading non-YAML prose and unwraps code-fenced YAML.
-    For chat mode: returns the raw assistant response as-is.
-    """
+def reconstruct_report_from_events(events: list[dict[str, Any]]) -> str:
+    """Extract final assistant response from Pi RPC JSONL event stream."""
     # Primary: extract from agent_end.messages (most reliable)
     raw = ""
     for event in reversed(events):
@@ -313,30 +161,266 @@ def reconstruct_report_from_events(events: list[dict[str, Any]], mode: str = "di
                         chunks.append(delta)
         raw = "".join(chunks)
 
-    # Normalise: for diagnose mode, skip leading prose before YAML frontmatter
-    # and unwrap code-fenced YAML. Chat mode returns raw text as-is.
-    if mode == "chat":
-        return raw
-    return _normalise_report(raw)
+    return raw
 
 
-def _is_chat_message(text: str) -> bool:
-    """Detect if the user input is a casual chat message (greeting, question) rather than diagnostic evidence."""
-    text = text.strip()
-    if not text:
-        return True
-    if len(text) < 80 and not any(kw in text.lower() for kw in (
-        "error", "fail", "403", "404", "429", "500", "denied", "timeout",
-        "stack", "trace", "exception", "<error>", "fatal", "panic",
-        "xml", "json", "<?xml", "http", "dig ", "curl", "ping",
-        "latency", "throughput", "throttl", "slowdown", "slow down",
-    )):
-        return True
-    return False
+class PiSession:
+    """
+    A long-lived Pi process for a REPL session.
 
+    Maintains one Pi subprocess across multiple turns, sending messages via JSONL RPC.
+    This preserves conversation history — each turn's prompt includes prior messages so
+    the model remembers earlier interactions.
+    """
+
+    runtime_name = "pi"
+
+    def __init__(self, options: AgentRunOptions):
+        self.options = options
+        self.proc: subprocess.Popen | None = None
+        self._events: list[dict[str, Any]] = []
+        self._session_id: str = ""
+        self._conversation_turns: list[str] = []  # user messages for history
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    @property
+    def raw_events(self) -> list[dict[str, Any]]:
+        return self._events
+
+    def start(self) -> AgentRunResult | None:
+        """Launch the Pi subprocess. Returns error result on failure, None on success."""
+        try:
+            self._session_id = str(__import__("uuid").uuid4())[:8]
+            self.proc = subprocess.Popen(
+                self._command(),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=str(_pi_workdir()),
+                env=self._pi_env(),
+            )
+            return None
+        except FileNotFoundError:
+            return AgentRunResult(False, self.runtime_name, error=_PI_NOT_FOUND_MSG)
+        except OSError as exc:
+            return AgentRunResult(False, self.runtime_name, error=f"Failed to start Pi: {exc}")
+
+    def send(
+        self,
+        prompt: str,
+        evidence_path: Path | None = None,
+        event_callback: Any = None,
+        stream: bool = False,
+    ) -> AgentRunResult:
+        """Send a prompt to the Pi process and collect the response.
+
+        For the first turn of a session, sends the full StorageOps system prompt.
+        For subsequent turns, sends just the user message with conversation context.
+        Returns AgentRunResult with the assistant response in report_markdown.
+        """
+        if self.proc is None or self.proc.poll() is not None:
+            # Process died or never started — attempt restart
+            err = self.start()
+            if err is not None:
+                return err
+            assert self.proc is not None
+
+        assert self.proc.stdin is not None
+        assert self.proc.stdout is not None
+
+        deadline = time.monotonic() + self.options.timeout_seconds
+        events: list[dict[str, Any]] = []
+        saw_final = False
+
+        try:
+            self.proc.stdin.write(json.dumps(
+                {"type": "prompt", "message": prompt}, ensure_ascii=False
+            ) + "\n")
+            self.proc.stdin.flush()
+
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self.proc.kill()
+                    self.proc = None
+                    return AgentRunResult(
+                        False,
+                        self.runtime_name,
+                        raw_events=events,
+                        error=f"Pi RPC timed out after {self.options.timeout_seconds} seconds",
+                    )
+                ready, _, _ = select.select([self.proc.stdout], [], [], min(0.1, remaining))
+                if not ready:
+                    if self.proc.poll() is not None:
+                        break
+                    continue
+                line = self.proc.stdout.readline()
+                if not line:
+                    if self.proc.poll() is not None:
+                        break
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    event = {"type": "raw_line", "text": line.strip()}
+                safe = _safe_event(event)
+                events.append(safe)
+                self._events.append(safe)
+                if event_callback:
+                    try:
+                        event_callback(safe)
+                    except Exception:
+                        pass
+                elif stream:
+                    # No callback: stream text_delta to stdout directly
+                    typ = str(safe.get("type") or "").lower()
+                    if typ == "message_update":
+                        ae = safe.get("assistantMessageEvent", {})
+                        if isinstance(ae, dict) and ae.get("type") == "text_delta":
+                            delta = ae.get("delta", "")
+                            if delta:
+                                print(delta, end="", flush=True)
+                if _event_is_final(event):
+                    saw_final = True
+                    break
+
+            if not saw_final:
+                # Drain remaining stdout
+                try:
+                    remaining_out = self.proc.stdout.read() if self.proc.stdout else ""
+                    for line in remaining_out.splitlines():
+                        if not line.strip():
+                            continue
+                        try:
+                            event = json.loads(line)
+                        except json.JSONDecodeError:
+                            event = {"type": "raw_line", "text": line.strip()}
+                        safe = _safe_event(event)
+                        events.append(safe)
+                        self._events.append(safe)
+                        if _event_is_final(event):
+                            saw_final = True
+                except OSError:
+                    pass
+
+                stderr_raw = ""
+                try:
+                    self.proc.wait(timeout=2)
+                    stderr_raw = self.proc.stderr.read() if self.proc.stderr else ""
+                except subprocess.TimeoutExpired:
+                    self.proc.kill()
+                    self.proc.wait()
+                except OSError:
+                    pass
+
+                if self.proc.returncode not in (0, None) and not saw_final:
+                    err = redact_for_pi(stderr_raw or "Pi RPC failed")[0]
+                    self.proc = None
+                    return AgentRunResult(False, self.runtime_name, raw_events=events, error=err)
+
+                # Pi process finished the turn but stdin is closed — restart for next turn
+                self.proc.stdin.close() if self.proc.stdin else None
+                self.proc.wait()
+                self.proc = None
+                # Auto-restart Pi on next send()
+                err = self.start()
+                if err is not None:
+                    return AgentRunResult(
+                        False, self.runtime_name, raw_events=events, error=err.error or "Failed to restart Pi"
+                    )
+
+            report = reconstruct_report_from_events(events)
+
+            # Safety lint: scan for secrets and dangerous recommendations
+            if report:
+                lint = safety_lint(report)
+                if lint["issues"]:
+                    # Append safety notes as a gentle reminder instead of blocking
+                    report += "\n\n---\n\n⚠️  Safety note: " + "; ".join(lint["issues"])
+
+                # Auto-save to memory on success (best-effort)
+                try:
+                    from storageops.memory_store import save_case
+                    save_case(
+                        self._session_id,
+                        "diagnosis",
+                        "general",
+                        report[:400],
+                        keywords=[],
+                    )
+                except Exception:
+                    pass
+
+            return AgentRunResult(
+                True,
+                self.runtime_name,
+                report_markdown=report,
+                raw_events=events,
+            )
+
+        except Exception as exc:
+            return AgentRunResult(False, self.runtime_name, raw_events=events, error=str(exc))
+
+    def stop(self) -> None:
+        """Cleanly terminate the Pi subprocess."""
+        if self.proc and self.proc.poll() is None:
+            try:
+                if self.proc.stdin:
+                    self.proc.stdin.close()
+            except OSError:
+                pass
+            try:
+                self.proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait()
+        self.proc = None
+
+    # Default models per provider when no explicit --model is set.
+    _DEFAULT_MODELS: dict[str, str] = {
+        "deepseek": "deepseek/deepseek-v4-flash:off",
+        "openai": "openai/gpt-4o-mini",
+        "anthropic": "anthropic/claude-sonnet-4-20250514",
+        "google": "google/gemini-3-flash-preview",
+    }
+
+    def _command(self) -> list[str]:
+        cmd = [self.options.pi_command, "--mode", "rpc"]
+        provider = self.options.pi_provider or _cfg_provider() or ""
+        if provider:
+            cmd.extend(["--provider", provider])
+        api_key = _cfg_api_key()
+        if api_key:
+            cmd.extend(["--api-key", api_key])
+        model = self.options.pi_model or self._DEFAULT_MODELS.get(provider, "")
+        if model:
+            cmd.extend(["--model", model])
+        return cmd
+
+    def _pi_env(self) -> dict:
+        env = os.environ.copy()
+        api_key = _cfg_api_key()
+        if api_key:
+            provider = self.options.pi_provider or _cfg_provider() or ""
+            env_map = {
+                "anthropic": "ANTHROPIC_API_KEY",
+                "openai":    "OPENAI_API_KEY",
+            }
+            env_var = env_map.get(provider, f"{provider.upper()}_API_KEY")
+            env.setdefault(env_var, api_key)
+        return env
+
+
+# ── Legacy PiRpcRuntime (one-shot, stateless — kept for CLI commands) ──
 
 class PiRpcRuntime:
-    """Run Pi Coding Agent in JSONL RPC mode."""
+    """One-shot Pi RPC runner for standalone commands (triage, analyze, eval)."""
 
     runtime_name = "pi"
 
@@ -362,30 +446,28 @@ class PiRpcRuntime:
             evidence_path = Path(tmpdir) / "redacted-evidence.txt"
             evidence_path.write_text(redacted_text, encoding="utf-8")
 
-            # Detect chat vs diagnostic mode
-            mode = "chat" if _is_chat_message(raw_text) else "diagnose"
-            user_msg = redacted_text[:500]  # truncate for chat prompt
             prompt = build_pi_prompt(
                 evidence_file=evidence_path,
                 original_filename=input_path.name,
                 redaction_count=redaction_count,
                 max_turns=self.options.max_turns,
-                user_message=user_msg,
-                mode=mode,
+                user_message=redacted_text[:500],
             )
             prompt = redact_for_pi(prompt)[0]
 
-            # Build ordered commands: optional model switch → prompt
-            commands: list[dict[str, Any]] = []
-            if self.options.pi_model:
-                commands.append({
-                    "type": "set_model",
-                    "provider": self.options.pi_provider or "anthropic",
-                    "model": self.options.pi_model,
-                })
-            commands.append({"type": "prompt", "message": prompt})
+            session = PiSession(self.options)
+            start_err = session.start()
+            if start_err:
+                return start_err
 
-            result = self._run_rpc(commands, session_id, mode=mode)
+            result = session.send(
+                prompt,
+                evidence_path=evidence_path,
+                event_callback=self.options.event_callback,
+                stream=self.options.stream,
+            )
+            session.stop()
+
             log_pi_result(
                 session_id,
                 ok=result.ok,
@@ -396,206 +478,9 @@ class PiRpcRuntime:
             log_session_end(session_id, "success" if result.ok else "failed")
             return result
 
-    # Default models per provider when no explicit --model is set.
-    _DEFAULT_MODELS: dict[str, str] = {
-        "deepseek": "deepseek/deepseek-v4-flash:off",
-        "openai": "openai/gpt-4o-mini",
-        "anthropic": "anthropic/claude-sonnet-4-20250514",
-        "google": "google/gemini-3-flash-preview",
-    }
-
-    def _command(self) -> list[str]:
-        cmd = [self.options.pi_command, "--mode", "rpc"]
-        provider = self.options.pi_provider or _cfg_provider() or ""
-        if provider:
-            cmd.extend(["--provider", provider])
-        api_key = _cfg_api_key()
-        if api_key:
-            cmd.extend(["--api-key", api_key])
-        model = self.options.pi_model or self._DEFAULT_MODELS.get(provider, "")
-        if model:
-            cmd.extend(["--model", model])
-        return cmd
-
-    def _pi_env(self) -> dict:
-        """Build subprocess environment: inherit only — keys passed via CLI."""
-        env = os.environ.copy()
-        # Also set the provider-specific env var as a fallback for any
-        # provider that reads env vars instead of CLI flags.
-        api_key = _cfg_api_key()
-        if api_key:
-            provider = self.options.pi_provider or _cfg_provider() or ""
-            env_map = {
-                "anthropic": "ANTHROPIC_API_KEY",
-                "openai":    "OPENAI_API_KEY",
-            }
-            env_var = env_map.get(provider, f"{provider.upper()}_API_KEY")
-            env.setdefault(env_var, api_key)
-        return env
-
-    def _run_rpc(self, commands: list[dict[str, Any]], session_id: str = "", mode: str = "diagnose") -> AgentRunResult:
-        try:
-            proc = subprocess.Popen(
-                self._command(),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                cwd=str(_pi_workdir()),
-                env=self._pi_env(),
-            )
-        except FileNotFoundError:
-            return AgentRunResult(False, self.runtime_name, error=_PI_NOT_FOUND_MSG)
-        except OSError as exc:
-            return AgentRunResult(False, self.runtime_name, error=f"Failed to start Pi: {exc}")
-
-        assert proc.stdin is not None
-        assert proc.stdout is not None
-        deadline = time.monotonic() + self.options.timeout_seconds
-        events: list[dict[str, Any]] = []
-        saw_final = False
-
-        try:
-            # Send all commands; keep stdin open so Pi can handle tool calls internally
-            for cmd in commands:
-                proc.stdin.write(json.dumps(cmd, ensure_ascii=False) + "\n")
-            proc.stdin.flush()
-
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    proc.kill()
-                    return AgentRunResult(
-                        False,
-                        self.runtime_name,
-                        raw_events=events,
-                        error=f"Pi RPC timed out after {self.options.timeout_seconds} seconds",
-                    )
-                ready, _, _ = select.select([proc.stdout], [], [], min(0.1, remaining))
-                if not ready:
-                    if proc.poll() is not None:
-                        break
-                    continue
-                line = proc.stdout.readline()
-                if not line:
-                    if proc.poll() is not None:
-                        break
-                    continue
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    event = {"type": "raw_line", "text": line.strip()}
-                safe = _safe_event(event)
-                events.append(safe)
-                if self.options.event_callback:
-                    try:
-                        self.options.event_callback(safe)
-                    except Exception:
-                        pass
-                elif self.options.stream:
-                    # No callback: stream text_delta to stdout directly
-                    typ = str(safe.get("type") or "").lower()
-                    if typ == "message_update":
-                        ae = safe.get("assistantMessageEvent", {})
-                        if isinstance(ae, dict) and ae.get("type") == "text_delta":
-                            delta = ae.get("delta", "")
-                            if delta:
-                                print(delta, end="", flush=True)
-                if _event_is_final(event):
-                    saw_final = True
-                    break
-
-            # Close stdin now that we're done (Pi will proceed to finish the turn)
-            try:
-                proc.stdin.close()
-            except OSError:
-                pass
-
-            if not saw_final:
-                # Drain remaining stdout and collect stderr without re-using communicate()
-                # (stdin is already closed; communicate() would raise ValueError)
-                try:
-                    remaining = proc.stdout.read() if proc.stdout else ""
-                    for line in remaining.splitlines():
-                        if not line.strip():
-                            continue
-                        try:
-                            event = json.loads(line)
-                        except json.JSONDecodeError:
-                            event = {"type": "raw_line", "text": line.strip()}
-                        safe = _safe_event(event)
-                        events.append(safe)
-                        if _event_is_final(event):
-                            saw_final = True
-                except OSError:
-                    pass
-
-                stderr_raw = ""
-                try:
-                    proc.wait(timeout=2)
-                    stderr_raw = proc.stderr.read() if proc.stderr else ""
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait()
-                except OSError:
-                    pass
-
-                if proc.returncode not in (0, None) and not saw_final:
-                    err = redact_for_pi(stderr_raw or "Pi RPC failed")[0]
-                    return AgentRunResult(False, self.runtime_name, raw_events=events, error=err)
-
-            report = reconstruct_report_from_events(events, mode=mode)
-            # Chat mode: skip YAML normalisation and validation
-            if mode == "chat":
-                # Extract raw chat response without YAML synthesis
-                # reconstruct already returns raw text from events; use it as-is
-                result = AgentRunResult(True, self.runtime_name, raw_events=events, report_markdown=report)
-                log_pi_result(
-                    session_id,
-                    ok=True,
-                    redaction_count=0,
-                    validation_ok=True,
-                    event_count=len(events),
-                )
-                log_session_end(session_id, "success")
-                return result
-
-            # Diagnostic mode: normalise and validate
-            validation = validate_agent_report(report)
-            if not validation["valid"]:
-                return AgentRunResult(
-                    False,
-                    self.runtime_name,
-                    raw_events=events,
-                    error="Report validation failed: " + "; ".join(validation["errors"]),
-                )
-            if report:
-                try:
-                    fm_cat = re.search(r"^category:\s*(\S+)", report, re.MULTILINE)
-                    fm_rc = re.search(r"^root_cause_type:\s*(\S+)", report, re.MULTILINE)
-                    if fm_cat and fm_rc:
-                        from storageops.memory_store import save_case
-                        save_case(
-                            session_id,
-                            fm_cat.group(1),
-                            fm_rc.group(1),
-                            report[:400],
-                            keywords=[],
-                        )
-                except Exception:
-                    pass
-            return AgentRunResult(True, self.runtime_name, report_markdown=report, raw_events=events)
-        finally:
-            if proc.poll() is None:
-                try:
-                    proc.kill()
-                except OSError:
-                    pass
-
 
 __all__ = [
+    "PiSession",
     "PiRpcRuntime",
     "redact_for_pi",
     "build_pi_prompt",

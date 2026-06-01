@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+## 2026-06-01 — Architecture refactor: natural conversational agent
+
+**Core: prompt -> identity, no mode switching**
+- Rewrote `pi_diagnosis_prompt.md` from 2500+-token diagnostic manual to ~500-token
+  natural identity prompt. No mode switching — the model decides whether to chat,
+  diagnose, or use tools based on context.
+- Removed `pi_chat_prompt.md` — one prompt for all modes.
+- Removed `_is_chat_message()` keyword detection and all chat/diagnose branching.
+
+**Core: PiSession — persistent Pi process across turns**
+- New `PiSession` class in `runtime/pi_rpc.py`: maintains one Pi subprocess across
+  multiple turns. Conversation history is preserved — the model remembers previous
+  interactions without needing to rebuild context.
+- `PiRpcRuntime` kept for one-shot CLI commands (`triage`, `analyze`, `eval`).
+- First turn: sends full system prompt + evidence file path.
+  Subsequent turns: sends just the user message. Pi retains context.
+
+**Core: non-blocking safety lint**
+- `validate_agent_report()` → `safety_lint()`: scans for secrets and dangerous
+  recommendations but NEVER blocks output. Safety notes appended as gentle reminders.
+- YAML frontmatter validation removed from the agent pipeline (still available
+  for eval/tests via `validate_report()`).
+
+**REPL: simplified streaming display**
+- `_StreamDisplay` simplified from 5-state dispatch (thinking/tool/YAML/report/chat)
+  to 2 phases: thinking → response. No more YAML-collecting logic or mode-dependent
+  formatting. All model output streams naturally.
+- `_run_turn()` uses persistent `_pi_session` singleton; restarts on `/clear` or
+  `/resume`.
+
 ## 2026-06-01 — Amp-style slash commands + command history + syntax highlighting
 
 - **`/editor` command**: open `$EDITOR` (vim/nano) to write long prompts or paste large logs.

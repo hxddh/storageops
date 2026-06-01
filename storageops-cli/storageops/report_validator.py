@@ -1,102 +1,12 @@
 """
-Validate the YAML frontmatter and required sections in Pi diagnostic reports.
+Safety lint for StorageOps agent responses.
 
-The Pi agent's system prompt requires every report to start with a YAML block:
-    ---
-    category: <domain>
-    root_cause_type: <type>
-    confidence: <0.0–1.0>
-    severity: critical | high | medium | low
-    ---
-
-This module validates that structure so tests and the agent loop can
-check output quality without re-running the full agent.
+Scans output for secrets, destructive recommendations, and security risks.
+Returns warnings but does NOT block output — the agent flows naturally.
 """
 from __future__ import annotations
 
 import re
-
-_REQUIRED_FIELDS = {"category", "root_cause_type", "confidence", "severity"}
-_VALID_SEVERITIES = {"critical", "high", "medium", "low"}
-_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
-
-
-def validate_report(text: str) -> dict:
-    """
-    Validate a diagnostic report's YAML frontmatter and required sections.
-
-    Returns:
-        {
-            "valid": bool,
-            "has_frontmatter": bool,
-            "missing_fields": list[str],
-            "invalid_fields": dict[str, str],   # field → reason
-            "warnings": list[str],
-        }
-    """
-    result: dict = {
-        "valid": False,
-        "has_frontmatter": False,
-        "missing_fields": [],
-        "invalid_fields": {},
-        "warnings": [],
-    }
-
-    m = _FRONTMATTER_RE.match(text.strip())
-    if not m:
-        result["missing_fields"] = list(_REQUIRED_FIELDS)
-        result["warnings"].append("Report does not begin with YAML frontmatter (--- ... ---)")
-        return result
-
-    result["has_frontmatter"] = True
-    yaml_block = m.group(1)
-    fields = _parse_simple_yaml(yaml_block)
-
-    missing = [f for f in _REQUIRED_FIELDS if f not in fields]
-    result["missing_fields"] = missing
-
-    # Validate individual fields
-    if "confidence" in fields:
-        try:
-            conf = float(fields["confidence"])
-            if not (0.0 <= conf <= 1.0):
-                result["invalid_fields"]["confidence"] = (
-                    f"{conf!r} is not in range 0.0–1.0"
-                )
-        except ValueError:
-            result["invalid_fields"]["confidence"] = (
-                f"{fields['confidence']!r} is not a float"
-            )
-
-    if "severity" in fields:
-        sev = fields["severity"].lower()
-        if sev not in _VALID_SEVERITIES:
-            result["invalid_fields"]["severity"] = (
-                f"{fields['severity']!r} not in {sorted(_VALID_SEVERITIES)}"
-            )
-
-    if "root_cause_type" in fields:
-        rt = fields["root_cause_type"].strip()
-        if rt in ("", "unknown"):
-            result["warnings"].append("root_cause_type is 'unknown' — diagnosis may be incomplete")
-
-    result["valid"] = not missing and not result["invalid_fields"]
-    return result
-
-
-def _parse_simple_yaml(block: str) -> dict[str, str]:
-    """Parse key: value pairs from a YAML block (no nested structures)."""
-    fields: dict[str, str] = {}
-    for line in block.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if ":" in line:
-            key, _, val = line.partition(":")
-            fields[key.strip()] = val.strip().strip('"').strip("'")
-    return fields
-
-# ── Agent safety validation gate ──────────────────────────────────────
 
 _SECRET_PATTERNS = [
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
@@ -133,35 +43,21 @@ def _line_has_manual_only(line: str) -> bool:
     return "manual-only" in line.lower()
 
 
-def _has_section(text: str, section_name: str) -> bool:
-    if re.search(rf"^##+\s+{re.escape(section_name)}\b", text, re.IGNORECASE | re.MULTILINE):
-        return True
-    # Also match bold inline headers: **Key Evidence:**
-    return bool(re.search(rf"\*\*{re.escape(section_name)}[\s:]*\*\*", text, re.IGNORECASE))
-
-
-def validate_agent_report(text: str) -> dict:
-    """Validate Pi-produced report structure, evidence, safety, and secret leakage.
-
-    Returns a dict with ``valid`` and ``errors``. This hard gate is used before
-    StorageOps prints a Pi report as final output.
+def safety_lint(text: str) -> dict:
     """
-    result = validate_report(text)
-    errors: list[str] = []
+    Scan agent output for safety issues. Non-blocking — returns warnings only.
 
-    if not result.get("has_frontmatter"):
-        errors.append("YAML frontmatter is missing")
-    for field in result.get("missing_fields", []):
-        errors.append(f"{field} is missing")
-    for field, reason in result.get("invalid_fields", {}).items():
-        errors.append(f"{field} is invalid: {reason}")
-
-    if not _has_section(text, "Key Evidence") and not _has_section(text, "Evidence"):
-        errors.append("evidence section is missing")
+    Returns:
+        {"issues": [...], "secret_leaks": int, "destructive_no_label": int}
+    """
+    issues: list[str] = []
+    secret_leaks = 0
+    destructive_no_label = 0
 
     for pattern in _SECRET_PATTERNS:
         if pattern.search(text):
-            errors.append("report contains an obvious secret or signed credential")
+            issues.append("report may contain a secret or signed credential")
+            secret_leaks += 1
             break
 
     for line in text.splitlines():
@@ -169,22 +65,90 @@ def validate_agent_report(text: str) -> dict:
             continue
         for pattern, name in _DESTRUCTIVE_PATTERNS:
             if pattern.search(line):
-                errors.append(f"destructive operation lacks manual-only label: {name}")
+                issues.append(f"destructive operation lacks manual-only label: {name}")
+                destructive_no_label += 1
                 break
 
     public_bucket = re.search(r"(?i)(make|set|configure).{0,40}(bucket|object).{0,40}public", text)
     strong_warning = re.search(r"(?i)(strong warning|security warning|risk|do not|manual-only)", text)
     if public_bucket and not strong_warning:
-        errors.append("public bucket exposure recommendation lacks a strong warning")
+        issues.append("public bucket exposure recommendation lacks a strong warning")
 
     disable_security = re.search(
         r"(?i)disable\s+(tls|ssl|encryption|kms|block public access|security controls?)", text
     )
     if disable_security and not strong_warning:
-        errors.append("disabling security controls recommendation lacks a warning")
+        issues.append("disabling security controls recommendation lacks a warning")
 
     return {
-        "valid": not errors,
-        "errors": errors,
-        "frontmatter": result,
+        "issues": issues,
+        "secret_leaks": secret_leaks,
+        "destructive_no_label": destructive_no_label,
+    }
+
+
+# ── Legacy validate_report (kept for backward compat) ──
+
+_REQUIRED_FIELDS = {"category", "root_cause_type", "confidence", "severity"}
+_VALID_SEVERITIES = {"critical", "high", "medium", "low"}
+_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
+
+
+def validate_report(text: str) -> dict:
+    """Legacy YAML frontmatter validation — kept for eval and tests."""
+    result: dict = {
+        "valid": False,
+        "has_frontmatter": False,
+        "missing_fields": [],
+        "invalid_fields": {},
+        "warnings": [],
+    }
+    m = _FRONTMATTER_RE.match(text.strip())
+    if not m:
+        result["missing_fields"] = list(_REQUIRED_FIELDS)
+        return result
+    result["has_frontmatter"] = True
+    yaml_block = m.group(1)
+    fields = _parse_simple_yaml(yaml_block)
+    missing = [f for f in _REQUIRED_FIELDS if f not in fields]
+    result["missing_fields"] = missing
+    if "confidence" in fields:
+        try:
+            conf = float(fields["confidence"])
+            if not (0.0 <= conf <= 1.0):
+                result["invalid_fields"]["confidence"] = f"{conf!r} is not in range 0.0–1.0"
+        except ValueError:
+            result["invalid_fields"]["confidence"] = f"{fields['confidence']!r} is not a float"
+    if "severity" in fields:
+        sev = fields["severity"].lower()
+        if sev not in _VALID_SEVERITIES:
+            result["invalid_fields"]["severity"] = f"{fields['severity']!r} not in {sorted(_VALID_SEVERITIES)}"
+    if "root_cause_type" in fields:
+        rt = fields["root_cause_type"].strip()
+        if rt in ("", "unknown"):
+            result["warnings"].append("root_cause_type is 'unknown' — diagnosis may be incomplete")
+    result["valid"] = not missing and not result["invalid_fields"]
+    return result
+
+
+def _parse_simple_yaml(block: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for line in block.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ":" in line:
+            key, _, val = line.partition(":")
+            fields[key.strip()] = val.strip().strip('"').strip("'")
+    return fields
+
+
+# Legacy validate_agent_report — kept for backward compat but non-blocking
+def validate_agent_report(text: str) -> dict:
+    """Legacy compat: always returns valid=True. Use safety_lint() instead."""
+    lint = safety_lint(text)
+    return {
+        "valid": True,  # always pass — safety lint is non-blocking now
+        "errors": lint["issues"],
+        "frontmatter": validate_report(text),
     }

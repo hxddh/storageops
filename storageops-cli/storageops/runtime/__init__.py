@@ -4,6 +4,6 @@ Pi Coding Agent is the default and only supported Agent Runtime. StorageOps
 keeps deterministic diagnostics, redaction, validation, and non-agent commands.
 """
 from storageops.runtime.base import AgentRunOptions, AgentRunResult
-from storageops.runtime.pi_rpc import PiRpcRuntime
+from storageops.runtime.pi_rpc import PiRpcRuntime, PiSession
 
-__all__ = ["AgentRunOptions", "AgentRunResult", "PiRpcRuntime"]
+__all__ = ["AgentRunOptions", "AgentRunResult", "PiRpcRuntime", "PiSession"]

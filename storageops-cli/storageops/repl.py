@@ -1,4 +1,4 @@
-"""Interactive REPL — Pi Coding Agent-style S3 diagnostic interface."""
+"""Interactive REPL — Natural conversational S3 diagnostic interface."""
 from __future__ import annotations
 
 import os
@@ -16,7 +16,6 @@ from storageops.session import DiagnosticSession
 # ── History file path ────────────────────────────────────────────────
 
 def _history_file() -> Path:
-    """Return ~/.storageops/history."""
     from storageops.config import get_workdir
     return get_workdir() / "history"
 
@@ -25,7 +24,6 @@ _IS_INPUT_TTY = sys.stdin.isatty()
 
 # ── ANSI helpers ──────────────────────────────────────────────────────
 
-# Look-up table: colour name → ansi code
 _CODES = {
     "reset": 0, "bold": 1, "dim": 2, "italic": 3,
     "green": 32, "yellow": 33, "red": 31, "cyan": 36,
@@ -33,7 +31,6 @@ _CODES = {
 }
 
 def _c(text: str, *args: str) -> str:
-    """Apply ANSI codes. _c('text', 'bold', 'cyan') → bold cyan text."""
     if not _IS_TTY:
         return text
     codes = [str(_CODES.get(a, a)) for a in args]
@@ -45,9 +42,6 @@ def _green(t: str) -> str:  return _c(t, "green")
 def _yellow(t: str) -> str: return _c(t, "yellow")
 def _red(t: str) -> str:    return _c(t, "red")
 def _cyan(t: str) -> str:   return _c(t, "cyan")
-
-def _hr(w: int = 60) -> str:
-    return _dim("─" * w)
 
 
 # ── Slash commands ────────────────────────────────────────────────────
@@ -71,7 +65,7 @@ _SLASH_CMD_HELP = {
     "/update":  "Download latest Pi binary and reinstall skills",
     "/doctor":  "Run environment health check",
     "/setup":   "Re-run setup (API key, Pi install)",
-    "/verbose": "Toggle verbose mode (show tool calls)",
+    "/verbose": "Toggle verbose mode (show thinking text)",
     "/exit":    "Exit StorageOps",
 }
 
@@ -106,15 +100,88 @@ def _make_banner() -> str:
 
 
 def _make_prompt(session_id: str) -> str:
-    """Build the input prompt: `  › ` (clean, pi-style)."""
     return f"  {_c('›', 'cyan')}  " if _IS_TTY else "> "
 
 
-# ── Live streaming progress (tool calls + report streaming) ───────────
+# ── Syntax highlighting (optional, pygments) ────────────────────────
+
+_HIGHLIGHT_AVAILABLE = False
+
+def _init_highlighting() -> bool:
+    global _HIGHLIGHT_AVAILABLE
+    try:
+        __import__("pygments")
+        _HIGHLIGHT_AVAILABLE = True
+    except ImportError:
+        _HIGHLIGHT_AVAILABLE = False
+    return _HIGHLIGHT_AVAILABLE
+
+
+def _highlight_report_sections(text: str) -> str:
+    if not _IS_TTY or not _HIGHLIGHT_AVAILABLE:
+        return text
+    try:
+        from pygments import highlight
+        from pygments.lexers import YamlLexer, JsonLexer, BashLexer, MarkdownLexer
+        from pygments.formatters import Terminal256Formatter
+
+        result: list[str] = []
+        in_yaml = False
+        in_code = False
+        code_lang = ""
+        yaml_lines: list[str] = []
+        code_lines: list[str] = []
+        fm = Terminal256Formatter(style="monokai")
+
+        for line in text.split("\n"):
+            if not in_yaml and not in_code and line.strip() == "---":
+                in_yaml = True
+                yaml_lines = [line]
+                continue
+            if in_yaml:
+                yaml_lines.append(line)
+                if line.strip() == "---" and len(yaml_lines) > 1:
+                    yaml_text = "\n".join(yaml_lines)
+                    try:
+                        result.append(highlight(yaml_text, YamlLexer(), fm).rstrip())
+                    except Exception:
+                        result.append(yaml_text.rstrip())
+                    yaml_lines = []
+                    in_yaml = False
+                continue
+            fence_match = re.match(r"^```(\w*)", line.strip())
+            if fence_match and not in_code:
+                in_code = True
+                code_lang = fence_match.group(1) or ""
+                code_lines = [line]
+                continue
+            if in_code:
+                code_lines.append(line)
+                if line.strip() == "```":
+                    code_text = "\n".join(code_lines)
+                    lexer_map = {"yaml": YamlLexer, "yml": YamlLexer, "json": JsonLexer,
+                                 "bash": BashLexer, "sh": BashLexer, "shell": BashLexer}
+                    lexer_cls = lexer_map.get(code_lang, MarkdownLexer)
+                    try:
+                        result.append(highlight(code_text, lexer_cls(), fm).rstrip())
+                    except Exception:
+                        result.append(code_text.rstrip())
+                    code_lines = []
+                    in_code = False
+                continue
+            result.append(line)
+        if yaml_lines:
+            result.extend(yaml_lines)
+        if code_lines:
+            result.extend(code_lines)
+        return "\n".join(result)
+    except Exception:
+        return text
+
+
+# ── Tool result summarizer ───────────────────────────────────────────
 
 def _summarize_tool_result(event: dict[str, Any]) -> str:
-    """Extract a brief human-readable summary from a Pi tool_execution_end event."""
-    # Pi format: {type: "tool_execution_end", result: {content: [{type: "text", text: "..."}]}}
     result = event.get("result", {})
     if isinstance(result, dict):
         content_list = result.get("content", [])
@@ -126,12 +193,10 @@ def _summarize_tool_result(event: dict[str, Any]) -> str:
                     return _summarize_structured(data)
                 except Exception:
                     return text[:60].replace("\n", " ")
-        # Check details for structured data
         details = result.get("details", {})
         if details:
             return _summarize_structured(details)
         return ""
-    # Legacy format: direct content/result/output
     content = event.get("content") or event.get("output") or {}
     if isinstance(content, str):
         try:
@@ -145,7 +210,6 @@ def _summarize_tool_result(event: dict[str, Any]) -> str:
 
 
 def _summarize_structured(data: dict) -> str:
-    """Extract key fields from structured tool output."""
     snippets: list[str] = []
     for key in ("records", "transfers", "errors", "requests", "signals", "findings", "count"):
         v = data.get(key)
@@ -170,178 +234,25 @@ def _summarize_structured(data: dict) -> str:
     return "  ".join(snippets[:3])
 
 
-# ── Syntax highlighting (optional, uses pygments) ────────────────────
-
-_HIGHLIGHT_AVAILABLE = False
-
-def _init_highlighting() -> bool:
-    """Check if pygments is available for syntax highlighting."""
-    global _HIGHLIGHT_AVAILABLE
-    try:
-        __import__("pygments")
-        _HIGHLIGHT_AVAILABLE = True
-    except ImportError:
-        _HIGHLIGHT_AVAILABLE = False
-    return _HIGHLIGHT_AVAILABLE
-
-
-def _highlight_text(text: str, lexer_name: str) -> str:
-    """Apply pygments syntax highlighting. Returns plain text if unavailable."""
-    if not _HIGHLIGHT_AVAILABLE or not _IS_TTY:
-        return text
-    try:
-        from pygments import highlight
-        from pygments.lexers import get_lexer_by_name
-        from pygments.formatters import Terminal256Formatter
-        lexer = get_lexer_by_name(lexer_name, stripall=True)
-        return highlight(text, lexer, Terminal256Formatter(style="monokai"))
-    except Exception:
-        return text
-
-
-def _highlight_report_sections(text: str) -> str:
-    """
-    Highlight YAML blocks, code fences, and numbered lists in a report.
-    Returns the plain text (highlighting only applied during TTY streaming).
-    """
-    if not _IS_TTY or not _HIGHLIGHT_AVAILABLE:
-        return text
-    try:
-        from pygments import highlight
-        from pygments.lexers import YamlLexer, JsonLexer, BashLexer, MarkdownLexer
-        from pygments.formatters import Terminal256Formatter
-
-        result: list[str] = []
-        in_yaml = False
-        in_code = False
-        code_lang = ""
-        yaml_lines: list[str] = []
-        code_lines: list[str] = []
-
-        fm = Terminal256Formatter(style="monokai")
-
-        for line in text.split("\n"):
-            # YAML frontmatter
-            if not in_yaml and not in_code and line.strip() == "---":
-                in_yaml = True
-                yaml_lines = [line]
-                continue
-            if in_yaml:
-                yaml_lines.append(line)
-                if line.strip() == "---" and len(yaml_lines) > 1:
-                    # Flush YAML block
-                    yaml_text = "\n".join(yaml_lines)
-                    try:
-                        highlighted = highlight(yaml_text, YamlLexer(), fm)
-                        result.append(highlighted.rstrip())
-                    except Exception:
-                        result.append(yaml_text.rstrip())
-                    yaml_lines = []
-                    in_yaml = False
-                continue
-
-            # Code fence
-            fence_match = re.match(r"^```(\w*)", line.strip())
-            if fence_match and not in_code:
-                in_code = True
-                code_lang = fence_match.group(1) or ""
-                code_lines = [line]
-                continue
-            if in_code:
-                code_lines.append(line)
-                if line.strip() == "```":
-                    # Flush code block
-                    code_text = "\n".join(code_lines)
-                    lexer_map = {
-                        "yaml": YamlLexer, "yml": YamlLexer,
-                        "json": JsonLexer, "bash": BashLexer, "sh": BashLexer,
-                        "shell": BashLexer,
-                    }
-                    lexer_cls = lexer_map.get(code_lang, MarkdownLexer)
-                    try:
-                        highlighted = highlight(code_text, lexer_cls(), fm)
-                        result.append(highlighted.rstrip())
-                    except Exception:
-                        result.append(code_text.rstrip())
-                    code_lines = []
-                    in_code = False
-                continue
-
-            result.append(line)
-
-        # Close unclosed blocks
-        if yaml_lines:
-            result.extend(yaml_lines)
-        if code_lines:
-            result.extend(code_lines)
-
-        return "\n".join(result)
-    except Exception:
-        return text
-
+# ── Stream display: natural, no mode switching ─────────────────────
 
 class _StreamDisplay:
     """
-    Pi-style streaming progress during diagnosis.
-
-    Shows tool calls in real-time, streams the final report as it's written,
-    and dims the thinking phase to a single indicator line.
-
-      ▶ Thinking…
-         Scanning evidence for error signatures…
-      ⏺ scan_secrets  ✓ 0 secrets
-      ⏺ triage  ✓ performance_throughput 25%
-      ⏺ analyze  ✓ 2 findings
-
-      ────────────────────────────────────────────────────
-        prefix hotspot throttling  HIGH  75%
-      ────────────────────────────────────────────────────
-
-      (report body streamed in real-time)
+    Natural streaming display — shows thinking, tool calls, and response
+    in real-time without forcing diagnostic structure assumptions.
     """
 
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
         self._thinking_lines = 0
         self._thinking_header_shown = False
-        self._think_buf = ""           # Aggregate tiny thinking deltas into lines
-        self._report_started = False
+        self._thinking_started = False
         self._current_tool: str | None = None
-        self._first_report_line = True
-        self._yaml_buffer: list[str] = []
-        self._yaml_collecting = False
-        self._header_printed = False
         self._tool_count = 0
         self._t_start: float | None = None
-        self._think_printed_len = 0  # track cumulative delta position to avoid dupes
-        self._report_printed_len = 0  # track cumulative report output position
-
-    def _emit_think_line(self, text: str) -> None:
-        """Print one line of thinking output (only first 2 lines, rest suppressed)."""
-        if not text or len(text) < 3:
-            return
-        if self._thinking_lines == 0:
-            print(f"\n  {_c('▶', 'cyan')}  {_c('Thinking…', 'dim')}")
-            self._thinking_header_shown = True
-        if self._thinking_lines < 2:
-            print(f"     {_c(text[:120], 'dim')}")
-        self._thinking_lines += 1
-
-    def _smart_think_suffix(self, delta: str) -> str:
-        """Pi sends cumulative thinking text — deduplicate against what we already printed."""
-        if len(delta) > self._think_printed_len and delta[:self._think_printed_len] == self._think_buf[:self._think_printed_len]:
-            # Cumulative delta — skip already-printed prefix
-            suffix = delta[self._think_printed_len:]
-        else:
-            suffix = delta
-        self._think_buf = delta
-        self._think_printed_len = len(delta)
-        return suffix
-
-    def _flush_think_buf(self) -> None:
-        """Flush any remaining thinking buffer as a line."""
-        if self._think_buf.strip():
-            self._emit_think_line(self._think_buf.strip())
-            self._think_buf = ""
+        self._think_printed_len = 0
+        self._think_buf = ""
+        self._response_started = False
+        self._verbose = verbose
 
     def on_event(self, event: dict[str, Any]) -> None:
         if not _IS_TTY:
@@ -349,17 +260,15 @@ class _StreamDisplay:
 
         typ = str(event.get("type") or "").lower()
 
-        # ── Text streaming (thinking + report) ─────────────────────
+        # ── Text streaming ──────────────────────────────────────
         if typ == "message_update":
             ae = event.get("assistantMessageEvent", {})
             if not isinstance(ae, dict):
                 return
             ae_type = ae.get("type", "")
-            # Handle text_start (first chunk) and text_delta (incremental)
             if ae_type not in ("text_delta", "text_start"):
                 return
             delta = ae.get("delta", "")
-            # text_start embeds text in partial.content[0].text
             if ae_type == "text_start" and not delta:
                 partial = ae.get("partial", {})
                 content = partial.get("content", [])
@@ -368,127 +277,52 @@ class _StreamDisplay:
             if not delta:
                 return
 
-            # Detect report start: YAML frontmatter `---`
-            if not self._report_started and "---" in delta:
-                # Flush any residual think buffer
-                self._flush_think_buf()
-                # Find YAML start position within delta
-                yaml_idx = delta.find("---")
-                # Print anything before YAML as thinking (use suffix to avoid dupes)
-                pre_yaml = delta[:yaml_idx].strip()
-                pre_suffix = self._smart_think_suffix(pre_yaml) if pre_yaml else ""
-                if pre_suffix:
-                    self._emit_think_line(pre_suffix)
-                # Enter report phase
+            # Once we start getting real response text, switch to inline mode
+            if not self._response_started:
+                self._response_started = True
                 if self._thinking_lines > 0 and self._thinking_header_shown:
                     print()
-                print()
-                self._report_started = True
-                self._yaml_collecting = True
-                self._yaml_buffer = []
-                # Feed YAML bytes starting from ---
-                after_yaml = delta[yaml_idx:]
-                self._yaml_buffer.append(after_yaml)
-                if after_yaml.strip() == "---":
-                    self._yaml_collecting = False
-                    self._print_yaml_header()
-                return
 
-            if self._yaml_collecting:
-                self._yaml_buffer.append(delta)
-                combined = "".join(self._yaml_buffer)
-                # End of YAML: second ---
-                if "---" in combined[4:]:  # after first ---
-                    self._yaml_collecting = False
-                    self._print_yaml_header()
-                return
-
-            if self._report_started:
-                # Pi sends cumulative deltas — only print new suffix
-                if len(delta) > self._report_printed_len:
-                    suffix = delta[self._report_printed_len:]
-                    print(suffix, end="", flush=True)
-                    self._report_printed_len = len(delta)
-                return
-
-            # Thinking phase: aggregate tiny deltas into full lines before printing.
-            # Pi sends cumulative deltas — deduplicate via _smart_think_suffix.
-            suffix = self._smart_think_suffix(delta)
-            if not suffix:
-                return
-            lines = suffix.split("\n")
-            for l in lines[:-1]:  # complete lines
-                self._emit_think_line(l.strip())
-            # Also flush if suffix has substantial content but no newline yet
-            if not suffix.endswith("\n") and len(suffix) > 80:
-                self._emit_think_line(suffix.strip())
+            # Pi sends cumulative deltas — print only new suffix
+            if len(delta) > self._think_printed_len:
+                suffix = delta[self._think_printed_len:]
+                print(suffix, end="", flush=True)
+                self._think_printed_len = len(delta)
             return
 
-        # ── Tool calls (Pi uses tool_execution_start/tool_execution_end) ──
+        # ── Tool calls ─────────────────────────────────────────
         if typ == "tool_execution_start":
-            self._flush_think_buf()
             name = event.get("toolName", "")
             if not name:
                 return
-            if self._thinking_lines > 0 and self._thinking_header_shown:
+            if self._thinking_header_shown and not self._response_started:
                 print()
             self._current_tool = name
             self._tool_count += 1
-            elapsed = f"{time.monotonic() - self._t_start:.0f}s" if self._t_start else ""
             print(f"  {_c('⏺', 'cyan')}  {_c(name, 'cyan')}", end="", flush=True)
             return
 
-        # ── Tool results ────────────────────────────────────────────
         if typ == "tool_execution_end":
             if self._current_tool:
                 is_error = bool(event.get("isError"))
-                result = event.get("result", {})
                 summary = _summarize_tool_result(event)
-                if is_error:
-                    mark = _c("✗", "red")
-                    detail = summary or "error"
-                else:
-                    mark = _c("✓", "green")
-                    detail = summary or "ok"
+                mark = _c("✗", "red") if is_error else _c("✓", "green")
+                detail = summary or ("error" if is_error else "ok")
                 elapsed = f"{time.monotonic() - self._t_start:.0f}s" if self._t_start else ""
                 progress = f" ({elapsed})" if elapsed else ""
                 print(f"  {mark} {_c(detail, 'dim')}{_c(progress, 'dim')}")
             self._current_tool = None
             return
 
-        # ── Agent end ───────────────────────────────────────────────
+        # ── Turn lifecycle ─────────────────────────────────────
         if typ == "agent_end":
-            if self._thinking_lines > 0 and self._thinking_header_shown:
+            if self._thinking_header_shown and not self._response_started:
                 print()
             return
 
-        # ── Turn start (track elapsed) ──────────────────────────────
         if typ == "turn_start" and self._t_start is None:
             self._t_start = time.monotonic()
             return
-
-    def _print_yaml_header(self) -> None:
-        """Parse collected YAML frontmatter and print a formatted header."""
-        yaml_text = "".join(self._yaml_buffer)
-        fm_rc = re.search(r'^root_cause_type:\s*(\S+)', yaml_text, re.MULTILINE)
-        fm_conf = re.search(r'^confidence:\s*([\d.]+)', yaml_text, re.MULTILINE)
-        fm_sev = re.search(r'^severity:\s*(\S+)', yaml_text, re.MULTILINE)
-
-        sev_str = fm_sev.group(1).upper() if fm_sev else ""
-        conf_str = f"{float(fm_conf.group(1)):.0%}" if fm_conf else ""
-        rc_str = fm_rc.group(1).replace("_", " ") if fm_rc else "diagnosis"
-
-        sev_color = (
-            "red"    if sev_str in ("HIGH", "CRITICAL") else
-            "yellow" if sev_str == "MEDIUM" else
-            "dim"
-        )
-
-        print(_hr(56))
-        print(f"  {_c(rc_str, 'bold')}  {_c(sev_str, sev_color)}  {_c(conf_str, 'dim')}")
-        print(_hr(56))
-        print()
-        self._header_printed = True
 
 
 # ── First-run inline configure ────────────────────────────────────────
@@ -504,13 +338,11 @@ def _find_bundled_skills() -> Path | None:
 
 
 def _install_prerequisites_silently() -> None:
-    """Install Pi and skills silently if missing. Called before asking for API key."""
     import json
     import shutil
     from storageops import pi_installer
     from storageops.config import get_workdir, update as _cfg_update
 
-    # Pi: install if not found
     try:
         from storageops.config import get_pi_command
         pi_found = bool(shutil.which(get_pi_command())) or pi_installer.pi_bin_path().exists()
@@ -529,7 +361,6 @@ def _install_prerequisites_silently() -> None:
             sys.stdout.write(f"\r\033[K  {_yellow('!')}  Pi Coding Agent  {_dim(str(exc))}\n")
         sys.stdout.flush()
 
-    # Skills: copy if missing (silent)
     try:
         workdir = get_workdir()
         workdir.mkdir(parents=True, exist_ok=True)
@@ -539,7 +370,6 @@ def _install_prerequisites_silently() -> None:
             if bundled:
                 shutil.copytree(str(bundled), str(skills_dst))
                 _cfg_update(skills_dir=str(skills_dst))
-        # Pi settings.json
         pi_settings = workdir / ".pi" / "settings.json"
         if not pi_settings.exists():
             pi_settings.parent.mkdir(parents=True, exist_ok=True)
@@ -552,10 +382,6 @@ def _install_prerequisites_silently() -> None:
 
 
 def _first_run_configure() -> None:
-    """
-    Inline first-run: install Pi silently, then ask for API key once.
-    No wizard, no provider picker, no confirmation prompts.
-    """
     import getpass
     from storageops.config import detect_provider_from_key, update as _cfg_update
 
@@ -585,13 +411,11 @@ def _first_run_configure() -> None:
 
 # ── Readline history + tab completion ───────────────────────────────
 
-# Track history in memory for /history command (readline persists to file)
 _HISTORY_LINES: list[str] = []
 _HISTORY_MAX = 2000
 
 
 def _append_history(text: str) -> None:
-    """Record a line to in-memory history (readline already saves to file)."""
     if text and text.strip() and not text.strip().startswith("/"):
         if not _HISTORY_LINES or _HISTORY_LINES[-1] != text:
             _HISTORY_LINES.append(text)
@@ -600,7 +424,6 @@ def _append_history(text: str) -> None:
 
 
 def _show_history(n: int = 20) -> None:
-    """Print the last n history entries."""
     if not _HISTORY_LINES:
         print(f"\n  {_dim('No history yet.')}\n")
         return
@@ -618,7 +441,6 @@ def _init_readline() -> None:
     except ImportError:
         return
 
-    # ── History persistence ──────────────────────────────────────
     hist_file = _history_file()
     hist_file.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -637,17 +459,12 @@ def _init_readline() -> None:
             pass
     atexit.register(_save)
 
-    # ── Tab completion: slash commands + @file paths ────────────
     def _path_completer(prefix: str, state: int) -> str | None:
-        """Complete file paths after @ prefix."""
-        # Separate the @ prefix and the actual path
         at_idx = prefix.find("@")
         path_str = prefix[at_idx + 1:] if at_idx >= 0 else prefix
         path_str = os.path.expanduser(path_str) if path_str.startswith("~") else path_str
-
         basedir = os.path.dirname(path_str) or "."
         partial = os.path.basename(path_str)
-
         try:
             entries = []
             for name in os.listdir(basedir):
@@ -655,10 +472,8 @@ def _init_readline() -> None:
                     full = os.path.join(basedir, name)
                     suffix = "/" if os.path.isdir(full) else ""
                     entries.append(full + suffix)
-            # Sort: directories first, then alphabetically
             entries.sort(key=lambda e: (0 if e.endswith("/") else 1, e.lower()))
             if state < len(entries):
-                # Return just the path part (caller prepends @)
                 return entries[state]
             return None
         except OSError:
@@ -669,9 +484,8 @@ def _init_readline() -> None:
             matches = [c + " " for c in _SLASH_CMDS if c.startswith(text)]
             return matches[state] if state < len(matches) else None
         if "@" in text:
-            # Complete the path portion after the last @
             at_pos = text.rfind("@")
-            prefix = text[at_pos:]  # includes @
+            prefix = text[at_pos:]
             path = _path_completer(prefix, state)
             if path is not None:
                 return text[:at_pos] + "@" + path
@@ -681,7 +495,6 @@ def _init_readline() -> None:
     def _display_matches(substitution: str, matches: list[str], longest: int) -> None:
         print()
         if substitution and "@" in substitution:
-            # Show file metadata for @ matches
             for m in matches[:20]:
                 try:
                     st = os.stat(m)
@@ -707,11 +520,9 @@ def _init_readline() -> None:
 # ── Ghost-text auto-suggestions (optional, prompt_toolkit) ───────────
 
 _PTK_AVAILABLE = False
-_PTK_SESSION: Any = None
 
 
 def _init_ptk() -> bool:
-    """Initialize prompt_toolkit for ghost-text suggestions. Returns True if available."""
     global _PTK_AVAILABLE
     try:
         __import__("prompt_toolkit")
@@ -722,13 +533,8 @@ def _init_ptk() -> bool:
 
 
 def _read_input_ptk(prompt: str | None = None) -> str | None:
-    """
-    Read input with prompt_toolkit: ghost-text history suggestions + multi-line paste.
-    Falls back to readline-based _read_input if prompt_toolkit is not installed.
-    """
-    if not _PTK_AVAILABLE or not _PTK_SESSION:
+    if not _PTK_AVAILABLE:
         return _read_input(prompt)
-
     try:
         from prompt_toolkit import PromptSession
         from prompt_toolkit.history import FileHistory
@@ -740,8 +546,7 @@ def _read_input_ptk(prompt: str | None = None) -> str | None:
             "": "",
             "auto-suggestion": "#555555",
         })
-
-        _prompt = prompt if prompt else f"  ›  "
+        _prompt_text = prompt if prompt else "  ›  "
         hist_file = str(_history_file())
         _history_file().parent.mkdir(parents=True, exist_ok=True)
 
@@ -749,10 +554,9 @@ def _read_input_ptk(prompt: str | None = None) -> str | None:
             history=FileHistory(hist_file),
             auto_suggest=AutoSuggestFromHistory(),
             style=style,
-            completer=None,  # readline handles completion separately
+            completer=None,
         )
-
-        text = session.prompt(_prompt)
+        text = session.prompt(_prompt_text)
         return text if text and text.strip() else text
     except (EOFError, KeyboardInterrupt):
         return None
@@ -760,22 +564,12 @@ def _read_input_ptk(prompt: str | None = None) -> str | None:
         return _read_input(prompt)
 
 
-# ── Input reading ─────────────────────────────────────────────────────
-
 def _read_input(prompt: str | None = None) -> str | None:
-    """
-    Read one logical user input.
-
-    Interactive: Enter submits.  Line ending in backslash continues to next line.
-    Pipe mode: read all of stdin.
-    Returns None on EOF/Ctrl+D (exit signal).
-    """
     if not _IS_INPUT_TTY:
         data = sys.stdin.read()
         return data if data.strip() else None
 
     _prompt = prompt if prompt is not None else (f"{_c('>', 'cyan')} " if _IS_TTY else "> ")
-
     lines: list[str] = []
     first = True
     while True:
@@ -787,7 +581,6 @@ def _read_input(prompt: str | None = None) -> str | None:
             if not lines:
                 return None
             break
-        # Check for paste buffering
         extra: list[str] = []
         try:
             while True:
@@ -804,33 +597,20 @@ def _read_input(prompt: str | None = None) -> str | None:
             lines.append(line)
             lines.extend(extra)
             break
-        # Multi-line continuation: line ending in \
         if line.rstrip().endswith("\\"):
             lines.append(line.rstrip()[:-1].rstrip())
             continue
         lines.append(line)
         break
-
     return "\n".join(lines)
 
 
 def _expand_file_refs(text: str) -> tuple[str, list[str]]:
-    """Replace @path references with file contents.
-
-    Supports:
-      @/absolute/path          — exact path
-      @./relative/file.log     — relative path
-      @*.log                   — glob: first match in cwd (sorted by mtime)
-      @s5cmd*                  — glob prefix: fuzzy-match files in cwd
-    Returns (expanded_text, errors).
-    """
     errors: list[str] = []
 
     def _resolve_glob(pattern: str) -> Path | None:
-        """Try glob + fuzzy matching for @ references."""
         cwd = Path.cwd()
         if pattern.startswith("/") or pattern.startswith("~"):
-            # Absolute path: use Path().glob
             base = Path(pattern).expanduser()
             if base.is_absolute():
                 parent = base.parent
@@ -841,7 +621,6 @@ def _expand_file_refs(text: str) -> tuple[str, list[str]]:
                     matches = []
                 if matches:
                     return matches[0]
-                # Fuzzy prefix on absolute path
                 if not any(c in name for c in "*?["):
                     try:
                         fuzzy = sorted(parent.glob(f"{name}*"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -850,14 +629,12 @@ def _expand_file_refs(text: str) -> tuple[str, list[str]]:
                     if fuzzy:
                         return fuzzy[0]
                 return None
-        # Relative pattern
         try:
             matches = sorted(cwd.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
         except Exception:
             matches = []
         if matches:
             return matches[0]
-        # Fuzzy prefix: @s5cmd → find s5cmd* files
         if not any(c in pattern for c in "*?["):
             try:
                 fuzzy = sorted(cwd.glob(f"{pattern}*"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -870,8 +647,6 @@ def _expand_file_refs(text: str) -> tuple[str, list[str]]:
     def _replace(m: re.Match) -> str:
         raw = m.group(1)
         path = Path(raw).expanduser()
-
-        # Exact path exists → use it
         if path.exists():
             try:
                 content = path.read_text(encoding="utf-8", errors="replace")
@@ -879,8 +654,6 @@ def _expand_file_refs(text: str) -> tuple[str, list[str]]:
             except OSError as exc:
                 errors.append(f"{_red('✗')}  cannot read {path}: {exc}")
                 return m.group(0)
-
-        # Glob/fuzzy match in cwd
         resolved = _resolve_glob(raw)
         if resolved:
             try:
@@ -889,7 +662,6 @@ def _expand_file_refs(text: str) -> tuple[str, list[str]]:
                 return f"[{resolved.name}]\n{content}"
             except OSError:
                 pass
-
         errors.append(f"{_red('✗')}  file not found: {raw}")
         return m.group(0)
 
@@ -938,15 +710,10 @@ def _print_status(session: DiagnosticSession) -> None:
 # ── Session resume picker ─────────────────────────────────────────────
 
 def _handle_resume(current: DiagnosticSession) -> DiagnosticSession:
-    """
-    Show recent sessions, let user pick one to load.
-    Returns the loaded session (or current if cancelled).
-    """
     sessions = DiagnosticSession.list_sessions(limit=20)
     if not sessions:
         print(f"\n  {_dim('No past sessions found.')}\n")
         return current
-
     print()
     for i, s in enumerate(sessions, 1):
         ts      = s["ts"][:16].replace("T", " ")
@@ -957,19 +724,15 @@ def _handle_resume(current: DiagnosticSession) -> DiagnosticSession:
         if preview:
             print(f"         {_dim(preview)}")
     print()
-
     if not _IS_INPUT_TTY:
         return current
-
     try:
         raw = input(f"  Load [1–{len(sessions)}] or session ID (Enter to cancel): ").strip()
     except (EOFError, KeyboardInterrupt):
         print()
         return current
-
     if not raw:
         return current
-
     try:
         idx = int(raw) - 1
         if 0 <= idx < len(sessions):
@@ -979,12 +742,10 @@ def _handle_resume(current: DiagnosticSession) -> DiagnosticSession:
             return current
     except ValueError:
         target_id = raw
-
     loaded = DiagnosticSession.load(target_id)
     if loaded is None:
         print(f"  {_red('✗')}  Session not found: {target_id}\n")
         return current
-
     user_turns = len([t for t in loaded.turns if t.role == "user"])
     last = next((t for t in reversed(loaded.turns) if t.role == "user"), None)
     print(f"\n  {_dim('Loaded')}  {_bold(loaded.session_id)}  {_dim(f'·  {user_turns} turn(s)')}")
@@ -994,24 +755,19 @@ def _handle_resume(current: DiagnosticSession) -> DiagnosticSession:
     return loaded
 
 
-# ── Config handler ────────────────────────────────────────────────────
-
+# ── Shell, editor, view, config, memory handlers ────────────────────
 
 def _handle_editor(session: DiagnosticSession) -> str | None:
-    """Open $EDITOR (or vim/nano) for writing a long prompt. Returns text or None."""
-
+    import shutil
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or "vim"
-    # If vim not available, fall back to nano
-    if editor == "vim" and not __import__("shutil").which("vim"):
+    if editor == "vim" and not shutil.which("vim"):
         editor = "nano"
-
     hint = (
         "# Write your prompt or paste log content above.\n"
         "# Lines starting with # are ignored.\n"
         "# Save and exit to send.  Exit without saving to cancel.\n"
         "# Use @filename to include files.\n"
     )
-
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".md", prefix="storageops-editor-",
         delete=False, encoding="utf-8",
@@ -1019,7 +775,6 @@ def _handle_editor(session: DiagnosticSession) -> str | None:
         tmp.write(hint)
         tmp.write("\n")
         tmp_path = tmp.name
-
     try:
         result = subprocess.call([editor, tmp_path])
     except FileNotFoundError:
@@ -1030,7 +785,6 @@ def _handle_editor(session: DiagnosticSession) -> str | None:
         except OSError:
             pass
         return None
-
     if result != 0:
         print(f"  {_c('⊘', 'yellow')}  Editor exited with code {result}")
         try:
@@ -1038,29 +792,21 @@ def _handle_editor(session: DiagnosticSession) -> str | None:
         except OSError:
             pass
         return None
-
     content = Path(tmp_path).read_text(encoding="utf-8", errors="replace")
     try:
         Path(tmp_path).unlink()
     except OSError:
         pass
-
-    # Strip comment lines
     lines = [l for l in content.splitlines() if not l.strip().startswith("#")]
     text = "\n".join(lines).strip()
     if not text:
         print(f"  {_c('⊘', 'dim')}  Empty prompt (cancelled)")
         return None
-
     print(f"  {_c('✓', 'green')}  {_c(f'{len(text)} chars from editor', 'dim')}")
     return text
 
 
-# ── Shell mode handler ────────────────────────────────────────────────
-
 def _handle_shell(text: str, session: DiagnosticSession) -> None:
-    """Run a shell command ($ prefix) and add output to session evidence."""
-
     lines = text.split("\n")
     for line in lines:
         stripped = line.strip()
@@ -1069,7 +815,6 @@ def _handle_shell(text: str, session: DiagnosticSession) -> None:
         cmd_str = stripped[1:].strip()
         if not cmd_str:
             continue
-
         print(f"  {_c('$', 'cyan')} {_c(cmd_str, 'dim')}")
         try:
             result = subprocess.run(
@@ -1095,33 +840,22 @@ def _handle_shell(text: str, session: DiagnosticSession) -> None:
 
 
 def _handle_view(session: DiagnosticSession) -> None:
-    """Open the last assistant report in a pager for full-screen browsing."""
-
     last = None
     for t in reversed(session.turns):
         if t.role == "assistant" and t.content:
             last = t.content
             break
-
     if not last:
         print(f"\n  {_c('No report to view yet.', 'dim')}\n")
         return
-
-    # Strip YAML frontmatter for cleaner viewing
     report = re.sub(r'^---\n.*?\n---\n?', '', last, flags=re.DOTALL).strip()
-
-    # Apply syntax highlighting if available
     if _HIGHLIGHT_AVAILABLE:
         report = _highlight_report_sections(report)
-
-    pager = __import__("os").environ.get("PAGER", "less -R")
+    pager = os.environ.get("PAGER", "less -R")
     try:
-        proc = subprocess.Popen(
-            pager.split(), stdin=subprocess.PIPE, text=True,
-        )
+        proc = subprocess.Popen(pager.split(), stdin=subprocess.PIPE, text=True)
         proc.communicate(input=report)
     except FileNotFoundError:
-        # fallback: just print the first 50 lines
         lines = report.split("\n")[:50]
         print()
         for line in lines:
@@ -1129,6 +863,7 @@ def _handle_view(session: DiagnosticSession) -> None:
         if len(report.split("\n")) > 50:
             print(f"  {_c(f'… ({len(report.split(chr(10)))} lines total. Install less for full pager.)', 'dim')}")
         print()
+
 
 def _handle_config(parts: list[str]) -> None:
     from storageops import config as cfg_mod
@@ -1157,15 +892,12 @@ def _handle_config(parts: list[str]) -> None:
     print(f"\n  {_dim('/config set <key> <value> to change')}\n")
 
 
-# ── Memory handler ─────────────────────────────────────────────────────
-
 def _handle_memory(parts: list[str]) -> None:
     try:
         from storageops.memory_store import list_cases, search_cases
     except ImportError:
         print(f"\n  {_red('✗')}  memory_store not available\n")
         return
-
     if len(parts) >= 2 and parts[1] == "search":
         query = " ".join(parts[2:]).strip()
         if not query:
@@ -1177,15 +909,14 @@ def _handle_memory(parts: list[str]) -> None:
             return
         print()
         for r in results:
-            ts      = (r.get("timestamp") or "")[:16].replace("T", " ")
-            domain  = (r.get("domain") or "unknown").replace("_", " ")
+            ts = (r.get("timestamp") or "")[:16].replace("T", " ")
+            domain = (r.get("domain") or "unknown").replace("_", " ")
             summary = (r.get("summary") or "")[:80]
             print(f"  {_cyan(domain)}  {_dim(ts)}")
             if summary:
                 print(f"  {_dim(summary)}")
             print()
         return
-
     cases = list_cases(limit=10)
     if not cases:
         print(f"\n  {_dim('No cases in memory yet.')}\n")
@@ -1205,7 +936,7 @@ def _handle_memory(parts: list[str]) -> None:
 # ── Response display ──────────────────────────────────────────────────
 
 def _print_result(result, *, elapsed: float | None = None, session_id: str | None = None) -> None:
-    """Show footer after a streamed diagnosis: elapsed time, session id, or error."""
+    """Show footer after a turn: elapsed time, session id, or error."""
     if not result.ok:
         err = result.error or "Unknown error"
         _pi_missing = any(kw in err.lower() for kw in (
@@ -1216,13 +947,10 @@ def _print_result(result, *, elapsed: float | None = None, session_id: str | Non
             print(f"\n  {_c('Pi Agent not found.', 'red')}")
             print(f"  {_c('Run', 'dim')} {_c('storageops setup', 'bold')} {_c('to install Pi, or type', 'dim')} {_c('/setup', 'bold')} {_c('here.', 'dim')}")
         else:
-            print(f"\n  {_c('✗', 'red')}  Diagnosis failed: {_c(err, 'dim')}")
-            print(f"  {_c('/doctor to check installation  ·  /setup to reconfigure', 'dim')}")
+            print(f"\n  {_c('✗', 'red')}  Error: {_c(err, 'dim')}")
         print()
         return
 
-    # Report was already streamed in real-time.
-    # Show footer: elapsed time + session id.
     footer_parts: list[str] = []
     if elapsed is not None:
         footer_parts.append(f"{elapsed:.0f}s")
@@ -1231,23 +959,31 @@ def _print_result(result, *, elapsed: float | None = None, session_id: str | Non
     if footer_parts and _IS_TTY:
         print()
         print(_c("  " + "  ·  ".join(footer_parts), "dim"))
-        # Offer full-screen viewer for long reports
         report = result.report_markdown or ""
         if len(report) > 1200:
             print(_c("  Type /view to browse the full report in a pager.", "dim"))
         print()
 
 
-# ── Turn runner ───────────────────────────────────────────────────────
+# ── Turn runner — now uses persistent PiSession ──────────────────────
+
+# Module-level PiSession singleton (created on first turn, reused across turns)
+_pi_session: Any = None
+
 
 def _run_turn(text: str, session: DiagnosticSession) -> bool:
-    """Send one turn to Pi. Streams progress and report in real-time."""
-    from storageops.runtime import AgentRunOptions, PiRpcRuntime
+    """Send one turn to Pi. Uses a persistent PiSession for conversation continuity."""
+    global _pi_session
+    from storageops.runtime import AgentRunOptions, PiSession
+    from storageops.runtime.pi_rpc import build_pi_prompt, redact_for_pi
     from storageops.config import get_pi_command
 
     session.add_evidence(text)
     session.add_turn("user", text)
 
+    # Build prompt: for first turn, send full system prompt with evidence file.
+    # For subsequent turns, send just the user message (conversation context is
+    # maintained by PiSession's persistent process).
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".txt", prefix="storageops-session-",
         delete=False, encoding="utf-8",
@@ -1255,21 +991,49 @@ def _run_turn(text: str, session: DiagnosticSession) -> bool:
         tmp.write(session.accumulated_evidence)
         tmp_path = tmp.name
 
-    display = _StreamDisplay()
+    display = _StreamDisplay(verbose=session.verbose)
     t_start = time.monotonic()
 
-    options = AgentRunOptions(
-        runtime="pi",
-        stream=True,   # enable real-time Pi output
-        max_turns=10,
-        timeout_seconds=600,
-        verbose=False,  # verbose handled by _StreamDisplay now
-        pi_command=get_pi_command(),
-        event_callback=display.on_event,
-    )
+    if _pi_session is None or _pi_session.proc is None or _pi_session.proc.poll() is not None:
+        # First turn or Pi died — start a new session
+        options = AgentRunOptions(
+            runtime="pi",
+            max_turns=10,
+            timeout_seconds=600,
+            pi_command=get_pi_command(),
+        )
+        _pi_session = PiSession(options)
+        start_err = _pi_session.start()
+        if start_err:
+            _print_result(start_err)
+            try:
+                Path(tmp_path).unlink()
+            except OSError:
+                pass
+            return False
+
+        # First turn: build full prompt with system context + evidence file
+        raw_text = Path(tmp_path).read_text(encoding="utf-8", errors="replace")
+        redacted_text, redaction_count = redact_for_pi(raw_text)
+        prompt = build_pi_prompt(
+            evidence_file=Path(tmp_path),
+            original_filename="session-input.txt",
+            redaction_count=redaction_count,
+            max_turns=10,
+            user_message=redacted_text[:500],
+        )
+        prompt = redact_for_pi(prompt)[0]
+    else:
+        # Subsequent turn: just send the user message directly.
+        # PiSession preserves the conversation context from previous turns.
+        prompt = text
 
     try:
-        result = PiRpcRuntime(options).run(tmp_path)
+        result = _pi_session.send(
+            prompt,
+            event_callback=display.on_event,
+            stream=False,
+        )
     except KeyboardInterrupt:
         print(f"\n  {_c('Interrupted.', 'dim')}\n")
         try:
@@ -1285,7 +1049,7 @@ def _run_turn(text: str, session: DiagnosticSession) -> bool:
 
     elapsed = time.monotonic() - t_start
     session.add_turn("assistant", result.report_markdown or result.error or "")
-    _print_result(result, elapsed=elapsed, session_id=session.session_id)
+    _print_result(result, elapsed=elapsed, session_id=_pi_session.session_id)
 
     if result.ok:
         try:
@@ -1293,19 +1057,18 @@ def _run_turn(text: str, session: DiagnosticSession) -> bool:
         except OSError:
             pass
         return True
-
     return False
 
 
 # ── Main REPL ─────────────────────────────────────────────────────────
 
 def run_repl(initial_text: str | None = None, resume_session: str | None = None) -> None:
-    """Start the interactive diagnostic session (Pi Coding Agent style)."""
+    """Start the interactive StorageOps session."""
+    global _pi_session
     _init_readline()
     _init_highlighting()
     _init_ptk()
 
-    # Load or create session
     if resume_session:
         session = DiagnosticSession.load(resume_session)
         if session is None:
@@ -1327,18 +1090,18 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             print()
     else:
         session = DiagnosticSession()
+        _pi_session = None  # Reset Pi session for new REPL session
         if _IS_TTY:
             print(_make_banner())
             print(f"  {_dim('Session')}  {_bold(session.session_id)}  {_dim('·  new')}")
             print()
 
-    # First-run: if no API key, configure inline (like Claude Code / Pi)
     if _IS_TTY and _IS_INPUT_TTY and not initial_text:
         from storageops.config import get_api_key
         if not get_api_key():
             _first_run_configure()
 
-    # One-shot mode (pipe or direct argument)
+    # One-shot mode
     if initial_text:
         if not _IS_INPUT_TTY and _IS_TTY:
             lines = initial_text.count("\n") + 1
@@ -1347,6 +1110,8 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         for e in errs:
             print(e)
         _run_turn(expanded, session)
+        if _pi_session:
+            _pi_session.stop()
         return
 
     # Interactive loop
@@ -1359,7 +1124,6 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             continue
 
         if text is None:
-            # EOF / Ctrl+D
             if session.turns:
                 try:
                     session.save()
@@ -1380,7 +1144,6 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
 
         first = text.split()[0].lower()
 
-        # Shell mode: $ command → run and add output as evidence
         if first.startswith("$") and len(first) > 1:
             _append_history(text)
             _handle_shell(text, session)
@@ -1393,6 +1156,8 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
                     print(f"  {_dim('Session')} {_bold(session.session_id)} {_dim('saved.')}")
                 except OSError:
                     pass
+            if _pi_session:
+                _pi_session.stop()
             print()
             break
 
@@ -1411,6 +1176,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
 
         elif first == "/resume":
             session = _handle_resume(session)
+            _pi_session = None  # Reset PiSession on session switch
 
         elif first == "/status":
             _print_status(session)
@@ -1420,6 +1186,9 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             import uuid
             session.session_id = str(uuid.uuid4())[:8]
             _empty_hint_shown = False
+            if _pi_session:
+                _pi_session.stop()
+                _pi_session = None
             print(f"\n  {_green('✓')}  New session  {_bold(session.session_id)}\n")
 
         elif first == "/doctor":
