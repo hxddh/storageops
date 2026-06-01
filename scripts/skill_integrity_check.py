@@ -22,6 +22,7 @@ SKILLS_DIR = ROOT / "skills"
 REGISTRY = ROOT / "skill-registry.yaml"
 EXTENSION = ROOT / "storageops_cli" / "extensions" / "storageops.ts"
 EVAL_CASES = SKILLS_DIR / "storageops-eval-golden-cases" / "cases"
+TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
 
 REQUIRED_FRONTMATTER = {"name", "description", "maturity", "mode", "trigger_keywords", "recommended_tools"}
 REQUIRED_EXPECTED = {
@@ -93,6 +94,28 @@ def registered_tools() -> set[str]:
     return set(re.findall(r'name:\s*"([a-zA-Z0-9_-]+)"', text))
 
 
+def load_taxonomy(errors: list[str]) -> dict[str, str]:
+    if not TAXONOMY.exists():
+        fail(errors, f"{TAXONOMY}: missing taxonomy file")
+        return {}
+    try:
+        data = json.loads(TAXONOMY.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        fail(errors, f"{TAXONOMY}: invalid JSON: {exc}")
+        return {}
+    categories = data.get("categories")
+    if not isinstance(categories, dict) or not categories:
+        fail(errors, f"{TAXONOMY}: categories must be a non-empty object")
+        return {}
+    mapping: dict[str, str] = {}
+    for category, entry in categories.items():
+        if not isinstance(entry, dict) or not isinstance(entry.get("skill"), str):
+            fail(errors, f"{TAXONOMY}: category {category!r} must define a skill")
+            continue
+        mapping[category] = entry["skill"]
+    return mapping
+
+
 def validate_skills(errors: list[str]) -> dict[str, dict[str, Any]]:
     tools = registered_tools()
     metas: dict[str, dict[str, Any]] = {}
@@ -152,7 +175,13 @@ def validate_registry(errors: list[str], metas: dict[str, dict[str, Any]]) -> No
                 )
 
 
-def validate_golden_cases(errors: list[str]) -> None:
+def validate_taxonomy(errors: list[str], metas: dict[str, dict[str, Any]], category_to_skill: dict[str, str]) -> None:
+    for category, skill in sorted(category_to_skill.items()):
+        if skill not in metas:
+            fail(errors, f"{TAXONOMY}: category {category!r} maps to unknown skill {skill!r}")
+
+
+def validate_golden_cases(errors: list[str], category_to_skill: dict[str, str]) -> None:
     if not EVAL_CASES.exists():
         return
     for case_dir in sorted(p for p in EVAL_CASES.iterdir() if p.is_dir()):
@@ -171,6 +200,9 @@ def validate_golden_cases(errors: list[str]) -> None:
         missing = REQUIRED_EXPECTED - set(expected)
         if missing:
             fail(errors, f"{expected_path}: missing fields: {sorted(missing)}")
+        category = expected.get("expected_category")
+        if not isinstance(category, str) or category not in category_to_skill:
+            fail(errors, f"{expected_path}: expected_category must exist in docs/skill-taxonomy.json")
         confidence = expected.get("expected_min_confidence")
         if not isinstance(confidence, (int, float)) or not (0.5 <= float(confidence) <= 0.95):
             fail(errors, f"{expected_path}: expected_min_confidence must be between 0.5 and 0.95")
@@ -183,7 +215,9 @@ def main() -> int:
     errors: list[str] = []
     metas = validate_skills(errors)
     validate_registry(errors, metas)
-    validate_golden_cases(errors)
+    category_to_skill = load_taxonomy(errors)
+    validate_taxonomy(errors, metas, category_to_skill)
+    validate_golden_cases(errors, category_to_skill)
     if errors:
         for error in errors:
             print(f"FAIL: {error}", file=sys.stderr)

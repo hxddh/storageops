@@ -1,0 +1,3 @@
+We mounted a bucket with s3fs and put a repo workspace on it.
+`git status` takes 90 seconds even when almost no file contents changed.
+Large sequential downloads are acceptable, but commands that scan many files hang.

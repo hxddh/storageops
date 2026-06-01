@@ -1,0 +1,3 @@
+After overwriting reports/latest.json, HEAD shows a new ETag from the bucket endpoint.
+Our application still reads the old JSON for about 15 minutes through the CDN.
+Direct GET from the bucket returns the new content.

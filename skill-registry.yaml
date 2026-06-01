@@ -1,11 +1,11 @@
-# StorageOps Skill Registry v0.4
+# StorageOps Skill Registry v0.4.2
 
 # Machine-readable metadata for all StorageOps skills.
 # Skills are auto-discovered by Pi from the skills/ directory.
 # This registry drives documentation routing and skill metadata.
 
 version: "0.4"
-contract: "StorageOps Skill Contract v4"
+contract: "StorageOps Skill Contract v5"
 
 skills:
   - name: storageops-triage

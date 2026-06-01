@@ -1,0 +1,3 @@
+org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter
+java.io.FileNotFoundException: s3a://warehouse/table/_temporary/0 does not exist
+Spark job writes 400 partitions and fails during commit. Speculative execution is enabled.

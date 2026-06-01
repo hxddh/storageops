@@ -23,6 +23,18 @@ SECRET_PATTERNS = [
     re.compile(r"Authorization\s*:\s*(?:Bearer|Basic|AWS4-HMAC-SHA256)\s+\S+", re.I),
 ]
 
+ROOT = Path(__file__).resolve().parents[3]
+TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
+
+
+def load_taxonomy() -> dict[str, str]:
+    data = json.loads(TAXONOMY.read_text(encoding="utf-8"))
+    return {
+        category: entry["skill"]
+        for category, entry in data.get("categories", {}).items()
+        if isinstance(entry, dict) and isinstance(entry.get("skill"), str)
+    }
+
 
 def iter_cases(root: Path):
     if (root / "expected.json").exists():
@@ -31,7 +43,7 @@ def iter_cases(root: Path):
         yield from sorted(p for p in root.iterdir() if p.is_dir() and (p / "expected.json").exists())
 
 
-def validate_case(case: Path) -> list[str]:
+def validate_case(case: Path, category_to_skill: dict[str, str]) -> list[str]:
     errors: list[str] = []
     expected_path = case / "expected.json"
     input_dir = case / "input"
@@ -43,6 +55,10 @@ def validate_case(case: Path) -> list[str]:
     missing = REQUIRED - set(expected)
     if missing:
         errors.append(f"{expected_path}: missing fields: {sorted(missing)}")
+
+    category = expected.get("expected_category")
+    if not isinstance(category, str) or category not in category_to_skill:
+        errors.append(f"{expected_path}: expected_category must exist in docs/skill-taxonomy.json")
 
     confidence = expected.get("expected_min_confidence")
     if not isinstance(confidence, (int, float)) or not 0.5 <= float(confidence) <= 0.95:
@@ -76,9 +92,15 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="Emit JSON report")
     args = parser.parse_args()
 
+    try:
+        category_to_skill = load_taxonomy()
+    except Exception as exc:
+        print(f"FAIL: {TAXONOMY}: cannot load taxonomy: {exc}", file=sys.stderr)
+        return 1
+
     report = []
     for case in iter_cases(args.path):
-        errors = validate_case(case)
+        errors = validate_case(case, category_to_skill)
         report.append({"case": str(case), "ok": not errors, "errors": errors})
 
     ok = all(item["ok"] for item in report)

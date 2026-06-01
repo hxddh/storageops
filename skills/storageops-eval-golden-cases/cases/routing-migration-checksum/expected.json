@@ -1,0 +1,11 @@
+{
+  "case_type": "routing",
+  "expected_category": "migration_sync",
+  "expected_root_cause_types": ["cross_provider_checksum", "multipart_etag_difference"],
+  "expected_min_confidence": 0.75,
+  "must_include_evidence_keywords": ["migrated", "rclone", "checksum mismatch"],
+  "must_include_recommendation_keywords": ["verify", "ETag", "re-copy"],
+  "must_not_include": ["delete bucket", "make public", "disable TLS"],
+  "required_report_sections": ["Routing", "Evidence Gaps"],
+  "severity": "high"
+}

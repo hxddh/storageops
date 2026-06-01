@@ -1,0 +1,3 @@
+We migrated 12 TB from AWS S3 to BOS with rclone sync.
+The job completed, but the verification report shows checksum mismatch on 37 multipart objects.
+We need to decide whether to re-copy, compare ETags, or use another checksum mode.

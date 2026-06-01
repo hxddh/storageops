@@ -33,7 +33,7 @@
 | **lifecycle-cost** | request-cost.md (公式), storage-class.md | (standalone, 引用 security 排除权限) |
 | **replication-versioning** | network (CRR latency), security (cross-account IAM) | (standalone) |
 | **evidence-reporting** | reporting-best-practices.md | 所有 specialist skills (输出端) |
-| **eval-golden-cases** | 所有 golden cases, eval-rubric.md | 所有 skills (质量验证) |
+| **eval-golden-cases** | 所有 golden cases, eval-rubric.md, skill-taxonomy.json | 所有 skills (质量验证) |
 
 ## Routing Escalation Paths
 

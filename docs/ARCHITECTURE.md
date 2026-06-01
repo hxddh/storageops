@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.1 is a **Pi Coding Agent extension + skill pack**.
+StorageOps v0.4.2 is a **Pi Coding Agent extension + skill pack**.
 
 ## Design Principles
 
@@ -95,6 +95,12 @@ Each SKILL.md has:
 - **Light diagnosis**: Quick triage based on error patterns
 - **Deep diagnosis**: Full root cause analysis with evidence chains
 - **Report template**: Structured output format
+
+### Skill Taxonomy
+
+`docs/skill-taxonomy.json` maps stable golden-case categories to primary skills.
+The taxonomy keeps routing tests, eval output, and documentation aligned without
+duplicating large log fixtures in the repository.
 
 ## Session Model
 
