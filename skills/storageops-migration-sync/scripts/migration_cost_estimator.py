@@ -21,18 +21,19 @@ import argparse
 import json
 import sys
 import csv
-import io
 
-# Provider defaults – source egress, dest ingress, PUT/1K, GET-LIST/1K  (USD)
-PROVIDERS: dict[str, dict[str, float]] = {
-    "aws_s3":     {"egress": 0.0,   "ingress": 0.0, "put": 0.005,  "get": 0.0004},
-    "gcs":        {"egress": 0.0,   "ingress": 0.0, "put": 0.005,  "get": 0.0004},
-    "azure_blob": {"egress": 0.0,   "ingress": 0.0, "put": 0.005,  "get": 0.0004},
-    "ali_oss":    {"egress": 0.0,   "ingress": 0.0, "put": 0.0015, "get": 0.00015},
-    "tencent_cos":{"egress": 0.0,   "ingress": 0.0, "put": 0.0015, "get": 0.00015},
-    "baidu_bos":  {"egress": 0.0,   "ingress": 0.0, "put": 0.0015, "get": 0.00015},
+# Provider defaults – source egress, dest ingress, PUT/1K, GET-LIST/1K  (USD).
+# Public-cloud transfer prices vary by region, tier, date, and contract. Keep
+# egress unknown unless the user supplies source_egress_per_gb explicitly.
+PROVIDERS: dict[str, dict[str, float | None]] = {
+    "aws_s3":     {"egress": None,  "ingress": 0.0, "put": 0.005,  "get": 0.0004},
+    "gcs":        {"egress": None,  "ingress": 0.0, "put": 0.005,  "get": 0.0004},
+    "azure_blob": {"egress": None,  "ingress": 0.0, "put": 0.005,  "get": 0.0004},
+    "ali_oss":    {"egress": None,  "ingress": 0.0, "put": 0.0015, "get": 0.00015},
+    "tencent_cos":{"egress": None,  "ingress": 0.0, "put": 0.0015, "get": 0.00015},
+    "baidu_bos":  {"egress": None,  "ingress": 0.0, "put": 0.0015, "get": 0.00015},
     "minio":      {"egress": 0.0,   "ingress": 0.0, "put": 0.0,    "get": 0.0},
-    "custom":     {"egress": 0.0,   "ingress": 0.0, "put": 0.0,    "get": 0.0},
+    "custom":     {"egress": None,  "ingress": 0.0, "put": 0.0,    "get": 0.0},
 }
 
 
@@ -47,10 +48,17 @@ def _resolve_total_bytes(row: dict) -> float:
     raise ValueError("missing one of: total_size_bytes, total_size_gb, total_size_tb")
 
 
-def _cost_for(provider: str | None, field: str, override: float | None) -> float:
-    """Resolve a cost field: explicit override > provider table > zero."""
-    if override is not None:
-        return override
+def _optional_float(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    return float(value)
+
+
+def _cost_for(provider: str | None, field: str, override: object) -> float | None:
+    """Resolve a cost field: explicit override > provider table > unknown."""
+    parsed_override = _optional_float(override)
+    if parsed_override is not None:
+        return parsed_override
     return PROVIDERS.get(provider or "custom", PROVIDERS["custom"]).get(field, 0.0)
 
 
@@ -77,10 +85,22 @@ def estimate(row: dict) -> dict:
     get_cost = (obj_count / 1000) * get_per_1k
     put_cost = (obj_count / 1000) * put_per_1k
 
-    egress_cost = total_gb * src_egress
-    ingress_cost = total_gb * dst_ingress
+    warnings: list[str] = []
+    if src_egress is None:
+        warnings.append(
+            "source egress price is unknown; pass source_egress_per_gb for complete cost"
+        )
+    if dst_ingress is None:
+        warnings.append(
+            "destination ingress price is unknown; pass dest_ingress_per_gb for complete cost"
+        )
+
+    egress_cost = None if src_egress is None else total_gb * src_egress
+    ingress_cost = None if dst_ingress is None else total_gb * dst_ingress
     request_cost = get_cost + put_cost
-    total_cost = egress_cost + ingress_cost + request_cost
+    known_transfer_cost = (egress_cost or 0.0) + (ingress_cost or 0.0)
+    total_cost = known_transfer_cost + request_cost
+    cost_complete = not warnings
 
     return {
         "ok": True,
@@ -88,6 +108,8 @@ def estimate(row: dict) -> dict:
             "total_time_hours": round(transfer_h, 3),
             "total_time_days": round(transfer_h / 24, 2),
             "total_cost_usd": round(total_cost, 4),
+            "cost_complete": cost_complete,
+            "pricing_warnings": warnings,
         },
         "details": {
             "object_count": obj_count,
@@ -104,8 +126,8 @@ def estimate(row: dict) -> dict:
             "dest_provider": dst,
             "source_egress_per_gb": src_egress,
             "dest_ingress_per_gb": dst_ingress,
-            "source_egress_cost": round(egress_cost, 4),
-            "dest_ingress_cost": round(ingress_cost, 4),
+            "source_egress_cost": None if egress_cost is None else round(egress_cost, 4),
+            "dest_ingress_cost": None if ingress_cost is None else round(ingress_cost, 4),
             "request_estimates": {
                 "get_list_requests": obj_count,
                 "put_requests": obj_count,

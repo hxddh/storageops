@@ -15,7 +15,7 @@ import sys
 from collections import defaultdict
 from typing import Any, Dict, List
 
-PUBLIC_RISK = {"AWS", "*"}
+PUBLIC_RISK = {"*"}
 BROAD_ACTIONS = {"*", "s3:*", "ec2:*", "iam:*", "lambda:*",
                  "dynamodb:*", "kms:*", "rds:*", "sqs:*", "sns:*"}
 
@@ -31,8 +31,10 @@ def _flatten_statements(doc: dict) -> List[dict]:
 def _is_public(principal: Any) -> bool:
     if isinstance(principal, str):
         return principal in PUBLIC_RISK
+    if isinstance(principal, list):
+        return any(_is_public(item) for item in principal)
     if isinstance(principal, dict):
-        return principal.get("AWS") == "*" or principal.get("*") is not None
+        return any(_is_public(value) for value in principal.values()) or "*" in principal
     return False
 
 
@@ -42,6 +44,14 @@ def _action_set(actions: Any) -> List[str]:
     if isinstance(actions, list):
         return actions
     return []
+
+
+def _is_broad_resource(resource: Any) -> bool:
+    if isinstance(resource, str):
+        return resource == "*"
+    if isinstance(resource, list):
+        return any(item == "*" for item in resource if isinstance(item, str))
+    return False
 
 
 def analyze(doc: dict) -> dict:
@@ -57,6 +67,8 @@ def analyze(doc: dict) -> dict:
         resource = stmt.get("Resource", "*")
         principal = stmt.get("Principal", "")
         condition = stmt.get("Condition")
+        not_action = stmt.get("NotAction")
+        not_principal = stmt.get("NotPrincipal")
 
         # --- Explicit Deny --------------------------------------------------
         if effect == "deny":
@@ -69,7 +81,6 @@ def analyze(doc: dict) -> dict:
             def_res = resource if isinstance(resource, str) else "multiple"
             details["explicit_denies"].append(
                 f"{prefix} Deny on {def_res} ({', '.join(reasons)})")
-            issues += 1
 
         # --- Missing Allow --------------------------------------------------
         if effect == "allow" and not action:
@@ -81,6 +92,21 @@ def analyze(doc: dict) -> dict:
         if effect == "allow" and _is_public(principal):
             details["public_access_risk"].append(
                 f"{prefix} Principal is * (or AWS:*) – public access")
+            issues += 1
+
+        if effect == "allow" and not_principal:
+            details["not_principal_risk"].append(
+                f"{prefix} NotPrincipal allow can grant access to unexpected identities")
+            issues += 1
+
+        if effect == "allow" and not_action:
+            details["not_action_risk"].append(
+                f"{prefix} NotAction allow can grant broad permissions outside exclusions")
+            issues += 1
+
+        if effect == "allow" and _is_broad_resource(resource):
+            details["broad_resource_risk"].append(
+                f"{prefix} Resource * grants access beyond a specific bucket or object")
             issues += 1
 
         # --- Overly-broad actions -------------------------------------------

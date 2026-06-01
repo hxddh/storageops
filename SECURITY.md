@@ -9,7 +9,12 @@ StorageOps is built for diagnosis, not cloud account control. Its default postur
 - `skills/` contains markdown instructions, references, scripts, templates, and eval cases.
 - Domain helper scripts are local diagnostics. They must be offline or explicitly read-only.
 
-StorageOps does not need access keys for object storage accounts. Model provider keys are only for the underlying Pi model runtime.
+StorageOps itself does not need access keys for object storage accounts. Model provider keys are only for the underlying Pi model runtime.
+
+The optional `scripts/credential-loader.sh` helper is for user-run tools such as
+DuckDB, rclone, and awscli. It loads credentials into the current shell so those
+tools can read local environment variables; StorageOps should not print, store,
+or send those credentials to a model.
 
 ## Secret Handling
 

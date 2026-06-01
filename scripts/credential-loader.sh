@@ -35,9 +35,9 @@ export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-${BOS_SECRET_KEY:-}}"
 
 # --- 2) ~/.aws/credentials ---
 if [ -z "$AWS_ACCESS_KEY_ID" ] && [ -f "$HOME/.aws/credentials" ]; then
-  AWS_ACCESS_KEY_ID=$(awk -v p="[$_profile]" '$0==p{f=1;next}/^\[/{f=0}f&&/aws_access_key_id/{print $3;exit}' "$HOME/.aws/credentials")
-  AWS_SECRET_ACCESS_KEY=$(awk -v p="[$_profile]" '$0==p{f=1;next}/^\[/{f=0}f&&/aws_secret_access_key/{print $3;exit}' "$HOME/.aws/credentials")
-  _tok=$(awk -v p="[$_profile]" '$0==p{f=1;next}/^\[/{f=0}f&&/aws_session_token/{print $3;exit}' "$HOME/.aws/credentials")
+  AWS_ACCESS_KEY_ID=$(awk -F'[=:]' -v p="[$_profile]" '$0==p{f=1;next}/^\[/{f=0}f&&/^[[:space:]]*aws_access_key_id[[:space:]]*[=:]/{gsub(/[[:space:]"]/,"",$2);print $2;exit}' "$HOME/.aws/credentials")
+  AWS_SECRET_ACCESS_KEY=$(awk -F'[=:]' -v p="[$_profile]" '$0==p{f=1;next}/^\[/{f=0}f&&/^[[:space:]]*aws_secret_access_key[[:space:]]*[=:]/{gsub(/[[:space:]"]/,"",$2);print $2;exit}' "$HOME/.aws/credentials")
+  _tok=$(awk -F'[=:]' -v p="[$_profile]" '$0==p{f=1;next}/^\[/{f=0}f&&/^[[:space:]]*aws_session_token[[:space:]]*[=:]/{gsub(/[[:space:]"]/,"",$2);print $2;exit}' "$HOME/.aws/credentials")
   [ -n "$_tok" ] && export AWS_SESSION_TOKEN="$_tok"
   export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 fi

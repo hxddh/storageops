@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.9 is a Pi Coding Agent extension and skill pack.
+StorageOps v0.4.10 is a Pi Coding Agent extension and skill pack.
 
 ## Components
 
@@ -40,7 +40,7 @@ The extension runs in Pi's TypeScript runtime.
 
 ## Skills
 
-`skills/` contains 16 `storageops-*` skill packs. Each skill directory has:
+`skills/` contains 15 diagnostic `storageops-*` skill packs plus 1 eval skill pack. Each skill directory has:
 
 ```text
 SKILL.md

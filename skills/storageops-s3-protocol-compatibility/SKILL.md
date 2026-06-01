@@ -128,10 +128,9 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 - `scripts/parse_sigv4_error.py` — Offline parser for SignatureDoesNotMatch XML/debug traces | **Read when:** user provides saved SigV4 error XML or client debug logs
 - `references/aws-s3-baseline.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
 - `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** user mentions a non-AWS provider (BOS/OSS/COS/GCS)
-- `references/sigv4.md` — Standard and provider-specific headers | **Read when:** debugging header ordering or specific header issues
+- `references/checksum-etag.md` — Checksum, ETag, and multipart verification semantics | **Read when:** user reports checksum mismatch, MD5 mismatch, or ETag surprises
 - `references/multipart-upload.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
-- `references/aws-s3-baseline.md` — Virtual-hosted vs path-style across providers | **Read when:** user reports DNS errors, NameResolutionError, or endpoint construction issues
+- `references/cors.md` — S3 CORS behavior and browser preflight failures | **Read when:** user reports browser CORS, preflight, or missing Access-Control headers
 - `references/list-objects.md` — Request/response XML schemas and provider differences | **Read when:** user reports MalformedXML or XML parsing errors
-- `references/aws-s3-baseline.md` — Per-provider error code mapping | **Read when:** error code is unfamiliar or provider-specific
-- `references/aws-s3-baseline.md` — Endpoint URL patterns per provider | **Read when:** user is constructing endpoint URLs or troubleshooting connectivity
+- `references/provider-quirks/` — Provider-specific protocol differences | **Read when:** endpoint behavior differs from AWS S3
 - `references/list-objects.md` — Unicode/encoding in keys and headers | **Read when:** user reports encoding issues with special characters in object keys

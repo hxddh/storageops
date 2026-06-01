@@ -46,6 +46,7 @@ def test_evaluate_all_summarizes_outputs_and_missing_cases(tmp_path):
         """
 # Routing
 Route to storageops-s3-protocol-compatibility.
+Confidence: 0.8
 Evidence: SignatureDoesNotMatch from endpoint.
 Recommendation: inspect endpoint region.
 """,
