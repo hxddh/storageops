@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
+STATUS_RANK = {"PASS": 2, "SOFT_FAIL": 1, "HARD_FAIL": 0, "MISSING": -1}
 
 
 def load_taxonomy() -> dict[str, str]:
@@ -72,6 +73,26 @@ def evaluate(case: Path, output: Path) -> dict:
         status = "SOFT_FAIL"
 
     return {"case": case.name, "output": str(output), "status": status, "failures": failures, "warnings": warnings}
+
+
+def summarize_results(results: list[dict]) -> dict:
+    counts = {"PASS": 0, "SOFT_FAIL": 0, "HARD_FAIL": 0, "MISSING": 0}
+    by_category: dict[str, dict[str, int]] = {}
+    for item in results:
+        status = str(item.get("status", "HARD_FAIL"))
+        counts[status] = counts.get(status, 0) + 1
+        category = str(item.get("expected_category", "unknown"))
+        category_counts = by_category.setdefault(category, {"PASS": 0, "SOFT_FAIL": 0, "HARD_FAIL": 0, "MISSING": 0})
+        category_counts[status] = category_counts.get(status, 0) + 1
+    total = len(results)
+    passing = counts.get("PASS", 0) + counts.get("SOFT_FAIL", 0)
+    pass_rate = passing / total if total else 0.0
+    return {"total": total, "counts": counts, "pass_rate": pass_rate, "by_category": by_category}
+
+
+def load_expected_category(case: Path) -> str:
+    expected = json.loads((case / "expected.json").read_text(encoding="utf-8"))
+    return str(expected.get("expected_category", "unknown"))
 
 
 def main() -> int:

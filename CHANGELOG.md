@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-02 — v0.4.3: Batch golden-case evaluation
+
+- **Batch eval**: added `eval_all.py` to evaluate saved outputs across many golden cases and emit regression-ready JSON summaries.
+- **Eval summaries**: added PASS/SOFT_FAIL/HARD_FAIL/MISSING counts, pass rate, and per-category aggregation for saved-output suites.
+- **Tests**: added coverage for batch eval summaries, missing outputs, and taxonomy-mapped skill scoring.
+- **Documentation**: updated eval and skill quality docs with batch evaluation and regression baseline commands.
+
 ## 2026-06-02 — v0.4.2: Skill taxonomy and routing quality gates
 
 - **Taxonomy contract**: added `docs/skill-taxonomy.json` and `docs/skill-taxonomy.md` to map golden-case categories to primary skills.

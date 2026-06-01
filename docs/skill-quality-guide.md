@@ -59,6 +59,11 @@ python3 skills/storageops-eval-golden-cases/scripts/eval_runner.py \
   --case skills/storageops-eval-golden-cases/cases/<case> \
   --output diagnosis.md
 
+python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
+  --cases skills/storageops-eval-golden-cases/cases \
+  --outputs diagnoses \
+  --json-out eval-current.json
+
 python3 skills/storageops-eval-golden-cases/scripts/unsafe_output_scanner.py \
   diagnosis.md --case skills/storageops-eval-golden-cases/cases/<case>
 ```
