@@ -24,7 +24,7 @@ import json
 import sys
 from pathlib import Path
 
-_VERSION = "0.7.0"
+_VERSION = "0.3.0"
 _STATIC_DIR = Path(__file__).parent / "static"
 
 # ── Optional FastAPI / Pydantic imports ───────────────────────────────
