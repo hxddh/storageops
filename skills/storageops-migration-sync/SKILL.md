@@ -93,7 +93,7 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 - A dry-run with 1000 representative objects is strongly recommended before committing to the full migration
 - For >100TB, offline transfer (appliance) is often cheaper and faster than network transfer
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Migration Plan: [one-line]

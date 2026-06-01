@@ -101,7 +101,7 @@ If the root cause is still unclear after Step 5:
 - "Multipart uploads are NOT objects until CompleteMultipartUpload is called."
 - "Last writer wins — if two clients write to the same key simultaneously, there is no locking."
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]

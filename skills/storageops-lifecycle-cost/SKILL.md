@@ -88,7 +88,7 @@ Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantif
 - Before recommending a lifecycle change: *"This rule will apply to ALL objects matching the prefix. Noncurrent versions will also be affected if versioning is on."*
 - After cost projection: *"These are estimates based on storage class pricing only. Request costs (PUT/GET/LIST) and data transfer are NOT included unless you provide access logs."*
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Cost Analysis: [one-line]

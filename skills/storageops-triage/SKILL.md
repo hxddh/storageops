@@ -92,7 +92,7 @@ If the routed specialist skill fails to diagnose, the user may return with enhan
 - If evidence insufficient: *"I need more information before I can route this correctly. Here's what would help…"*
 - After 2 rounds: *"We may need to escalate this. Would you like me to suggest next steps for manual investigation?"*
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Triage: [one-line classification]

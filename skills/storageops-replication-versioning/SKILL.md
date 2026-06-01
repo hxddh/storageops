@@ -91,7 +91,7 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 - Before recommending versioning enable: **"Enabling versioning is IRREVERSIBLE — you cannot return to an unversioned bucket. This has cost implications (each version is a separate billable object)."**
 - For COMPLIANCE mode object lock: **"No one — including AWS support and the root account — can delete this object until the retention period expires."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]

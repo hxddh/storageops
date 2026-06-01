@@ -90,7 +90,7 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 - **"Object storage is NOT a POSIX filesystem. Operations like atomic rename, symlinks, and file locking are NOT supported natively."**
 - **"Mount cache tuning is a trade-off: higher cache times = better performance but potential stale data."**
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]

@@ -100,7 +100,7 @@ If the diagnosis points to a committer issue:
 - Before recommending a committer change: *"This change requires a cluster restart and should be tested in staging first."*
 - After diagnosis: *"The recommended config change only takes effect for new jobs — existing running jobs will still use the old committer."*
 
-## Output Format — ALWAYS use this exact template
+## Output Contract — include these fields
 
 ```markdown
 # Diagnosis: [one-line]
