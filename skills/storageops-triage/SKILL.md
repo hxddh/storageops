@@ -48,6 +48,7 @@ User reports storage issue →
   ├─ Has mount complaint? → storageops-mount-filesystem-workspace
   ├─ Has consistency complaint (stale read, missing object)? → storageops-data-consistency
   ├─ Has migration question? → storageops-migration-sync
+  ├─ Has access logs / log analysis question? → storageops-access-log-analysis
   └─ No evidence at all → Ask clarifying questions, do NOT guess domain
 ```
 

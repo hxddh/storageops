@@ -1,0 +1,171 @@
+---
+name: storageops-access-log-analysis
+description: >
+  Parse and analyze object storage server access logs (AWS S3, BOS, OSS, COS).
+  Diagnose error spikes, identify top requesters/traffic patterns, detect
+  anomalies, and attribute costs. Covers S3 Server Access Logs, BOS logging,
+  OSS real-time logs, and COS log delivery. Use when user asks about access
+  patterns, error rates, 403/404/503 spikes, cost attribution, or "who is
+  accessing my bucket."
+maturity: stable
+mode: light_heavy
+estimated_tokens: 1400
+trigger_keywords:
+  - access log
+  - server access log
+  - access pattern
+  - who is accessing
+  - error rate
+  - 403 spike
+  - 503 spike
+  - request analysis
+  - traffic analysis
+  - cost attribution
+  - bucket access
+  - download spike
+  - put/get ratio
+recommended_tools:
+  - scan_secrets
+  - detect_domain
+  - search_memory
+---
+
+# Access Log Analysis
+
+Analyze object storage server access logs to identify error patterns, traffic profiles, anomaly spikes, and cost attribution. All major cloud providers deliver access logs in structured formats (CSV, JSON, or space-delimited).
+
+## Decision Tree
+
+```
+Access log question →
+  ├─ "Why am I getting 403/404/503 errors?"
+  │   ├─ Single IP? → API key or permission misconfig (Step 2)
+  │   ├─ Multiple IPs? → Bucket policy or public ACL issue (Step 3)
+  │   └─ Increasing over time? → Rolled credential or expired token (Step 4)
+  ├─ "Who is accessing my bucket?"
+  │   ├─ By IP? → Requester IP aggregation (Step 2)
+  │   ├─ By requester ID? → IAM principal / canonical user breakdown (Step 3)
+  │   └─ By operation? → GET/PUT/LIST/DELETE ratio (Step 4)
+  ├─ "Where is my cost coming from?"
+  │   ├─ High request count? → Total operations by type (Step 5)
+  │   ├─ High data transfer? → Bytes sent per requester (Step 5)
+  │   └─ Auth failures? → Pre-signed URL issues or credential rotation (Step 4)
+  ├─ "Is there unusual activity?"
+  │   ├─ Spike in requests? → Rate anomaly vs baseline (Step 6)
+  │   ├─  New IPs/agents? → First-seen requester detection (Step 6)
+  │   └─ Off-hours activity? → Time-of-day pattern analysis (Step 6)
+  └─ "Performance degradation?" → Latency analysis (Step 7)
+```
+
+## Workflow
+
+### Step 1: Identify Log Format
+**AWS S3**: `s3://<source-bucket>/logs/` → space-delimited, 20+ fields. Enable via bucket properties → Server access logging.
+**BOS**: CSV format, delivered to specified bucket with prefix `bos-logging/`.
+**OSS**: Real-time log query via OSS console or Log Service, JSON format.
+**COS**: CSV format, delivered to COS bucket, enabled via log management.
+Ask: **"What provider and where are your access logs delivered? Share a sample log line (first 200 characters)."**
+
+### Step 2: Error Rate Analysis
+Extract HTTP status codes from logs. Group by: 2xx (success), 3xx (redirect), 4xx (client error), 5xx (server error).
+- **403 AccessDenied spike**: Check IAM policy changes, credential rotation, bucket policy updates
+- **404 NoSuchKey**: Client requesting deleted/moved objects, or listing wrong prefix
+- **503 SlowDown**: Throttling — route to performance-diagnosis
+- **500 InternalError**: Provider-side issue, contact cloud provider support
+
+### Step 3: Requester Identification
+- **Remote IP**: `curl -s https://api.ipify.org?format=json` won't help for logs. Use log field: Remote IP, X-Forwarded-For
+- **Requester ID**: IAM principal (AWS), canonical user ID, or STS assumed-role session
+- **User-Agent**: SDK version, custom scripts, third-party tools
+Suggest: **"If many 4xx errors from a single IP, the client likely has misconfigured credentials."**
+
+### Step 4: Credential & Permission Correlation
+Cross-reference error spikes with:
+- Recent IAM policy changes (check CloudTrail or equivalent)
+- STS temporary credential expiry (1-hour default)
+- Pre-signed URL expiry
+Ask: **"Have any credentials or bucket policies changed in the past 24 hours?"**
+
+### Step 5: Cost Attribution
+- **Request costs**: PUT/COPY/POST/LIST ($0.005/1k) vs GET ($0.0004/1k). PUT-heavy patterns cost 12x more per request.
+- **Data transfer costs**: BytesSent field × $0.09/GB (Internet egress)
+- **Storage costs**: Not visible in access logs (use billing reports or lifecycle-cost skill)
+Suggest: **"If one requester generates 80%+ of bytes sent, consider CloudFront CDN to reduce egress costs."**
+
+### Step 6: Anomaly Detection
+- **Volume baseline**: Compare hour-over-hour request counts. >3σ spike = anomaly.
+- **New requester**: IPs/IDs not seen in previous 7 days.
+- **Unusual operation mix**: Sudden surge in DELETE requests, or PUT without GET (upload storm).
+- **Off-hours activity**: Requests between 00:00-06:00 local time when normal traffic is minimal.
+
+### Step 7: Performance Analysis
+- **TurnaroundTime**: Server-side processing time (not network latency)
+- **TotalTime**: End-to-end time from request receipt to last byte sent
+- High turnaround + low error rate → large object or complex LIST operation
+- High turnaround + high error rate → server overload or throttling
+If latency is the main concern, route to performance-diagnosis.
+
+### Step 8: Feedback Loop
+If the log analysis identifies a pattern but the root cause is unclear: **"Can you correlate this time window with recent deployments, configuration changes, or traffic spikes?"** Run the provided log through `scripts/parse_access_log.py` to extract structured data. If confidence < medium: **"Can you share a larger log sample (covering a longer time window, e.g., 24-48 hours) to establish a baseline?"**
+
+## User Interaction
+
+### When to ask the user:
+- **"Can you share a sample access log line (first 200 characters)? I need to identify the provider and log format."** — format identification is the prerequisite for all analysis
+- **"What time period are you investigating? Share the start/end timestamps in UTC."** — needed for anomaly detection and baseline comparison
+- **"Have any IAM policies, bucket policies, or credentials changed in the past 24 hours?"** — the most common root cause of 403 spikes
+- **"Is this a sudden spike or a gradual increase?"** — sudden = misconfig; gradual = organic growth
+
+### When to inform the user:
+- **"S3 Server Access Logs are best-effort delivery — a small percentage of logs may be missing."**
+- **"Access logs can be 1-24 hours delayed depending on the provider. For real-time analysis, use CloudTrail (AWS) or equivalent audit logs."**
+- **"The log bucket incurs storage costs. Consider lifecycle rules to auto-delete logs older than 90 days."**
+
+## Output Format — ALWAYS use this exact template
+
+```markdown
+# Access Log Analysis: [one-line summary]
+**Provider**: AWS S3 | BOS | OSS | COS
+**Time Range**: YYYY-MM-DD HH:MM — YYYY-MM-DD HH:MM UTC
+**Confidence**: high | medium | low
+
+## Key Metrics
+- Total requests: [N]
+- Error rate: [X%] (4xx: [N], 5xx: [N])
+- Top requester IP: [sanitized]
+- Top operation: [GET/PUT/LIST/DELETE] ([N]%)
+
+## Root Cause
+[What the log analysis reveals about the user's question]
+
+## Recommendations
+1. **[category]** (manual-only) — [specific action]
+2. **[category]** — [diagnostic or validation command]
+```
+
+## Examples
+
+### Example 1: 403 AccessDenied spike after credential rotation
+**Input**: User reports 403 errors on all API calls starting 14:00 UTC. Logs show `403 AccessDenied` for requester `arn:aws:iam::123456789012:user/data-pipeline`.
+**Diagnosis**: IAM access key was rotated at 13:55 UTC but the pipeline config wasn't updated with the new key.
+**Recommendation**: Update the pipeline's AWS credentials file with the new access key. Run `aws s3 ls --profile pipeline` to verify. **Urgency: high** — pipeline is down.
+
+### Example 2: Cost investigation — high PUT costs
+**Input**: "My S3 bill spiked 3x this month. Can you check if something is wrong?"
+**Log Analysis**: 2.3M PUT requests last month vs 200K baseline. All from same IP in us-east-1. User-Agent: `aws-cli/2.15.0`. Timestamps every 5 seconds → scripted upload loop.
+**Diagnosis**: A cron job uploading small files every 5 seconds. 2.3M × $0.005/1k = $11.50 in PUT costs alone. Consolidating into batch uploads would reduce costs 90%.
+**Recommendation**: Modify the cron job to batch uploads every hour. Enable Intelligent-Tiering for uploaded objects. Route to lifecycle-cost for storage class optimization.
+
+### Example 3: Anomaly detection — off-hours DELETE storm
+**Input**: User notices objects missing from bucket. No recent changes.
+**Log Analysis**: 15,000 DELETE requests between 03:00-03:15 UTC from `arn:aws:iam::123456789012:role/cleanup-lambda`. User-Agent: `boto3/1.34.0`.
+**Diagnosis**: A Lambda function with an overly broad lifecycle cleanup rule deleted active objects. The cleanup policy was configured to delete objects older than 1 day instead of 30 days.
+**Recommendation**: Immediately suspend the cleanup Lambda. Restore deleted objects from version history (if versioning was enabled) or backup. Fix the cleanup rule to 30 days and add a `dry-run` mode before deployment.
+
+## References
+- `references/s3-access-log-format.md` — AWS S3 Server Access Log schema, 20+ fields explained | **Read when:** user provides S3 access logs or asks about S3-specific log fields
+- `references/bos-access-log-format.md` — Baidu BOS logging: CSV format, field mapping, delivery configuration | **Read when:** user provides BOS logs or mentions Baidu Cloud
+- `references/oss-access-log-format.md` — Alibaba OSS real-time log query, JSON schema, Log Service setup | **Read when:** user provides OSS logs or mentions Alibaba Cloud
+- `references/cos-access-log-format.md` — Tencent COS log delivery, CSV fields, bucket-level configuration | **Read when:** user provides COS logs or mentions Tencent Cloud
+- `references/error-code-reference.md` — Per-provider error code meanings: 403 variants, 404 distinctions, 503 subtypes | **Read when:** user reports error codes and you need provider-specific semantics
+- `references/cost-attribution-guide.md` — Request pricing by operation type across providers, data transfer cost models | **Read when:** user asks about cost, billing, or "why is my bill so high"
