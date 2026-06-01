@@ -6,7 +6,7 @@ description: >
   cost amplification from small files, minimum storage duration charges,
   retrieval fees, and intelligent tiering. Use when user asks about storage
   costs, lifecycle configuration, or tiering strategy.
-maturity: stable
+maturity: mature
 mode: light_heavy
 estimated_tokens: 1400
 trigger_keywords:
@@ -129,13 +129,13 @@ Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantif
 **Recommendation**: Add lifecycle rule: `AbortIncompleteMultipartUpload` after 7 days. Immediate savings: 300GB/month.
 
 ## References
-- `references/storage-class.md` — Per-class pricing (STANDARD, IA, ARCHIVE, DEEP_ARCHIVE)  
+- `references/storage-class.md` — Per-class pricing (STANDARD, IA, ARCHIVE, DEEP_ARCHIVE)
   **Read when:** user needs to compare storage class costs for a specific provider, or asks "what does IA cost vs STANDARD?"
-- `references/lifecycle.md` — Lifecycle rule schema, transition constraints  
+- `references/lifecycle.md` — Lifecycle rule schema, transition constraints
   **Read when:** user provides a lifecycle XML configuration to parse, or asks "what lifecycle options do I have?"
-- `references/inventory-cost-analysis.md` — How to get object inventory for cost analysis  
+- `references/inventory-cost-analysis.md` — How to get object inventory for cost analysis
   **Read when:** user doesn't have an inventory report but needs cost analysis — this explains how to generate one
-- `references/request-cost.md` — PUT/GET/LIST/HEAD per-request pricing  
+- `references/request-cost.md` — PUT/GET/LIST/HEAD per-request pricing
   **Read when:** user's cost concern is about API request charges (e.g., high-frequency LIST operations) rather than storage
-- `references/provider-pricing.md` — Per-provider pricing differences (BOS/OSS/COS/AWS)  
+- `references/request-cost.md` — Per-provider pricing differences (BOS/OSS/COS/AWS)
   **Read when:** user mentions a specific cloud provider other than AWS, or asks about multi-cloud cost comparison

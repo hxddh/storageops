@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-01 — Skill quality gates and reference integrity
+
+- **Reference integrity**: aligned SKILL.md bundled-resource links with real files and added missing domain references for big data, consistency, event notification, and migration skills.
+- **Metadata consistency**: synchronized `skill-registry.yaml` maturity/mode values with SKILL.md frontmatter and moved the registry contract marker to v4.
+- **Quality gates**: added `scripts/skill_integrity_check.py` and wired `make validate` to verify skill metadata, references, tools, registry paths, and golden-case schemas.
+- **Eval automation**: implemented deterministic golden-case validator, unsafe-output scanner, single-case eval runner, and regression reporter.
+- **Documentation**: added `docs/skill-quality-guide.md` to define skill structure, validation commands, golden-case requirements, and maturity rules.
+
 ## 2026-06-01 — Review fixes: merge skills path, memory search, skill registry sync
 
 - **Merge install fix**: copy skills to the directory referenced by each target agent's `../skills` setting, so `storageops install --merge` uses `~/.pi/skills`.

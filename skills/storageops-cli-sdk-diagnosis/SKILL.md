@@ -5,7 +5,7 @@ description: >
   CLI, boto3, minio client, s3cmd, bcecmd, obsutil). Covers tool-specific bugs,
   version incompatibilities, configuration mistakes, and cross-tool behavioral
   differences. Use when user reports errors from a specific client tool or SDK.
-maturity: stable
+maturity: mature
 mode: light_heavy
 estimated_tokens: 1400
 trigger_keywords:

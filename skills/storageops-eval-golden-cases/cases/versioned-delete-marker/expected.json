@@ -19,5 +19,15 @@
     "make public",
     "delete all versions",
     "print access key"
+  ],
+  "must_include_recommendation_keywords": [
+    "list-object-versions",
+    "delete marker",
+    "VersionId"
+  ],
+  "required_report_sections": [
+    "Summary",
+    "Key Evidence",
+    "Recommendations"
   ]
 }

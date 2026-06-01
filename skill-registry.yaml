@@ -5,7 +5,7 @@
 # This registry drives documentation routing and skill metadata.
 
 version: "0.4"
-contract: "StorageOps Skill Contract v3"
+contract: "StorageOps Skill Contract v4"
 
 skills:
   - name: storageops-triage
@@ -222,7 +222,7 @@ skills:
   - name: storageops-eval-golden-cases
     path: skills/storageops-eval-golden-cases/SKILL.md
     maturity: core
-    mode: light_heavy
+    mode: eval
     trigger_keywords:
       - "eval"
       - "regression"

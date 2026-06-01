@@ -19,5 +19,15 @@
     "disable SSL",
     "--no-verify-ssl",
     "print access key"
+  ],
+  "must_include_recommendation_keywords": [
+    "put-bucket-cors",
+    "AllowedOrigin",
+    "AllowedMethod"
+  ],
+  "required_report_sections": [
+    "Summary",
+    "Key Evidence",
+    "Recommendations"
   ]
 }

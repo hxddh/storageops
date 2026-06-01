@@ -143,7 +143,7 @@ pip install -e .
 storageops install
 ```
 
-贡献方式：修改 `skills/` 下的 SKILL.md 或 `storageops_cli/extensions/storageops.ts`，提交 PR。
+贡献方式：修改 `skills/` 下的 SKILL.md 或 `storageops_cli/extensions/storageops.ts`，提交 PR。Skill 质量规范见 `docs/skill-quality-guide.md`。
 
 ## License
 

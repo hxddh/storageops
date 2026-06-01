@@ -74,7 +74,7 @@ Tiering is handled through MinIO's tiering / lifecycle transition features
 
 ### TLS Configuration
 - MinIO generates self-signed certs by default.
-- Tools may require `--no-verify-ssl` for self-signed certs (NOT for production).
+- For self-signed certs, install the CA bundle or trust root and keep TLS verification enabled in production.
 - Production MinIO should use valid CA-signed certificates.
 
 ### Ports

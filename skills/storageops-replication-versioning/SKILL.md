@@ -6,7 +6,7 @@ description: >
   issues. Covers cross-region replication (CRR), same-region replication (SRR),
   and provider-specific replication features. Use when user reports replication
   lag, version mismatch, or object lock not working as expected.
-maturity: stable
+maturity: core
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:
@@ -129,7 +129,7 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 **Recommendation**: Wait for retention expiry. If urgent, contact provider support (AWS can't override COMPLIANCE either). For future: use GOVERNANCE mode with s3:BypassGovernanceRetention permission.
 
 ## References
-- `references/replication-configuration.md` — Replication rule schema and permissions | **Read when:** user reports objects not replicating or replication rule questions
-- `references/versioning-lifecycle.md` — Versioning state machine and cost implications | **Read when:** user asks about versioning state changes, cost of versions, or delete marker behavior
-- `references/object-lock-guide.md` — Retention modes, legal hold, compliance | **Read when:** user mentions object lock, legal hold, retention, or cannot delete objects
-- `references/provider-replication.md` — Non-AWS replication (BOS/OSS/COS cross-region) | **Read when:** user mentions non-AWS providers (BOS/OSS/COS) and replication
+- `references/replication.md` — Replication rule schema and permissions | **Read when:** user reports objects not replicating or replication rule questions
+- `references/versioning.md` — Versioning state machine and cost implications | **Read when:** user asks about versioning state changes, cost of versions, or delete marker behavior
+- `references/object-lock.md` — Retention modes, legal hold, compliance | **Read when:** user mentions object lock, legal hold, retention, or cannot delete objects
+- `references/replication.md` — Non-AWS replication (BOS/OSS/COS cross-region) | **Read when:** user mentions non-AWS providers (BOS/OSS/COS) and replication
