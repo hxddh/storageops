@@ -559,6 +559,7 @@ def _fast_eval_all(cases_dir: Path) -> dict:
     avg_score = round(sum(r.get("score", 0) for r in results) / total, 3) if total else 0
     return {
         "mode": "fast",
+        "note": "domain routing check only — does not represent full diagnostic quality",
         "total_cases": total,
         "passed": passed_count,
         "failed": total - passed_count,
@@ -1555,7 +1556,8 @@ def main() -> None:
     p_analyze.add_argument("file", help="Evidence file (or '-' for stdin)")
     p_analyze.add_argument("--format", choices=["human", "json"], default="human")
     p_analyze.add_argument("--subdomain", default=None)
-    p_analyze.add_argument("--no-redact", action="store_true")
+    p_analyze.add_argument("--no-redact", action="store_true",
+                           help="disable secret redaction — WARNING: output may contain raw credentials; review before sharing")
     p_analyze.add_argument("--exit-code", action="store_true",
                            help="Exit 1 if severity is high/critical (CI mode)")
     p_analyze.add_argument("--object-size", type=float, dest="object_size")
@@ -1671,7 +1673,8 @@ def main() -> None:
     p_analyse.add_argument("file")
     p_analyse.add_argument("--format", choices=["human", "json"], default="human")
     p_analyse.add_argument("--subdomain", default=None)
-    p_analyse.add_argument("--no-redact", action="store_true")
+    p_analyse.add_argument("--no-redact", action="store_true",
+                           help="disable secret redaction — WARNING: output may contain raw credentials; review before sharing")
     p_analyse.add_argument("--exit-code", action="store_true")
     p_analyse.add_argument("--object-size", type=float, dest="object_size")
     p_analyse.add_argument("--rtt", type=float)
