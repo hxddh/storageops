@@ -629,10 +629,15 @@ def _cmd_eval_regression(args: argparse.Namespace) -> None:
 # ── cmd_agent / cmd_diagnose ──────────────────────────────────────────
 
 def _result_has_streamed_output(result) -> bool:
-    stream_types = {"delta", "content_delta", "message_delta", "token", "text"}
     for event in getattr(result, "raw_events", []):
         typ = str(event.get("type") or event.get("event") or "").lower()
-        if typ in stream_types and (
+        # Real Pi protocol: message_update with text_delta
+        if typ == "message_update":
+            ae = event.get("assistantMessageEvent", {})
+            if isinstance(ae, dict) and ae.get("type") == "text_delta" and ae.get("delta"):
+                return True
+        # Legacy/fallback formats
+        if typ in {"delta", "content_delta", "message_delta", "token", "text"} and (
             event.get("text") or event.get("delta") or event.get("content")
         ):
             return True

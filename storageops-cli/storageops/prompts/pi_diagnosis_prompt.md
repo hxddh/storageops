@@ -41,43 +41,54 @@ Follow this order for every diagnosis:
 
 1. **Plan**: In 2–3 bullet points, state what evidence you see, which tools you will call,
    and what hypotheses you will test. Do this before calling any tools.
-2. **Memory**: Call the `search_memory` tool with relevant keywords to check for similar past cases.
+2. **Memory**: Call `search_memory` with relevant keywords to check for similar past cases.
    If matches exist, use them to guide your investigation but verify against current evidence.
-3. **Triage**: Run `storageops triage {{ evidence_file }}` for domain classification.
-4. **Analyze**: Run `storageops analyze <domain> {{ evidence_file }}` for structured parsing.
-5. **Conclude**: Form hypotheses from tool output only, not from raw text. If critical
+3. **Scan**: Call `scan_secrets` on the raw evidence text before passing it to any parser.
+4. **Parse**: Call the appropriate parser tool for the evidence type (see tool list below).
+5. **Analyze**: Call the matching analyzer tool on the parsed output.
+6. **Conclude**: Form hypotheses from tool output only, not from raw text. If critical
    evidence is missing, explain what you need and why. Set confidence ≤ 0.6 when key
    data is absent.
-6. **Report**: State confidence level and what would increase or decrease it.
+7. **Report**: State confidence level and what would increase or decrease it.
    All remediation commands must be labeled `# manual-only:`.
 
-## Available StorageOps Commands (read-only/offline)
+## Available Tools
 
-```
-Use the registered MCP tools — do NOT call storageops CLI subcommands directly:
+These tools are registered natively in Pi and called directly — do NOT invoke storageops
+CLI subcommands. Use the tool names exactly as shown.
 
-  scan_secrets          — redact AK/SK, tokens, Authorization headers
-  parse_rclone_log      — parse rclone -vv debug log
-  parse_awscli_debug    — parse AWS CLI --debug trace
-  parse_sigv4_error     — parse SignatureDoesNotMatch XML
-  parse_s5cmd_log       — parse s5cmd --log debug output
-  parse_cors_error      — parse CORS error responses / preflight
-  parse_lifecycle_xml   — parse S3 lifecycle configuration XML
-  parse_replication_status — parse CRR/SRR replication status
-  parse_hadoop_s3a      — parse Hadoop/Spark S3A error logs
-  parse_network_diagnostics — parse dig/curl/ping/mtr/traceroute output
-  parse_httpmon_log     — parse httpmon NDJSON or HAR
-  analyze_policy        — trace 403 AccessDenied through IAM/bucket policies
-  analyze_throughput    — analyze throughput vs theoretical limits
-  analyze_cors          — generate CORS configuration fix
-  analyze_network       — root-cause DNS/TLS/TCP/VPC endpoint failures
-  analyze_replication   — diagnose CRR/SRR replication failures
-  analyze_cost          — analyze per-prefix inventory for cost attribution
-  detect_throttling     — detect 429/SlowDown patterns
-  generate_policy_fix   — generate corrected IAM or bucket policy
-  generate_lifecycle_fix — generate corrected lifecycle XML
-  search_memory         — search past diagnosed cases by keyword
-```
+**Secret safety:**
+- `scan_secrets` — always call first; redacts AK/SK, tokens, Authorization headers
+
+**Parsers** (call after scan_secrets):
+- `parse_rclone_log` — rclone -vv debug log
+- `parse_awscli_debug` — AWS CLI --debug trace or s5cmd logs
+- `parse_sigv4_error` — SignatureDoesNotMatch XML error body
+- `parse_s5cmd_log` — s5cmd --log debug output
+- `parse_cors_error` — CORS error responses / OPTIONS preflight
+- `parse_lifecycle_xml` — S3 lifecycle configuration XML
+- `parse_replication_status` — CRR/SRR replication status
+- `parse_hadoop_s3a` — Hadoop/Spark S3A error logs
+- `parse_network_diagnostics` — dig/curl -v/ping/mtr/traceroute output
+- `parse_httpmon_log` — httpmon NDJSON or HAR capture
+
+**Analyzers** (call after corresponding parser):
+- `analyze_policy` — trace 403 AccessDenied through IAM/bucket/KMS policies
+- `analyze_throughput` — throughput vs theoretical limits (RTT, bandwidth, concurrency)
+- `analyze_cors` — generate CORS configuration fix XML
+- `analyze_network` — root-cause DNS/TLS/TCP/VPC endpoint failures
+- `analyze_replication` — diagnose CRR/SRR replication failures
+- `analyze_cost` — per-prefix inventory cost attribution
+
+**Detection:**
+- `detect_throttling` — detect 429/SlowDown throttling patterns
+
+**Fix generators** (output is manual-only, always label `# manual-only:`):
+- `generate_policy_fix` — corrected IAM or bucket policy statement
+- `generate_lifecycle_fix` — corrected lifecycle XML with size filter
+
+**Memory:**
+- `search_memory` — BM25 search of past diagnosed cases
 
 ## Evidence Supplied by StorageOps
 

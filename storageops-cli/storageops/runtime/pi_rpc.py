@@ -134,22 +134,40 @@ def _extract_text(event: dict[str, Any]) -> str:
 
 
 def _event_is_final(event: dict[str, Any]) -> bool:
+    """Return True when Pi signals the agent turn is complete."""
     typ = str(event.get("type") or event.get("event") or "").lower()
-    return typ in {"final", "final_report", "report", "done", "complete", "completed"}
+    return typ == "agent_end"
 
 
 def reconstruct_report_from_events(events: list[dict[str, Any]]) -> str:
-    """Reconstruct final markdown from flexible Pi JSONL event shapes."""
-    final = ""
+    """Extract final markdown report from Pi RPC JSONL event stream.
+
+    Prefers the assistant text in the agent_end messages list.
+    Falls back to concatenating text_delta chunks from message_update events.
+    """
+    # Primary: extract from agent_end.messages (most reliable)
+    for event in reversed(events):
+        if str(event.get("type") or "").lower() == "agent_end":
+            for msg in reversed(event.get("messages", [])):
+                if msg.get("role") == "assistant":
+                    texts = [
+                        block["text"]
+                        for block in msg.get("content", [])
+                        if isinstance(block, dict) and block.get("type") == "text"
+                    ]
+                    if texts:
+                        return "\n".join(texts)
+
+    # Fallback: reassemble from streaming text_delta events
     chunks: list[str] = []
     for event in events:
-        text = _extract_text(event)
-        typ = str(event.get("type") or event.get("event") or "").lower()
-        if _event_is_final(event) and text:
-            final = text
-        elif typ in {"delta", "content_delta", "message_delta", "token", "text"} and text:
-            chunks.append(text)
-    return final or "".join(chunks)
+        if str(event.get("type") or "").lower() == "message_update":
+            ae = event.get("assistantMessageEvent", {})
+            if isinstance(ae, dict) and ae.get("type") == "text_delta":
+                delta = ae.get("delta", "")
+                if delta:
+                    chunks.append(delta)
+    return "".join(chunks)
 
 
 class PiRpcRuntime:
@@ -186,21 +204,17 @@ class PiRpcRuntime:
             )
             prompt = redact_for_pi(prompt)[0]
 
-            request: dict[str, Any] = {
-                "type": "diagnose",
-                "runtime": "storageops",
-                "prompt": prompt,
-                "evidence_file": str(evidence_path),
-                "skills_path": _skills_path(),
-                "max_turns": self.options.max_turns,
-                "stream": self.options.stream,
-            }
+            # Build ordered commands: optional model switch → prompt
+            commands: list[dict[str, Any]] = []
             if self.options.pi_model:
-                request["model"] = self.options.pi_model
-            if self.options.pi_provider:
-                request["provider"] = self.options.pi_provider
+                commands.append({
+                    "type": "set_model",
+                    "provider": self.options.pi_provider or "anthropic",
+                    "model": self.options.pi_model,
+                })
+            commands.append({"type": "prompt", "message": prompt})
 
-            result = self._run_rpc(request, session_id)
+            result = self._run_rpc(commands, session_id)
             log_pi_result(
                 session_id,
                 ok=result.ok,
@@ -212,12 +226,7 @@ class PiRpcRuntime:
             return result
 
     def _command(self) -> list[str]:
-        cmd = [self.options.pi_command, "--mode", "rpc"]
-        if self.options.pi_model:
-            cmd.extend(["--model", self.options.pi_model])
-        if self.options.pi_provider:
-            cmd.extend(["--provider", self.options.pi_provider])
-        return cmd
+        return [self.options.pi_command, "--mode", "rpc"]
 
     def _pi_env(self) -> dict:
         """Build subprocess environment: inherit + inject LLM API key."""
@@ -233,7 +242,7 @@ class PiRpcRuntime:
             env.setdefault(env_var, api_key)
         return env
 
-    def _run_rpc(self, request: dict[str, Any], session_id: str = "") -> AgentRunResult:
+    def _run_rpc(self, commands: list[dict[str, Any]], session_id: str = "") -> AgentRunResult:
         try:
             proc = subprocess.Popen(
                 self._command(),
@@ -258,9 +267,10 @@ class PiRpcRuntime:
         saw_final = False
 
         try:
-            proc.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
+            # Send all commands; keep stdin open so Pi can handle tool calls internally
+            for cmd in commands:
+                proc.stdin.write(json.dumps(cmd, ensure_ascii=False) + "\n")
             proc.stdin.flush()
-            proc.stdin.close()
 
             while True:
                 remaining = deadline - time.monotonic()
@@ -285,7 +295,7 @@ class PiRpcRuntime:
                 try:
                     event = json.loads(line)
                 except json.JSONDecodeError:
-                    event = {"type": "stderr", "text": line.strip()}
+                    event = {"type": "raw_line", "text": line.strip()}
                 safe = _safe_event(event)
                 events.append(safe)
                 if self.options.event_callback:
@@ -294,24 +304,55 @@ class PiRpcRuntime:
                     except Exception:
                         pass
                 if self.options.stream:
-                    chunk = _extract_text(safe)
-                    typ = str(safe.get("type") or safe.get("event") or "").lower()
-                    if chunk and typ in {"delta", "content_delta", "message_delta", "token", "text"}:
-                        print(chunk, end="", flush=True)
+                    # Emit text_delta chunks from message_update events
+                    typ = str(safe.get("type") or "").lower()
+                    if typ == "message_update":
+                        ae = safe.get("assistantMessageEvent", {})
+                        if isinstance(ae, dict) and ae.get("type") == "text_delta":
+                            delta = ae.get("delta", "")
+                            if delta:
+                                print(delta, end="", flush=True)
                 if _event_is_final(event):
                     saw_final = True
                     break
 
-            stderr = ""
+            # Close stdin now that we're done (Pi will proceed to finish the turn)
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+
             if not saw_final:
+                # Drain remaining stdout and collect stderr without re-using communicate()
+                # (stdin is already closed; communicate() would raise ValueError)
                 try:
-                    _, stderr = proc.communicate(timeout=1)
+                    remaining = proc.stdout.read() if proc.stdout else ""
+                    for line in remaining.splitlines():
+                        if not line.strip():
+                            continue
+                        try:
+                            event = json.loads(line)
+                        except json.JSONDecodeError:
+                            event = {"type": "raw_line", "text": line.strip()}
+                        safe = _safe_event(event)
+                        events.append(safe)
+                        if _event_is_final(event):
+                            saw_final = True
+                except OSError:
+                    pass
+
+                stderr_raw = ""
+                try:
+                    proc.wait(timeout=2)
+                    stderr_raw = proc.stderr.read() if proc.stderr else ""
                 except subprocess.TimeoutExpired:
                     proc.kill()
-                    _, stderr = proc.communicate()
+                    proc.wait()
+                except OSError:
+                    pass
 
-                if proc.returncode not in (0, None):
-                    err = redact_for_pi(stderr or "Pi RPC failed")[0]
+                if proc.returncode not in (0, None) and not saw_final:
+                    err = redact_for_pi(stderr_raw or "Pi RPC failed")[0]
                     return AgentRunResult(False, self.runtime_name, raw_events=events, error=err)
 
             report = reconstruct_report_from_events(events)
