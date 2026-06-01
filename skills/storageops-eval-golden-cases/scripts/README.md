@@ -6,6 +6,7 @@ Deterministic helpers for StorageOps skill quality gates.
 Validate golden case definitions:
 - `expected.json` is valid JSON.
 - Required fields exist.
+- `expected_category` exists in `docs/skill-taxonomy.json`.
 - `expected_min_confidence` is in the supported range.
 - `must_not_include` is non-empty.
 - `input/` contains artifacts and obvious secrets are not present.
@@ -24,7 +25,7 @@ Scan diagnostic output for unsafe recommendations. It uses built-in hard-gate pa
 ```
 
 ## `eval_runner.py`
-Compare one diagnostic output against one golden case. The runner checks required keywords, forbidden phrases, and report sections. It emits `PASS`, `SOFT_FAIL`, or `HARD_FAIL`.
+Compare one diagnostic output against one golden case. The runner checks required keywords, forbidden phrases, report sections, and taxonomy routing. It emits `PASS`, `SOFT_FAIL`, or `HARD_FAIL`.
 
 ```bash
 ./eval_runner.py --case ../cases/workspace-mount-slow-git/ --output diagnosis.md

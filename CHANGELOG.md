@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-02 — v0.4.2: Skill taxonomy and routing quality gates
+
+- **Taxonomy contract**: added `docs/skill-taxonomy.json` and `docs/skill-taxonomy.md` to map golden-case categories to primary skills.
+- **Routing coverage**: added 8 compact routing golden cases for ambiguous 403/signature, mount/performance, CORS, Spark committer, access-log, notification, migration, and stale-read scenarios.
+- **Validation**: upgraded skill integrity and golden-case validators to reject unknown `expected_category` values.
+- **Eval scoring**: `eval_runner.py` now accepts either the canonical category or the mapped skill name in diagnostic output.
+- **Documentation**: updated skill quality and eval docs for taxonomy-backed golden cases and repository size budgets.
+
 ## 2026-06-01 — Skill quality gates and reference integrity
 
 - **Reference integrity**: aligned SKILL.md bundled-resource links with real files and added missing domain references for big data, consistency, event notification, and migration skills.

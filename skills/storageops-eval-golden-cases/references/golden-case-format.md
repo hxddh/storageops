@@ -41,6 +41,7 @@ easy | medium | hard
 ```json
 {
   "expected_category": "string — one of the issue taxonomy categories",
+  "case_type": "diagnosis | routing (optional; defaults to diagnosis)",
   "expected_subcategory": "string (optional) — subcategory",
   "expected_severity": "critical | high | medium | low",
   "expected_min_confidence": 0.0,
@@ -57,7 +58,8 @@ easy | medium | hard
 
 ### Field Descriptions
 
-- **`expected_category`** — Must appear in the diagnostic output's `category` field.
+- **`expected_category`** — Must be a canonical category from `docs/skill-taxonomy.json`. The eval runner accepts either this category or its mapped skill name in the output.
+- **`case_type`** — Optional. Use `routing` when the case tests triage/routing rather than full root-cause diagnosis.
 - **`expected_subcategory`** — Optional. If provided, must match output's `subcategory`.
 - **`expected_severity`** — Expected severity level.
 - **`expected_min_confidence`** — Minimum confidence score the diagnosis should achieve.
@@ -120,3 +122,4 @@ easy | medium | hard
 - Don't create cases where the answer is trivially obvious from a single keyword.
 - Don't make `must_not_include` empty.
 - Don't set `expected_min_confidence` to 0.0 (useless) or 1.0 (unrealistic).
+- Don't add large raw logs; reduce them to the smallest redacted sample that still exercises the route or diagnosis.

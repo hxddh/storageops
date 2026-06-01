@@ -8,6 +8,20 @@ import json
 import re
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[3]
+TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
+
+
+def load_taxonomy() -> dict[str, str]:
+    if not TAXONOMY.exists():
+        return {}
+    data = json.loads(TAXONOMY.read_text(encoding="utf-8"))
+    return {
+        category: entry["skill"]
+        for category, entry in data.get("categories", {}).items()
+        if isinstance(entry, dict) and isinstance(entry.get("skill"), str)
+    }
+
 
 def contains_all(text: str, keywords: list[str]) -> list[str]:
     lower = text.lower()
@@ -21,6 +35,7 @@ def section_present(text: str, section: str) -> bool:
 
 def evaluate(case: Path, output: Path) -> dict:
     expected = json.loads((case / "expected.json").read_text(encoding="utf-8"))
+    category_to_skill = load_taxonomy()
     text = output.read_text(encoding="utf-8", errors="ignore")
     lower = text.lower()
 
@@ -28,8 +43,10 @@ def evaluate(case: Path, output: Path) -> dict:
     warnings = []
 
     category = expected.get("expected_category")
-    if category and category.lower() not in lower:
-        failures.append(f"expected_category not found: {category}")
+    mapped_skill = category_to_skill.get(category, "")
+    mapped_skill_found = bool(mapped_skill) and mapped_skill.lower() in lower
+    if category and category.lower() not in lower and not mapped_skill_found:
+        failures.append(f"expected_category or mapped skill not found: {category} -> {mapped_skill}")
 
     for key in ["must_include_evidence_keywords", "must_include_recommendation_keywords"]:
         missing = contains_all(text, expected.get(key, []))

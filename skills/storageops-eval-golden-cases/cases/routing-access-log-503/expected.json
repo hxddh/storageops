@@ -1,0 +1,11 @@
+{
+  "case_type": "routing",
+  "expected_category": "access_log_analysis",
+  "expected_root_cause_types": ["error_spike", "requester_attribution"],
+  "expected_min_confidence": 0.7,
+  "must_include_evidence_keywords": ["access logs", "503", "requester"],
+  "must_include_recommendation_keywords": ["parse", "top requester", "operation"],
+  "must_not_include": ["delete bucket", "make public", "disable TLS"],
+  "required_report_sections": ["Routing", "Evidence Gaps"],
+  "severity": "medium"
+}

@@ -1,0 +1,11 @@
+{
+  "case_type": "routing",
+  "expected_category": "cors_configuration",
+  "expected_root_cause_types": ["cors_rule_missing", "preflight_denied"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["CORS", "OPTIONS", "preflight"],
+  "must_include_recommendation_keywords": ["Access-Control-Allow-Origin", "method", "origin"],
+  "must_not_include": ["disable TLS", "make public", "delete bucket"],
+  "required_report_sections": ["Routing", "Evidence Gaps"],
+  "severity": "medium"
+}

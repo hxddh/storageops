@@ -1,0 +1,5 @@
+Browser console:
+Access to fetch at https://bucket.s3.example.com/object from origin https://app.example.com
+has been blocked by CORS policy.
+
+OPTIONS preflight returns 403 and the response is missing Access-Control-Allow-Origin.

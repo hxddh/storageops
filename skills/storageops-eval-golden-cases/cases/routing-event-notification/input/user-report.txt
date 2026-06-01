@@ -1,0 +1,3 @@
+PUT Object succeeds and the object appears in the bucket.
+The configured Lambda trigger does not run for keys under uploads/images/.
+No errors are returned to the uploader.

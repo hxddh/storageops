@@ -1,0 +1,11 @@
+{
+  "case_type": "routing",
+  "expected_category": "event_notification",
+  "expected_root_cause_types": ["notification_filter_mismatch", "destination_permission"],
+  "expected_min_confidence": 0.75,
+  "must_include_evidence_keywords": ["PUT Object", "Lambda", "trigger"],
+  "must_include_recommendation_keywords": ["notification", "prefix", "permission"],
+  "must_not_include": ["delete bucket", "make public", "print access key"],
+  "required_report_sections": ["Routing", "Evidence Gaps"],
+  "severity": "medium"
+}

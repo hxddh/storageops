@@ -1,0 +1,3 @@
+I have S3 server access logs for the last hour and need to know why 503 SlowDown spiked.
+Sample lines show repeated REST.PUT.OBJECT requests from one requester and status 503.
+Please identify top requester and operation mix before tuning clients.

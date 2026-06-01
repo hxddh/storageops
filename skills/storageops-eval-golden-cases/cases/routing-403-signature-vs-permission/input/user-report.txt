@@ -1,0 +1,7 @@
+aws s3 cp fails against our S3-compatible endpoint:
+
+HTTP 403 Forbidden
+Code: SignatureDoesNotMatch
+Message: The request signature we calculated does not match the signature you provided.
+
+The same key can list the bucket from another host.
