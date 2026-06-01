@@ -156,7 +156,7 @@ def _merge_settings_json(dst_home: Path, settings: dict) -> None:
 
     只更新 StorageOps 特有的 key，保留用户其他配置不变。
     """
-    dst = dst_home / "settings.json"
+    dst = dst_home / ".pi" / "settings.json"
     dst.parent.mkdir(parents=True, exist_ok=True)
 
     if dst.exists():
@@ -183,7 +183,7 @@ def _merge_settings_json(dst_home: Path, settings: dict) -> None:
 
 def _write_settings(dst_home: Path, settings: dict) -> None:
     """写入全新 settings.json."""
-    dst = dst_home / "settings.json"
+    dst = dst_home / ".pi" / "settings.json"
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(json.dumps(settings, indent=2) + "\n")
     print(f"  ✅ settings.json  → {dst}")
