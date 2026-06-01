@@ -85,6 +85,9 @@ Requires: `pip install "storageops[api]"` (FastAPI + uvicorn).
 | `GET /` | Web UI |
 | `POST /triage` | `{"text": "..."}` → triage result |
 | `POST /analyze` | `{"text": "...", "domain": "..."}` → analysis |
+| `GET /stream/triage` | SSE stream of triage progress events |
+| `POST /analyze/stream` | SSE stream of analysis progress events |
+| `GET /domains` | List all supported diagnostic domains |
 | `GET /memory` | List recent cases |
 | `GET /memory/search?q=…` | BM25 keyword search |
 | `GET /health` | `{"status": "ok", "version": "..."}` |

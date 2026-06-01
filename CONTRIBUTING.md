@@ -21,6 +21,10 @@ pip install -e "storageops-cli/[dev]"
 cd storageops-cli && pytest ../storageops-core/tests/ tests/ -v
 ```
 
+> **Note:** The root `pyproject.toml` contains only tool configuration (`[tool.pytest.ini_options]`,
+> `[tool.ruff]`). The installable package lives at `storageops-cli/pyproject.toml`. Running
+> `pip install -e .` from the repo root will fail — always use `pip install -e storageops-cli/`.
+
 ## Project Layout
 
 ```

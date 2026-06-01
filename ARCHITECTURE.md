@@ -97,6 +97,7 @@ adds the relevant `storageops-core` subdirectories to `sys.path` at import time.
 | `audit_logger.py` | Append-only JSONL audit log of Pi sessions |
 | `runtime/pi_rpc.py` | Start Pi in `--mode rpc`, send `prompt` command via JSONL, collect events until `agent_end`, validate report |
 | `runtime/tool_bridge.py` | Subprocess entry point called by the Pi Extension; reads `{tool, inputs}` from stdin, calls `dispatch_tool()`, writes JSON result to stdout |
+| `prompts/pi_diagnosis_prompt.md` | System prompt template sent to Pi with each diagnosis; defines evidence collection strategy, safety rules, and required report format (YAML frontmatter + section headings) |
 
 ### `agents/skills/` — Pi Skill Pack
 
