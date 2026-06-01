@@ -33,14 +33,15 @@ SETTINGS_JSON = json.dumps(SETTINGS, indent=2)
 
 def find_pi() -> str:
     """定位 pi 二进制文件."""
+    # PATH 优先（npm global install）
+    found = shutil.which("pi")
+    if found:
+        return found
     candidates = [
         str(PI_HOME / "bin" / "pi"),
         os.path.expanduser("~/.pi/bin/pi"),
         "/usr/local/bin/pi",
     ]
-    found = shutil.which("pi")
-    if found:
-        candidates.append(found)
     for c in candidates:
         if os.path.isfile(c):
             return c
@@ -142,8 +143,11 @@ def cmd_install(force: bool = False):
     try:
         result = subprocess.run([pi, "--version"], capture_output=True, text=True)
         if result.returncode == 0:
-            ver = result.stdout.strip()
-            print(f"  ✅ pi ({ver})  → {pi}")
+            ver = (result.stdout + result.stderr).strip()
+            if ver:
+                print(f"  ✅ pi ({ver})  → {pi}")
+            else:
+                print(f"  ✅ pi  → {pi}")
         else:
             print(f"  ⚠️  pi 不可用: {pi}")
     except FileNotFoundError:
@@ -215,5 +219,7 @@ def main():
 
     # 转发到 pi
     pi = find_pi()
-    os.environ.setdefault("PI_HOME", str(PI_HOME))
+    # 自动设置 PI_HOME（end-user 无需手动设置）
+    if "PI_HOME" not in os.environ:
+        os.environ["PI_HOME"] = str(PI_HOME)
     os.execvp(pi, [pi] + args)
