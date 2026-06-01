@@ -299,10 +299,12 @@ def cmd_install(force: bool = False, merge: bool = False):
         print("  任选一种方式:")
         print()
         print("    方式A (推荐)  设置环境变量，一劳永逸:")
-        print("      export ANTHROPIC_API_KEY=sk-xxx")
+        print("      export ANTHROPIC_API_KEY=sk-xxx   # Claude")
+        print("      或 export DEEPSEEK_API_KEY=sk-xxx  # DeepSeek")
+        print("      或 export OPENAI_API_KEY=sk-xxx    # OpenAI")
         print()
         print("    方式B  每次诊断时传入:")
-        print("      storageops --print --api-key sk-xxx '诊断问题'")
+        print("      storageops --print --provider deepseek --api-key sk-xxx '诊断问题'")
         print()
         print("    方式C  启动后登录 (Pi 原生):")
         print("      storageops  → 进入 TUI → /login")
@@ -398,7 +400,8 @@ def main():
     if not has_pi_args:
         found = detect_api_keys()
         if not found:
-            print("💡 未设置 API key。进入 TUI 后运行 /login，或 export ANTHROPIC_API_KEY=sk-xxx")
+            print("💡 未设置 API key（支持 ANTHROPIC / DEEPSEEK / OPENAI）。")
+            print("   进入 TUI 后运行 /login，或 export ANTHROPIC_API_KEY=sk-xxx")
             print()
 
     if "PI_HOME" not in os.environ:
