@@ -303,6 +303,7 @@ class _StreamDisplay:
     def __init__(self):
         self._thinking_lines = 0
         self._thinking_header_shown = False
+        self._think_buf = ""           # Aggregate tiny thinking deltas into lines
         self._report_started = False
         self._current_tool: str | None = None
         self._first_report_line = True
@@ -311,6 +312,23 @@ class _StreamDisplay:
         self._header_printed = False
         self._tool_count = 0
         self._t_start: float | None = None
+
+    def _emit_think_line(self, text: str) -> None:
+        """Print one line of thinking output (only first 2 lines, rest suppressed)."""
+        if not text:
+            return
+        if self._thinking_lines == 0:
+            print(f"\n  {_c('▶', 'cyan')}  {_c('Thinking…', 'dim')}")
+            self._thinking_header_shown = True
+        if self._thinking_lines < 2:
+            print(f"     {_c(text[:100], 'dim')}")
+        self._thinking_lines += 1
+
+    def _flush_think_buf(self) -> None:
+        """Flush any remaining thinking buffer as a line."""
+        if self._think_buf.strip():
+            self._emit_think_line(self._think_buf.strip())
+            self._think_buf = ""
 
     def on_event(self, event: dict[str, Any]) -> None:
         if not _IS_TTY:
@@ -339,19 +357,13 @@ class _StreamDisplay:
 
             # Detect report start: YAML frontmatter `---`
             if not self._report_started and "---" in delta:
+                # Flush any residual think buffer
+                self._flush_think_buf()
                 # Find YAML start position within delta
                 yaml_idx = delta.find("---")
                 # Print anything before YAML as thinking
                 if yaml_idx > 0:
-                    thinking_part = delta[:yaml_idx]
-                    if self._thinking_lines == 0:
-                        print(f"\n  {_c('▶', 'cyan')}  {_c('Thinking…', 'dim')}")
-                        self._thinking_header_shown = True
-                    if self._thinking_lines < 2:
-                        preview = thinking_part.strip()[:100]
-                        if preview:
-                            print(f"     {_c(preview, 'dim')}")
-                    self._thinking_lines += 1
+                    self._emit_think_line(delta[:yaml_idx].strip())
                 # Enter report phase
                 if self._thinking_lines > 0 and self._thinking_header_shown:
                     print()
@@ -381,19 +393,22 @@ class _StreamDisplay:
                 print(delta, end="", flush=True)
                 return
 
-            # Thinking phase: summarise to 1-2 lines
-            if self._thinking_lines == 0:
-                print(f"\n  {_c('▶', 'cyan')}  {_c('Thinking…', 'dim')}")
-                self._thinking_header_shown = True
-            if self._thinking_lines < 2:
-                preview = delta.strip()[:100]
-                if preview:
-                    print(f"     {_c(preview, 'dim')}")
-            self._thinking_lines += 1
+            # Thinking phase: aggregate tiny deltas into full lines before printing
+            self._think_buf += delta
+            # Only print when we have a complete line or substantial content
+            lines = self._think_buf.split("\n")
+            for l in lines[:-1]:  # complete lines
+                self._emit_think_line(l.strip())
+            self._think_buf = lines[-1]  # keep incomplete last line
+            # Also flush if buffer has substantial content but no newline yet
+            if len(self._think_buf) > 80:
+                self._emit_think_line(self._think_buf.strip())
+                self._think_buf = ""
             return
 
         # ── Tool calls (Pi uses tool_execution_start/tool_execution_end) ──
         if typ == "tool_execution_start":
+            self._flush_think_buf()
             name = event.get("toolName", "")
             if not name:
                 return

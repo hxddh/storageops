@@ -134,7 +134,10 @@ def _line_has_manual_only(line: str) -> bool:
 
 
 def _has_section(text: str, section_name: str) -> bool:
-    return re.search(rf"^##+\s+{re.escape(section_name)}\b", text, re.IGNORECASE | re.MULTILINE) is not None
+    if re.search(rf"^##+\s+{re.escape(section_name)}\b", text, re.IGNORECASE | re.MULTILINE):
+        return True
+    # Also match bold inline headers: **Key Evidence:**
+    return bool(re.search(rf"\*\*{re.escape(section_name)}[\s:]*\*\*", text, re.IGNORECASE))
 
 
 def validate_agent_report(text: str) -> dict:

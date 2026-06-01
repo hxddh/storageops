@@ -140,45 +140,132 @@ def _event_is_final(event: dict[str, Any]) -> bool:
 
 
 def _normalise_report(raw: str) -> str:
-    """Strip conversational preamble and unwrap code-fenced YAML frontmatter."""
+    """Strip conversational preamble, unwrap code-fenced YAML, and synthesise YAML if missing."""
     if not raw:
         return raw
-    # Find the first YAML frontmatter fence (--- at line start)
     lines = raw.split("\n")
-    yaml_start = -1
+    yaml_start = _find_yaml_start(lines)
+
+    # Remove code fences around YAML if present
+    lines = _strip_yaml_fences(lines, yaml_start)
+    if yaml_start is not None:
+        yaml_start = max(0, yaml_start - 1) if yaml_start > 0 else yaml_start
+
+    if yaml_start is not None and yaml_start > 0:
+        lines = lines[yaml_start:]
+
+    # If YAML still missing after cleanup, auto-synthesise from markdown content
+    if not lines or not lines[0].strip().startswith("---"):
+        synthesis = _synthesise_yaml(raw)
+        if synthesis:
+            lines = [synthesis, ""] + lines
+
+    return "\n".join(lines)
+
+
+def _find_yaml_start(lines: list[str]) -> int | None:
+    """Find the first YAML frontmatter line, if any."""
     for i, line in enumerate(lines):
         stripped = line.strip()
-        # Match opening --- that starts YAML frontmatter (not inside a code fence)
         if stripped == "---" and i + 1 < len(lines):
-            # Check the next non-empty line looks like a YAML key:value
             next_line = lines[i + 1].strip()
             if ":" in next_line and not next_line.startswith(("#", "```", "|||")):
-                yaml_start = i
-                break
-    # Also check if a code fence (``` or ```yaml) precedes the YAML
+                return i
+    return None
+
+
+def _strip_yaml_fences(lines: list[str], yaml_start: int | None) -> list[str]:
+    """Remove code fences that wrap the YAML block."""
     fence_before = -1
     fence_after = -1
+    in_fence = False
     for i, line in enumerate(lines):
-        if line.strip().startswith("```"):
-            if fence_before < 0:
+        marker = line.strip()
+        if marker in ("```yaml", "```"):
+            if not in_fence:
                 fence_before = i
+                in_fence = True
             else:
                 fence_after = i
                 break
-    if 0 <= fence_before < (yaml_start if yaml_start >= 0 else len(lines)):
-        # Remove fence lines
-        keep = []
-        for i, line in enumerate(lines):
-            if i == fence_before or i == fence_after:
-                continue
-            keep.append(line)
-        lines = keep
-        # Recalculate yaml_start after removing fences
-        if yaml_start >= 0:
-            yaml_start = yaml_start - 1 if fence_before < yaml_start else yaml_start
-    if yaml_start > 0:
-        lines = lines[yaml_start:]
-    return "\n".join(lines)
+    if 0 <= fence_before < (yaml_start if yaml_start is not None else len(lines)):
+        return [l for i, l in enumerate(lines) if i not in (fence_before, fence_after)]
+    return lines
+
+
+def _synthesise_yaml(raw: str) -> str | None:
+    """Extract YAML fields from markdown headings/text and return a YAML block."""
+    import re
+    category_map: dict[str, str] = {
+        "security": "security_iam_policy",
+        "networking": "network_endpoint_access",
+        "dns": "network_endpoint_access",
+        "tls": "network_endpoint_access",
+        "endpoint": "network_endpoint_access",
+        "performance": "performance_throughput",
+        "throughput": "performance_throughput",
+        "throttl": "performance_throughput",
+        "latency": "performance_throughput",
+        "s3 protocol": "s3_protocol_compatibility",
+        "sigv4": "s3_protocol_compatibility",
+        "signature": "s3_protocol_compatibility",
+        "cors": "s3_protocol_compatibility",
+        "lifecycle": "lifecycle_cost",
+        "cost": "lifecycle_cost",
+        "replicat": "replication_versioning",
+        "mount": "mount_filesystem_workspace",
+        "fuse": "mount_filesystem_workspace",
+        "rclone": "cli_sdk_behavior",
+        "s5cmd": "cli_sdk_behavior",
+        "aws cli": "cli_sdk_behavior",
+        "boto3": "cli_sdk_behavior",
+        "spark": "bigdata_pipeline",
+        "hadoop": "bigdata_pipeline",
+        "evidence": "evidence_reporting",
+        "diagnosis": "evidence_reporting",
+    }
+    severity_pattern = re.compile(
+        r"(?:severity|Severity|SEVERITY)[:\s]+(critical|high|medium|low)\\b", re.IGNORECASE
+    )
+    confidence_pattern = re.compile(
+        r"(?:confidence|Confidence|CONFIDENCE)[:\s]+([0-9]+(?:\\.[0-9]+)?)\\b", re.IGNORECASE
+    )
+
+    sev_match = severity_pattern.search(raw)
+    severity = sev_match.group(1).lower() if sev_match else "medium"
+    conf_match = confidence_pattern.search(raw)
+    confidence = min(max(float(conf_match.group(1)), 0.0), 1.0) if conf_match else 0.6
+
+    # Infer category from text
+    raw_lower = raw.lower()
+    category = "evidence_reporting"
+    root_cause = "insufficient_evidence"
+    for keyword, cat in category_map.items():
+        if keyword in raw_lower:
+            category = cat
+            break
+    # Infer root_cause_type from first ## heading or Key Evidence section
+    heading_match = re.search(r"^#{2,3}\s+(.+)$", raw, re.MULTILINE)
+    if heading_match:
+        heading = heading_match.group(1).strip().lower()
+        heading = re.sub(r"[^a-z0-9\s]", "", heading)
+        heading = heading.replace(" ", "_")[:50]
+        if heading not in ("summary", "key_evidence", "root_cause_ranking", "verification_plan",
+                           "remediation", "safety_notes", "limitations"):
+            root_cause = heading
+    # Special case: if the report says "evidence" or "no evidence", mark as insufficient
+    if "insufficient evidence" in raw_lower or "no diagnostic artifact" in raw_lower:
+        root_cause = "insufficient_evidence"
+        confidence = 0.0
+
+    return (
+        f"---\n"
+        f"category: {category}\n"
+        f"root_cause_type: {root_cause}\n"
+        f"confidence: {confidence}\n"
+        f"severity: {severity}\n"
+        f"---"
+    )
 
 
 def reconstruct_report_from_events(events: list[dict[str, Any]]) -> str:
