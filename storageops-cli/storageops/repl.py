@@ -1,15 +1,24 @@
 """Interactive REPL — Pi Coding Agent-style S3 diagnostic interface."""
 from __future__ import annotations
 
+import os
 import re
 import sys
 import select as _select
+import subprocess
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
 from storageops.session import DiagnosticSession
+
+# ── History file path ────────────────────────────────────────────────
+
+def _history_file() -> Path:
+    """Return ~/.storageops/history."""
+    from storageops.config import get_workdir
+    return get_workdir() / "history"
 
 _IS_TTY       = sys.stdout.isatty()
 _IS_INPUT_TTY = sys.stdin.isatty()
@@ -44,13 +53,14 @@ def _hr(w: int = 60) -> str:
 # ── Slash commands ────────────────────────────────────────────────────
 
 _SLASH_CMDS = [
-    "/help", "/resume", "/clear", "/status",
+    "/help", "/history", "/resume", "/clear", "/status",
     "/config", "/memory", "/update",
     "/doctor", "/setup", "/verbose", "/editor", "/view", "/exit",
 ]
 
 _SLASH_CMD_HELP = {
     "/help":    "Show this command list",
+    "/history": "Show command history  (/history <N> for last N)",
     "/resume":  "Load a past session",
     "/clear":   "Clear context and start a fresh session",
     "/status":  "Show session info and configuration",
@@ -66,7 +76,7 @@ _SLASH_CMD_HELP = {
 }
 
 _SLASH_CMD_GROUPS = [
-    ("Session",       ["/resume", "/clear", "/editor", "/view", "/status"]),
+    ("Session",       ["/resume", "/clear", "/editor", "/view", "/status", "/history"]),
     ("Configuration", ["/config", "/setup", "/doctor", "/update"]),
     ("Memory",        ["/memory"]),
     ("Other",         ["/verbose", "/help", "/exit"]),
@@ -160,6 +170,116 @@ def _summarize_structured(data: dict) -> str:
     return "  ".join(snippets[:3])
 
 
+# ── Syntax highlighting (optional, uses pygments) ────────────────────
+
+_HIGHLIGHT_AVAILABLE = False
+
+def _init_highlighting() -> bool:
+    """Check if pygments is available for syntax highlighting."""
+    global _HIGHLIGHT_AVAILABLE
+    try:
+        __import__("pygments")
+        _HIGHLIGHT_AVAILABLE = True
+    except ImportError:
+        _HIGHLIGHT_AVAILABLE = False
+    return _HIGHLIGHT_AVAILABLE
+
+
+def _highlight_text(text: str, lexer_name: str) -> str:
+    """Apply pygments syntax highlighting. Returns plain text if unavailable."""
+    if not _HIGHLIGHT_AVAILABLE or not _IS_TTY:
+        return text
+    try:
+        from pygments import highlight
+        from pygments.lexers import get_lexer_by_name
+        from pygments.formatters import Terminal256Formatter
+        lexer = get_lexer_by_name(lexer_name, stripall=True)
+        return highlight(text, lexer, Terminal256Formatter(style="monokai"))
+    except Exception:
+        return text
+
+
+def _highlight_report_sections(text: str) -> str:
+    """
+    Highlight YAML blocks, code fences, and numbered lists in a report.
+    Returns the plain text (highlighting only applied during TTY streaming).
+    """
+    if not _IS_TTY or not _HIGHLIGHT_AVAILABLE:
+        return text
+    try:
+        from pygments import highlight
+        from pygments.lexers import YamlLexer, JsonLexer, BashLexer, MarkdownLexer
+        from pygments.formatters import Terminal256Formatter
+
+        result: list[str] = []
+        in_yaml = False
+        in_code = False
+        code_lang = ""
+        yaml_lines: list[str] = []
+        code_lines: list[str] = []
+
+        fm = Terminal256Formatter(style="monokai")
+
+        for line in text.split("\n"):
+            # YAML frontmatter
+            if not in_yaml and not in_code and line.strip() == "---":
+                in_yaml = True
+                yaml_lines = [line]
+                continue
+            if in_yaml:
+                yaml_lines.append(line)
+                if line.strip() == "---" and len(yaml_lines) > 1:
+                    # Flush YAML block
+                    yaml_text = "\n".join(yaml_lines)
+                    try:
+                        highlighted = highlight(yaml_text, YamlLexer(), fm)
+                        result.append(highlighted.rstrip())
+                    except Exception:
+                        result.append(yaml_text.rstrip())
+                    yaml_lines = []
+                    in_yaml = False
+                continue
+
+            # Code fence
+            fence_match = re.match(r"^```(\w*)", line.strip())
+            if fence_match and not in_code:
+                in_code = True
+                code_lang = fence_match.group(1) or ""
+                code_lines = [line]
+                continue
+            if in_code:
+                code_lines.append(line)
+                if line.strip() == "```":
+                    # Flush code block
+                    code_text = "\n".join(code_lines)
+                    lexer_map = {
+                        "yaml": YamlLexer, "yml": YamlLexer,
+                        "json": JsonLexer, "bash": BashLexer, "sh": BashLexer,
+                        "shell": BashLexer,
+                    }
+                    lexer_cls = lexer_map.get(code_lang, MarkdownLexer)
+                    try:
+                        highlighted = highlight(code_text, lexer_cls(), fm)
+                        result.append(highlighted.rstrip())
+                    except Exception:
+                        result.append(code_text.rstrip())
+                    code_lines = []
+                    in_code = False
+                continue
+
+            result.append(line)
+
+        # Close unclosed blocks
+        if yaml_lines:
+            result.extend(yaml_lines)
+        if code_lines:
+            result.extend(code_lines)
+
+        return "\n".join(result)
+    except Exception:
+        return text
+
+
 class _StreamDisplay:
     """
     Pi-style streaming progress during diagnosis.
@@ -189,6 +309,8 @@ class _StreamDisplay:
         self._yaml_buffer: list[str] = []
         self._yaml_collecting = False
         self._header_printed = False
+        self._tool_count = 0
+        self._t_start: float | None = None
 
     def on_event(self, event: dict[str, Any]) -> None:
         if not _IS_TTY:
@@ -278,6 +400,8 @@ class _StreamDisplay:
             if self._thinking_lines > 0 and self._thinking_header_shown:
                 print()
             self._current_tool = name
+            self._tool_count += 1
+            elapsed = f"{time.monotonic() - self._t_start:.0f}s" if self._t_start else ""
             print(f"  {_c('⏺', 'cyan')}  {_c(name, 'cyan')}", end="", flush=True)
             return
 
@@ -293,7 +417,9 @@ class _StreamDisplay:
                 else:
                     mark = _c("✓", "green")
                     detail = summary or "ok"
-                print(f"  {mark} {_c(detail, 'dim')}")
+                elapsed = f"{time.monotonic() - self._t_start:.0f}s" if self._t_start else ""
+                progress = f" ({elapsed})" if elapsed else ""
+                print(f"  {mark} {_c(detail, 'dim')}{_c(progress, 'dim')}")
             self._current_tool = None
             return
 
@@ -301,6 +427,11 @@ class _StreamDisplay:
         if typ == "agent_end":
             if self._thinking_lines > 0 and self._thinking_header_shown:
                 print()
+            return
+
+        # ── Turn start (track elapsed) ──────────────────────────────
+        if typ == "turn_start" and self._t_start is None:
+            self._t_start = time.monotonic()
             return
 
     def _print_yaml_header(self) -> None:
@@ -419,33 +550,81 @@ def _first_run_configure() -> None:
     print()
 
 
-# ── Readline tab completion ───────────────────────────────────────────
+# ── Readline history + tab completion ───────────────────────────────
+
+# Track history in memory for /history command (readline persists to file)
+_HISTORY_LINES: list[str] = []
+_HISTORY_MAX = 2000
+
+
+def _append_history(text: str) -> None:
+    """Record a line to in-memory history (readline already saves to file)."""
+    if text and text.strip() and not text.strip().startswith("/"):
+        if not _HISTORY_LINES or _HISTORY_LINES[-1] != text:
+            _HISTORY_LINES.append(text)
+            if len(_HISTORY_LINES) > _HISTORY_MAX:
+                _HISTORY_LINES[:] = _HISTORY_LINES[-_HISTORY_MAX:]
+
+
+def _show_history(n: int = 20) -> None:
+    """Print the last n history entries."""
+    if not _HISTORY_LINES:
+        print(f"\n  {_dim('No history yet.')}\n")
+        return
+    print()
+    entries = _HISTORY_LINES[-n:]
+    for i, line in enumerate(entries, max(1, len(_HISTORY_LINES) - n + 1)):
+        preview = line[:100].replace("\n", " ")
+        print(f"  {_dim(str(i).rjust(4))}  {_dim(preview)}")
+    print()
+
 
 def _init_readline() -> None:
     try:
         import readline
-
-        def _completer(text: str, state: int) -> str | None:
-            if text.startswith("/"):
-                matches = [c + " " for c in _SLASH_CMDS if c.startswith(text)]
-                return matches[state] if state < len(matches) else None
-            return None
-
-        def _display_matches(substitution: str, matches: list[str], longest: int) -> None:
-            print()
-            for m in matches:
-                cmd = m.strip()
-                desc = _SLASH_CMD_HELP.get(cmd, "")
-                print(f"  {_cyan(cmd):<22}  {_dim(desc)}")
-            print()
-            readline.redisplay()
-
-        readline.set_completer(_completer)
-        readline.set_completion_display_matches_hook(_display_matches)
-        readline.parse_and_bind("tab: complete")
-        readline.set_completer_delims(" \t\n")
     except ImportError:
+        return
+
+    # ── History persistence ──────────────────────────────────────
+    hist_file = _history_file()
+    hist_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        readline.read_history_file(str(hist_file))
+        # Load into in-memory tracker too
+        for i in range(readline.get_current_history_length()):
+            _HISTORY_LINES.append(readline.get_history_item(i + 1))
+    except (OSError, FileNotFoundError):
         pass
+
+    import atexit
+    def _save() -> None:
+        try:
+            readline.set_history_length(_HISTORY_MAX)
+            readline.write_history_file(str(hist_file))
+        except OSError:
+            pass
+    atexit.register(_save)
+
+    # ── Tab completion for slash commands ────────────────────────
+    def _completer(text: str, state: int) -> str | None:
+        if text.startswith("/"):
+            matches = [c + " " for c in _SLASH_CMDS if c.startswith(text)]
+            return matches[state] if state < len(matches) else None
+        return None
+
+    def _display_matches(substitution: str, matches: list[str], longest: int) -> None:
+        print()
+        for m in matches:
+            cmd = m.strip()
+            desc = _SLASH_CMD_HELP.get(cmd, "")
+            print(f"  {_cyan(cmd):<22}  {_dim(desc)}")
+        print()
+        readline.redisplay()
+
+    readline.set_completer(_completer)
+    readline.set_completion_display_matches_hook(_display_matches)
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer_delims(" \t\n")
 
 
 # ── Input reading ─────────────────────────────────────────────────────
@@ -687,7 +866,6 @@ def _handle_resume(current: DiagnosticSession) -> DiagnosticSession:
 
 def _handle_editor(session: DiagnosticSession) -> str | None:
     """Open $EDITOR (or vim/nano) for writing a long prompt. Returns text or None."""
-    import tempfile, os, subprocess
 
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or "vim"
     # If vim not available, fall back to nano
@@ -749,7 +927,6 @@ def _handle_editor(session: DiagnosticSession) -> str | None:
 
 def _handle_shell(text: str, session: DiagnosticSession) -> None:
     """Run a shell command ($ prefix) and add output to session evidence."""
-    import subprocess
 
     lines = text.split("\n")
     for line in lines:
@@ -786,7 +963,6 @@ def _handle_shell(text: str, session: DiagnosticSession) -> None:
 
 def _handle_view(session: DiagnosticSession) -> None:
     """Open the last assistant report in a pager for full-screen browsing."""
-    import subprocess, tempfile
 
     last = None
     for t in reversed(session.turns):
@@ -800,6 +976,10 @@ def _handle_view(session: DiagnosticSession) -> None:
 
     # Strip YAML frontmatter for cleaner viewing
     report = re.sub(r'^---\n.*?\n---\n?', '', last, flags=re.DOTALL).strip()
+
+    # Apply syntax highlighting if available
+    if _HIGHLIGHT_AVAILABLE:
+        report = _highlight_report_sections(report)
 
     pager = __import__("os").environ.get("PAGER", "less -R")
     try:
@@ -989,6 +1169,7 @@ def _run_turn(text: str, session: DiagnosticSession) -> bool:
 def run_repl(initial_text: str | None = None, resume_session: str | None = None) -> None:
     """Start the interactive diagnostic session (Pi Coding Agent style)."""
     _init_readline()
+    _init_highlighting()
 
     # Load or create session
     if resume_session:
@@ -1067,6 +1248,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
 
         # Shell mode: $ command → run and add output as evidence
         if first.startswith("$") and len(first) > 1:
+            _append_history(text)
             _handle_shell(text, session)
             continue
 
@@ -1082,6 +1264,16 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
 
         elif first in ("/help", "/"):
             _print_slash_menu()
+
+        elif first == "/history":
+            parts = text.split()
+            n = 20
+            if len(parts) > 1:
+                try:
+                    n = int(parts[1])
+                except ValueError:
+                    pass
+            _show_history(n)
 
         elif first == "/resume":
             session = _handle_resume(session)
@@ -1128,6 +1320,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         elif first == "/editor":
             editor_text = _handle_editor(session)
             if editor_text:
+                _append_history(editor_text)
                 expanded, file_errors = _expand_file_refs(editor_text)
                 for err in file_errors:
                     print(err)
@@ -1137,6 +1330,7 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
                     print(f"\n  {_c('⊘', 'yellow')}  Stopped.\n")
 
         else:
+            _append_history(text)
             expanded, file_errors = _expand_file_refs(text)
             for err in file_errors:
                 print(err)
