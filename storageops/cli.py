@@ -86,6 +86,10 @@ def _make_parser() -> argparse.ArgumentParser:
     r = sub.add_parser("resume", help="Resume an existing Pi session")
     r.add_argument("session_id", nargs="?", help="Session ID (prompts picker if omitted)")
 
+    # cleanup
+    cl = sub.add_parser("cleanup", help="Remove orphaned legacy session files")
+    cl.add_argument("--execute", action="store_true", help="Actually delete (default: dry-run)")
+
     # repl (default)
     sub.add_parser("repl", help="Start interactive REPL")
 
@@ -155,6 +159,9 @@ def main(argv: list[str] | None = None) -> None:
 
     elif cmd == "resume":
         _cmd_resume(args)
+
+    elif cmd == "cleanup":
+        _cmd_cleanup(args)
 
     else:
         parser.print_help()
@@ -456,6 +463,25 @@ def _cmd_resume(args) -> None:
     print(f"Resumed session: {sid[:8]}...")
     print(f"  Turns: {session.meta().get('turns', 0)}")
     display.show_slash_result("Enter your prompt (empty line to finish):")
+
+
+def _cmd_cleanup(args) -> None:
+    """Remove orphaned legacy .json session files."""
+    from storageops.session import cleanup_orphans
+
+    execute = getattr(args, "execute", False)
+    mode = "deleting" if execute else "DRY RUN — would delete"
+    print(f"Scanning for orphan session files ({mode})...")
+
+    orphans = cleanup_orphans(dry_run=not execute)
+    if not orphans:
+        print("  No orphan files found.")
+    else:
+        for f in orphans:
+            print(f"  {f}")
+        print(f"\n  {len(orphans)} orphan(s) {'removed' if execute else 'found'}.")
+        if not execute:
+            print("  Run with --execute to delete them.")
 
 
 if __name__ == "__main__":

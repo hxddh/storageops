@@ -31,6 +31,31 @@ def new_session_id() -> str:
     return str(uuid.uuid4())
 
 
+def cleanup_orphans(dry_run: bool = True) -> list[str]:
+    """Remove orphan `.json` files from old session format (short-IDs pre-v0.3.0).
+
+    These are `.json` files without a matching `.jsonl` file, left over from
+    the legacy `list_sessions.get_output()` format that saved dumps.
+    """
+    _ensure_dir()
+    removed: list[str] = []
+    for f in sorted(SESSIONS_DIR.glob("*.json")):
+        if f.name.endswith(".meta.json"):
+            continue  # keep meta files
+        # Check if there's a matching .jsonl
+        stem = f.stem
+        jl = SESSIONS_DIR / f"{stem}.jsonl"
+        if jl.exists():
+            continue  # has matching JSONL, keep
+        removed.append(f.name)
+        if not dry_run:
+            try:
+                f.unlink()
+            except OSError:
+                pass
+    return removed
+
+
 def create(cwd: str = "", domain: str = "", name: str = "",
            provider: str = "", model: str = "") -> Session:
     """Create a new session and return it."""
@@ -131,21 +156,65 @@ class Session:
     def replay(self) -> list[dict]:
         """Extract user/assistant messages for LLM context from JSONL events.
 
-        Skips the header line (type:session) and system/internal events.
-        Returns list of {role, content} dicts.
+        Accumulates text_delta events (key 'delta') into assistant messages,
+        separated by user_turn events. Uses fixed events from agent_end for
+        the final reconstruction if available.
         """
         messages: list[dict] = []
+        current_assistant: list[str] = []
+
         for ev in self.events():
-            if ev.get("type") == "session":
+            t = ev.get("type", "")
+            if t == "session":
                 continue
+
+            # Message boundaries from Pi
             role = ev.get("role", "")
-            content = ev.get("content", "")
-            if role in ("user", "assistant"):
-                messages.append({"role": role, "content": content})
-            elif ev.get("type") == "user_turn" and "prompt" in ev:
+            if role in ("user", "assistant") and ev.get("content"):
+                messages.append({"role": role, "content": str(ev["content"])})
+                continue
+
+            # User turn — flush any pending assistant text
+            if t == "user_turn" and "prompt" in ev:
+                if current_assistant:
+                    messages.append({"role": "assistant", "content": "".join(current_assistant)})
+                    current_assistant = []
                 messages.append({"role": "user", "content": ev["prompt"]})
-            elif ev.get("type") == "assistant_message" and "text" in ev:
+
+            # Streaming deltas — accumulate
+            elif t == "text_delta":
+                delta = ev.get("delta", "") or ev.get("text", "")
+                if delta:
+                    current_assistant.append(delta)
+
+            # Message / turn boundaries — flush
+            elif t in ("message_start", "message_end", "turn_end"):
+                pass  # handled by text_delta accumulation
+
+            elif t == "assistant_message" and "text" in ev:
+                if current_assistant:
+                    messages.append({"role": "assistant", "content": "".join(current_assistant)})
+                    current_assistant = []
                 messages.append({"role": "assistant", "content": ev["text"]})
+
+            # agent_end may carry full message history — fallback
+            elif t == "agent_end" and not messages:
+                msgs = ev.get("messages", [])
+                for m in msgs:
+                    r = m.get("role", "")
+                    c = m.get("content", "")
+                    if isinstance(c, list):
+                        c = " ".join(
+                            item.get("text", "") for item in c
+                            if isinstance(item, dict) and item.get("type") == "text"
+                        )
+                    if r in ("user", "assistant") and c:
+                        messages.append({"role": r, "content": c})
+
+        # Flush trailing assistant text
+        if current_assistant:
+            messages.append({"role": "assistant", "content": "".join(current_assistant)})
+
         return messages
 
     def meta(self) -> dict:
@@ -170,30 +239,53 @@ class Session:
         meta["turns"] = sum(1 for e in events if e.get("role") == "user"
                             or e.get("type") == "user_turn")
 
-        # summary = first assistant text
+        # summary = first non-empty assistant text (from text_delta accumulation)
         if not meta.get("summary"):
+            assistant_parts: list[str] = []
+            collecting = False
             for ev in events:
-                text = ""
-                if ev.get("role") == "assistant" and ev.get("content"):
-                    text = str(ev["content"])
-                elif ev.get("type") == "assistant_message" and ev.get("text"):
-                    text = str(ev["text"])
-                elif ev.get("type") == "text_delta" and ev.get("text"):
-                    text = str(ev["text"])
-                if text:
-                    # Take first 200 chars as summary
-                    meta["summary"] = text[:200]
-                    # Detect domain from YAML frontmatter
-                    if "category:" in text[:500]:
-                        import re
-                        m = re.search(r'category:\s*(\S+)', text[:500])
-                        if m and not meta.get("domain"):
-                            meta["domain"] = m.group(1)
+                t = ev.get("type", "")
+                if t == "user_turn":
+                    collecting = True  # next text_delta is assistant
+                    assistant_parts = []
+                elif t == "text_delta" and collecting:
+                    d = ev.get("delta", "") or ev.get("text", "")
+                    if d:
+                        assistant_parts.append(d)
+                        candidate = "".join(assistant_parts).strip()
+                        # Wait until we have a meaningful blob (>= 20 chars)
+                        if len(candidate) >= 20:
+                            meta["summary"] = candidate[:200]
+                            if "category:" in candidate[:500]:
+                                import re
+                                m = re.search(r'category:\s*(\S+)', candidate[:500])
+                                if m and not meta.get("domain"):
+                                    meta["domain"] = m.group(1)
+                            break
+                elif t in ("tool_call", "think_block"):
+                    collecting = False  # interleaved non-text events
+
+        if not meta.get("summary"):
+            # Fallback: agent_end messages
+            for ev in events:
+                if ev.get("type") == "agent_end":
+                    msgs = ev.get("messages", [])
+                    for m in msgs:
+                        if m.get("role") == "assistant":
+                            c = m.get("content", "")
+                            if isinstance(c, list):
+                                c = " ".join(
+                                    item.get("text", "") for item in c
+                                    if isinstance(item, dict) and item.get("type") == "text"
+                                )
+                            if c and isinstance(c, str):
+                                meta["summary"] = c[:200]
+                                break
                     break
 
         meta["has_assistant"] = any(
             e.get("role") == "assistant"
-            or e.get("type") in ("assistant_message", "text_delta")
+            or e.get("type") in ("assistant_message", "text_delta", "agent_end")
             for e in events
         )
 

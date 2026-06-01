@@ -515,8 +515,21 @@ TOOL_DEFINITIONS: list[dict] = [
 
 # ── Tool Dispatch ─────────────────────────────────────────────────────
 
+# Pi-native tools that should never be intercepted in RPC mode.
+# These are handled internally by Pi, not routed to tool_bridge.
+_PI_RPC_NATIVE_TOOLS = frozenset({
+    "bash", "read", "write", "edit", "task",
+    "TodoWrite", "Task", "web_search", "web_fetch",
+    "search_notes", "create_notes", "list_directory",
+})
+
+
 def dispatch_tool(name: str, inputs: dict) -> dict:
     """Execute a tool by name. Returns result dict. Never raises — errors in result."""
+    # Pi native tools — signal to skip, model will adapt
+    if name in _PI_RPC_NATIVE_TOOLS:
+        return {"error": f"{name!r} is a Pi-native tool (not routed through StorageOps)"}
+
     try:
         if name == "scan_secrets":
             from storageops.utils.secret_scanner import scan  # noqa: E402
