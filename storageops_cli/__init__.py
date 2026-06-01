@@ -286,19 +286,42 @@ def cmd_install(force: bool = False, merge: bool = False):
     _copy_extension(data, target_home)
     _copy_skills(data, target_home)
 
-    # API key
     _print_api_key_hint(api_keys)
 
     print()
     print("🎉 StorageOps 安装完成！")
     print()
-    print("快速测试:")
-    print(f"  storageops --print --api-key sk-xxx 's5cmd 报 429，帮我诊断'")
+    if not api_keys:
+        print("━━━ ⚠️  还差一步：配置 API key ━━━")
+        print()
+        print("  StorageOps 需要 AI 模型的 API key 才能工作。")
+        print()
+        print("  任选一种方式:")
+        print()
+        print("    方式A (推荐)  设置环境变量，一劳永逸:")
+        print("      export ANTHROPIC_API_KEY=sk-xxx")
+        print()
+        print("    方式B  每次诊断时传入:")
+        print("      storageops --print --api-key sk-xxx '诊断问题'")
+        print()
+        print("    方式C  启动后登录 (Pi 原生):")
+        print("      storageops  → 进入 TUI → /login")
+        print()
+        print("  获取 key: https://console.anthropic.com")
+        print("        或: https://platform.deepseek.com")
+        print()
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    else:
+        print(f"  检测到 API key ({', '.join(api_keys)})，可以直接使用:")
+        print()
+        print(f"  storageops --print 's5cmd 报 429，帮我诊断'")
+        print()
+        print("  或进入交互模式: storageops")
     print()
     if merge:
-        print("你已选择合并安装。原 Pi 配置已备份，使用 pi 命令即可调用 StorageOps。")
+        print("💡 你已选择合并安装。原 Pi 配置已备份，使用 pi 命令即可调用 StorageOps。")
     else:
-        print(f"使用 storageops 命令即可启动诊断。你的原 Pi 配置 (~/.pi/) 未受影响。")
+        print(f"💡 使用 storageops 命令即可启动诊断。你的原 Pi 配置 (~/.pi/) 未受影响。")
 
 
 def cmd_version():
@@ -369,6 +392,15 @@ def main():
     pi_home = PI_HOME if is_installed(PI_HOME) else PI_EXISTING_HOME
 
     pi = find_pi()
+
+    # 轻量提示：交互模式下未检测到 API key 环境变量
+    has_pi_args = len(args) > 0
+    if not has_pi_args:
+        found = detect_api_keys()
+        if not found:
+            print("💡 未设置 API key。进入 TUI 后运行 /login，或 export ANTHROPIC_API_KEY=sk-xxx")
+            print()
+
     if "PI_HOME" not in os.environ:
         os.environ["PI_HOME"] = str(pi_home)
     os.execvp(pi, [pi] + args)
