@@ -699,7 +699,7 @@ def cmd_agent(args: argparse.Namespace) -> None:
 
     import time as _time
     from storageops.config import get_pi_command as _get_pi_cmd
-    from storageops.repl import _LiveProgress
+    from storageops.repl import _StreamDisplay
 
     verbose = getattr(args, "verbose", False)
     is_streaming = getattr(args, "stream", False)
@@ -708,11 +708,11 @@ def cmd_agent(args: argparse.Namespace) -> None:
     _pi_cmd_arg = getattr(args, "pi_command", None)
     _pi_cmd = _pi_cmd_arg if (_pi_cmd_arg and _pi_cmd_arg != "pi") else _get_pi_cmd()
 
-    _progress = _LiveProgress(verbose=verbose) if not is_streaming else None
+    _display = _StreamDisplay() if not is_streaming else None
 
     def _event_cb(event: dict) -> None:
-        if _progress:
-            _progress.on_event(event)
+        if _display:
+            _display.on_event(event)
         elif verbose:
             # streaming + verbose: print tool calls inline
             tool_name = (
@@ -738,13 +738,10 @@ def cmd_agent(args: argparse.Namespace) -> None:
     )
 
     _t0 = _time.monotonic()
-    if _progress:
-        _progress.__enter__()
     try:
         result = PiRpcRuntime(options).run(file_arg)
     finally:
-        if _progress:
-            _progress.__exit__(None, None, None)
+        pass
     _elapsed = _time.monotonic() - _t0
 
     if result.ok:

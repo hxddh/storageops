@@ -46,7 +46,7 @@ def _hr(w: int = 60) -> str:
 _SLASH_CMDS = [
     "/help", "/resume", "/clear", "/status",
     "/config", "/memory", "/update",
-    "/doctor", "/setup", "/verbose", "/exit",
+    "/doctor", "/setup", "/verbose", "/editor", "/view", "/exit",
 ]
 
 _SLASH_CMD_HELP = {
@@ -56,6 +56,8 @@ _SLASH_CMD_HELP = {
     "/status":  "Show session info and configuration",
     "/config":  "View or change configuration  (/config set <key> <val>)",
     "/memory":  "Browse past cases  (/memory search <query>)",
+    "/editor":  "Open $EDITOR to write a long prompt or paste a large log",
+    "/view":    "Open the last report in a pager (less) for full-screen browsing",
     "/update":  "Download latest Pi binary and reinstall skills",
     "/doctor":  "Run environment health check",
     "/setup":   "Re-run setup (API key, Pi install)",
@@ -64,7 +66,7 @@ _SLASH_CMD_HELP = {
 }
 
 _SLASH_CMD_GROUPS = [
-    ("Session",       ["/resume", "/clear", "/status"]),
+    ("Session",       ["/resume", "/clear", "/editor", "/view", "/status"]),
     ("Configuration", ["/config", "/setup", "/doctor", "/update"]),
     ("Memory",        ["/memory"]),
     ("Other",         ["/verbose", "/help", "/exit"]),
@@ -88,7 +90,7 @@ def _make_banner() -> str:
         f"{provider_str}",
         "",
         _c("Describe your S3 issue or paste a log file.", "dim"),
-        _c("Use @filename  to attach files.  /help for commands.", "dim"),
+        _c("@file to attach   $ cmd to run   /editor for long prompts   /help for commands", "dim"),
     ]
     return "\n".join(lines)
 
@@ -101,38 +103,60 @@ def _make_prompt(session_id: str) -> str:
 # ── Live streaming progress (tool calls + report streaming) ───────────
 
 def _summarize_tool_result(event: dict[str, Any]) -> str:
-    """Extract a brief human-readable summary from a tool_result event."""
-    content = event.get("content") or event.get("result") or event.get("output") or {}
+    """Extract a brief human-readable summary from a Pi tool_execution_end event."""
+    # Pi format: {type: "tool_execution_end", result: {content: [{type: "text", text: "..."}]}}
+    result = event.get("result", {})
+    if isinstance(result, dict):
+        content_list = result.get("content", [])
+        if content_list and isinstance(content_list[0], dict):
+            text = content_list[0].get("text", "")
+            if isinstance(text, str):
+                try:
+                    data = __import__("json").loads(text)
+                    return _summarize_structured(data)
+                except Exception:
+                    return text[:60].replace("\n", " ")
+        # Check details for structured data
+        details = result.get("details", {})
+        if details:
+            return _summarize_structured(details)
+        return ""
+    # Legacy format: direct content/result/output
+    content = event.get("content") or event.get("output") or {}
     if isinstance(content, str):
         try:
-            import json as _json
-            content = _json.loads(content)
+            data = __import__("json").loads(content)
+            return _summarize_structured(data)
         except Exception:
-            return content[:60].replace("\n", " ") if content else ""
+            return content[:60].replace("\n", " ")
+    if isinstance(content, dict):
+        return _summarize_structured(content)
+    return ""
 
-    if not isinstance(content, dict):
-        return ""
 
-    if "ok" in content and not content.get("ok"):
-        err = str(content.get("error", ""))[:50]
-        return f"error: {err}" if err else "failed"
-
+def _summarize_structured(data: dict) -> str:
+    """Extract key fields from structured tool output."""
     snippets: list[str] = []
-    for key in ("records", "transfers", "errors", "requests", "signals", "findings"):
-        v = content.get(key)
+    for key in ("records", "transfers", "errors", "requests", "signals", "findings", "count"):
+        v = data.get(key)
         if isinstance(v, list) and v:
             snippets.append(f"{len(v)} {key}")
         elif isinstance(v, int) and v:
             snippets.append(f"{v} {key}")
-    for key in ("root_cause_type", "root_cause", "domain", "bottleneck"):
-        v = content.get(key)
+    for key in ("root_cause_type", "root_cause", "domain", "bottleneck", "primary_domain"):
+        v = data.get(key)
         if isinstance(v, str) and v:
             snippets.append(v.replace("_", " ")[:30])
             break
     for key in ("confidence",):
-        v = content.get(key)
+        v = data.get(key)
         if isinstance(v, (int, float)):
             snippets.append(f"{v:.0%}")
+    for key in ("ok", "valid"):
+        v = data.get(key)
+        if isinstance(v, bool):
+            snippets.append("ok" if v else "failed")
+            break
     return "  ".join(snippets[:3])
 
 
@@ -170,32 +194,62 @@ class _StreamDisplay:
         if not _IS_TTY:
             return
 
-        typ = str(event.get("type") or event.get("event") or "").lower()
+        typ = str(event.get("type") or "").lower()
 
-        # ── Text streaming ──────────────────────────────────────────
+        # ── Text streaming (thinking + report) ─────────────────────
         if typ == "message_update":
             ae = event.get("assistantMessageEvent", {})
-            if not isinstance(ae, dict) or ae.get("type") != "text_delta":
+            if not isinstance(ae, dict):
+                return
+            ae_type = ae.get("type", "")
+            # Handle text_start (first chunk) and text_delta (incremental)
+            if ae_type not in ("text_delta", "text_start"):
                 return
             delta = ae.get("delta", "")
+            # text_start embeds text in partial.content[0].text
+            if ae_type == "text_start" and not delta:
+                partial = ae.get("partial", {})
+                content = partial.get("content", [])
+                if content and isinstance(content[0], dict):
+                    delta = content[0].get("text", "")
             if not delta:
                 return
 
-            # Detect report start: YAML frontmatter `---` after a blank or on new line
-            if not self._report_started and delta.strip().startswith("---"):
-                # End thinking block
+            # Detect report start: YAML frontmatter `---`
+            if not self._report_started and "---" in delta:
+                # Find YAML start position within delta
+                yaml_idx = delta.find("---")
+                # Print anything before YAML as thinking
+                if yaml_idx > 0:
+                    thinking_part = delta[:yaml_idx]
+                    if self._thinking_lines == 0:
+                        print(f"\n  {_c('▶', 'cyan')}  {_c('Thinking…', 'dim')}")
+                        self._thinking_header_shown = True
+                    if self._thinking_lines < 2:
+                        preview = thinking_part.strip()[:100]
+                        if preview:
+                            print(f"     {_c(preview, 'dim')}")
+                    self._thinking_lines += 1
+                # Enter report phase
                 if self._thinking_lines > 0 and self._thinking_header_shown:
-                    print()  # newline after thinking
-                print()  # blank before report header
+                    print()
+                print()
                 self._report_started = True
                 self._yaml_collecting = True
                 self._yaml_buffer = []
+                # Feed YAML bytes starting from ---
+                after_yaml = delta[yaml_idx:]
+                self._yaml_buffer.append(after_yaml)
+                if after_yaml.strip() == "---":
+                    self._yaml_collecting = False
+                    self._print_yaml_header()
                 return
 
             if self._yaml_collecting:
                 self._yaml_buffer.append(delta)
-                # End of YAML frontmatter
-                if delta.strip() == "---":
+                combined = "".join(self._yaml_buffer)
+                # End of YAML: second ---
+                if "---" in combined[4:]:  # after first ---
                     self._yaml_collecting = False
                     self._print_yaml_header()
                 return
@@ -205,7 +259,7 @@ class _StreamDisplay:
                 print(delta, end="", flush=True)
                 return
 
-            # Thinking phase: summarise to 1-2 lines only
+            # Thinking phase: summarise to 1-2 lines
             if self._thinking_lines == 0:
                 print(f"\n  {_c('▶', 'cyan')}  {_c('Thinking…', 'dim')}")
                 self._thinking_header_shown = True
@@ -216,30 +270,29 @@ class _StreamDisplay:
             self._thinking_lines += 1
             return
 
-        # ── Tool calls ──────────────────────────────────────────────
-        if typ in ("tool_use", "tool_call", "function_call"):
-            name = (
-                event.get("name")
-                or event.get("tool_name")
-                or (event.get("function") or {}).get("name")
-                or (event.get("tool") or {}).get("name")
-            )
+        # ── Tool calls (Pi uses tool_execution_start/tool_execution_end) ──
+        if typ == "tool_execution_start":
+            name = event.get("toolName", "")
             if not name:
                 return
-            # End thinking line if we were in thinking phase
             if self._thinking_lines > 0 and self._thinking_header_shown:
                 print()
             self._current_tool = name
-            # Show tool name with indent, pad to align results
             print(f"  {_c('⏺', 'cyan')}  {_c(name, 'cyan')}", end="", flush=True)
             return
 
         # ── Tool results ────────────────────────────────────────────
-        if typ in ("tool_result", "function_result"):
+        if typ == "tool_execution_end":
             if self._current_tool:
+                is_error = bool(event.get("isError"))
+                result = event.get("result", {})
                 summary = _summarize_tool_result(event)
-                mark = _c("✓", "green") if summary and "error" not in summary.lower() else _c("✗", "red")
-                detail = summary if summary else "ok"
+                if is_error:
+                    mark = _c("✗", "red")
+                    detail = summary or "error"
+                else:
+                    mark = _c("✓", "green")
+                    detail = summary or "ok"
                 print(f"  {mark} {_c(detail, 'dim')}")
             self._current_tool = None
             return
@@ -450,20 +503,83 @@ def _read_input(prompt: str | None = None) -> str | None:
 
 
 def _expand_file_refs(text: str) -> tuple[str, list[str]]:
-    """Replace @path references with file contents. Returns (expanded_text, errors)."""
+    """Replace @path references with file contents.
+
+    Supports:
+      @/absolute/path          — exact path
+      @./relative/file.log     — relative path
+      @*.log                   — glob: first match in cwd (sorted by mtime)
+      @s5cmd*                  — glob prefix: fuzzy-match files in cwd
+    Returns (expanded_text, errors).
+    """
     errors: list[str] = []
 
-    def _replace(m: re.Match) -> str:
-        path = Path(m.group(1)).expanduser()
-        if not path.exists():
-            errors.append(f"{_red('✗')}  file not found: {path}")
-            return m.group(0)
+    def _resolve_glob(pattern: str) -> Path | None:
+        """Try glob + fuzzy matching for @ references."""
+        cwd = Path.cwd()
+        if pattern.startswith("/") or pattern.startswith("~"):
+            # Absolute path: use Path().glob
+            base = Path(pattern).expanduser()
+            if base.is_absolute():
+                parent = base.parent
+                name = base.name
+                try:
+                    matches = sorted(parent.glob(name), key=lambda p: p.stat().st_mtime, reverse=True)
+                except Exception:
+                    matches = []
+                if matches:
+                    return matches[0]
+                # Fuzzy prefix on absolute path
+                if not any(c in name for c in "*?["):
+                    try:
+                        fuzzy = sorted(parent.glob(f"{name}*"), key=lambda p: p.stat().st_mtime, reverse=True)
+                    except Exception:
+                        fuzzy = []
+                    if fuzzy:
+                        return fuzzy[0]
+                return None
+        # Relative pattern
         try:
-            content = path.read_text(encoding="utf-8", errors="replace")
-            return f"[{path.name}]\n{content}"
-        except OSError as exc:
-            errors.append(f"{_red('✗')}  cannot read {path}: {exc}")
-            return m.group(0)
+            matches = sorted(cwd.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+        except Exception:
+            matches = []
+        if matches:
+            return matches[0]
+        # Fuzzy prefix: @s5cmd → find s5cmd* files
+        if not any(c in pattern for c in "*?["):
+            try:
+                fuzzy = sorted(cwd.glob(f"{pattern}*"), key=lambda p: p.stat().st_mtime, reverse=True)
+            except Exception:
+                fuzzy = []
+            if fuzzy:
+                return fuzzy[0]
+        return None
+
+    def _replace(m: re.Match) -> str:
+        raw = m.group(1)
+        path = Path(raw).expanduser()
+
+        # Exact path exists → use it
+        if path.exists():
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+                return f"[{path.name}]\n{content}"
+            except OSError as exc:
+                errors.append(f"{_red('✗')}  cannot read {path}: {exc}")
+                return m.group(0)
+
+        # Glob/fuzzy match in cwd
+        resolved = _resolve_glob(raw)
+        if resolved:
+            try:
+                content = resolved.read_text(encoding="utf-8", errors="replace")
+                errors.append(f"{_dim('@')}{raw}{_dim(' → ')}{resolved.name}")
+                return f"[{resolved.name}]\n{content}"
+            except OSError:
+                pass
+
+        errors.append(f"{_red('✗')}  file not found: {raw}")
+        return m.group(0)
 
     expanded = re.sub(r'@([^\s]+)', _replace, text)
     return expanded, errors
@@ -479,7 +595,7 @@ def _print_slash_menu() -> None:
             desc = _SLASH_CMD_HELP.get(cmd, "")
             print(f"    {_cyan(cmd):<18}  {_dim(desc)}")
         print()
-    print(f"  {_dim('Tip: use @/path/to/file to include a file in your message')}")
+    print(f"  {_dim('Tip: $ cmd runs shell commands  ·  @file attaches files  ·  /editor for long input')}")
     print()
 
 
@@ -567,6 +683,139 @@ def _handle_resume(current: DiagnosticSession) -> DiagnosticSession:
 
 
 # ── Config handler ────────────────────────────────────────────────────
+
+
+def _handle_editor(session: DiagnosticSession) -> str | None:
+    """Open $EDITOR (or vim/nano) for writing a long prompt. Returns text or None."""
+    import tempfile, os, subprocess
+
+    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or "vim"
+    # If vim not available, fall back to nano
+    if editor == "vim" and not __import__("shutil").which("vim"):
+        editor = "nano"
+
+    hint = (
+        "# Write your prompt or paste log content above.\n"
+        "# Lines starting with # are ignored.\n"
+        "# Save and exit to send.  Exit without saving to cancel.\n"
+        "# Use @filename to include files.\n"
+    )
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", prefix="storageops-editor-",
+        delete=False, encoding="utf-8",
+    ) as tmp:
+        tmp.write(hint)
+        tmp.write("\n")
+        tmp_path = tmp.name
+
+    try:
+        result = subprocess.call([editor, tmp_path])
+    except FileNotFoundError:
+        print(f"  {_c('✗', 'red')}  Editor not found: {editor}")
+        print(f"  {_c('Set $EDITOR or install vim/nano.', 'dim')}")
+        try:
+            Path(tmp_path).unlink()
+        except OSError:
+            pass
+        return None
+
+    if result != 0:
+        print(f"  {_c('⊘', 'yellow')}  Editor exited with code {result}")
+        try:
+            Path(tmp_path).unlink()
+        except OSError:
+            pass
+        return None
+
+    content = Path(tmp_path).read_text(encoding="utf-8", errors="replace")
+    try:
+        Path(tmp_path).unlink()
+    except OSError:
+        pass
+
+    # Strip comment lines
+    lines = [l for l in content.splitlines() if not l.strip().startswith("#")]
+    text = "\n".join(lines).strip()
+    if not text:
+        print(f"  {_c('⊘', 'dim')}  Empty prompt (cancelled)")
+        return None
+
+    print(f"  {_c('✓', 'green')}  {_c(f'{len(text)} chars from editor', 'dim')}")
+    return text
+
+
+# ── Shell mode handler ────────────────────────────────────────────────
+
+def _handle_shell(text: str, session: DiagnosticSession) -> None:
+    """Run a shell command ($ prefix) and add output to session evidence."""
+    import subprocess
+
+    lines = text.split("\n")
+    for line in lines:
+        stripped = line.strip()
+        if not stripped.startswith("$"):
+            continue
+        cmd_str = stripped[1:].strip()
+        if not cmd_str:
+            continue
+
+        print(f"  {_c('$', 'cyan')} {_c(cmd_str, 'dim')}")
+        try:
+            result = subprocess.run(
+                cmd_str, shell=True, capture_output=True, text=True,
+                timeout=15, cwd=str(Path.cwd()),
+            )
+            output = result.stdout.strip()
+            if result.stderr.strip():
+                output += "\n" + result.stderr.strip()
+            if not output:
+                output = f"(exit {result.returncode})"
+            summary = output[:200].replace("\n", "\n  ")
+            print(f"  {_c('  ' + summary, 'dim')}")
+            if len(output) > 200:
+                print(f"  {_c(f'  … ({len(output)} chars total)', 'dim')}")
+            evidence = f"$ {cmd_str}\n{output}"
+            session.add_evidence(evidence)
+            session.add_turn("user", text)
+        except subprocess.TimeoutExpired:
+            print(f"  {_c('✗', 'red')}  Command timed out")
+        except Exception as exc:
+            print(f"  {_c('✗', 'red')}  {exc}")
+
+
+def _handle_view(session: DiagnosticSession) -> None:
+    """Open the last assistant report in a pager for full-screen browsing."""
+    import subprocess, tempfile
+
+    last = None
+    for t in reversed(session.turns):
+        if t.role == "assistant" and t.content:
+            last = t.content
+            break
+
+    if not last:
+        print(f"\n  {_c('No report to view yet.', 'dim')}\n")
+        return
+
+    # Strip YAML frontmatter for cleaner viewing
+    report = re.sub(r'^---\n.*?\n---\n?', '', last, flags=re.DOTALL).strip()
+
+    pager = __import__("os").environ.get("PAGER", "less -R")
+    try:
+        proc = subprocess.Popen(
+            pager.split(), stdin=subprocess.PIPE, text=True,
+        )
+        proc.communicate(input=report)
+    except FileNotFoundError:
+        # fallback: just print the first 50 lines
+        lines = report.split("\n")[:50]
+        print()
+        for line in lines:
+            print(f"  {line}")
+        if len(report.split("\n")) > 50:
+            print(f"  {_c(f'… ({len(report.split(chr(10)))} lines total. Install less for full pager.)', 'dim')}")
+        print()
 
 def _handle_config(parts: list[str]) -> None:
     from storageops import config as cfg_mod
@@ -669,6 +918,10 @@ def _print_result(result, *, elapsed: float | None = None, session_id: str | Non
     if footer_parts and _IS_TTY:
         print()
         print(_c("  " + "  ·  ".join(footer_parts), "dim"))
+        # Offer full-screen viewer for long reports
+        report = result.report_markdown or ""
+        if len(report) > 1200:
+            print(_c("  Type /view to browse the full report in a pager.", "dim"))
         print()
 
 
@@ -804,12 +1057,18 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
         if not text:
             if not _empty_hint_shown and _IS_TTY:
                 print(f"  {_c('Describe your S3 issue, paste a log, or type / for commands.', 'dim')}")
-                print(f"  {_c('Use backslash at end of line for multi-line input.', 'dim')}")
+                print(f"  {_c('Use @ to attach files, $ to run shell commands, \\ for multi-line,', 'dim')}")
+                print(f"  {_c('/editor to open text editor, /view to browse reports.', 'dim')}")
                 _empty_hint_shown = True
             continue
         _empty_hint_shown = False
 
         first = text.split()[0].lower()
+
+        # Shell mode: $ command → run and add output as evidence
+        if first.startswith("$") and len(first) > 1:
+            _handle_shell(text, session)
+            continue
 
         if first in ("/exit", "/quit") or text.lower() in ("exit", "quit"):
             if session.turns:
@@ -858,10 +1117,24 @@ def run_repl(initial_text: str | None = None, resume_session: str | None = None)
             from storageops.cli import cmd_update
             cmd_update(argparse.Namespace(check=False))
 
+        elif first == "/view":
+            _handle_view(session)
+
         elif first == "/verbose":
             session.verbose = not session.verbose
             state = _c("on", "green") if session.verbose else _c("off", "dim")
             print(f"\n  Verbose: {state}  ({_c('shows full thinking text', 'dim')})\n")
+
+        elif first == "/editor":
+            editor_text = _handle_editor(session)
+            if editor_text:
+                expanded, file_errors = _expand_file_refs(editor_text)
+                for err in file_errors:
+                    print(err)
+                try:
+                    _run_turn(expanded, session)
+                except KeyboardInterrupt:
+                    print(f"\n  {_c('⊘', 'yellow')}  Stopped.\n")
 
         else:
             expanded, file_errors = _expand_file_refs(text)
