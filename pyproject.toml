@@ -32,8 +32,11 @@ dev = [
 [project.scripts]
 storageops = "storageops_cli:main"
 
-[tool.setuptools]
-py-modules = ["storageops_cli"]
+[tool.setuptools.packages.find]
+include = ["storageops_cli", "storageops_cli.*"]
+
+[tool.setuptools.package-data]
+storageops_cli = ["extensions/*", "skills/**"]
 
 [tool.ruff]
 line-length = 100

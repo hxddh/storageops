@@ -1,0 +1,3 @@
+recursive-include storageops_cli/extensions *
+recursive-include storageops_cli/skills *
+include .pi/extensions/storageops.ts
