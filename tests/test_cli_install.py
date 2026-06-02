@@ -1,9 +1,10 @@
 import json
+import hashlib
 
 import pytest
 
 import storageops_cli
-from storageops_cli import _ensure_pi, _merge_settings, _merge_skill_paths
+from storageops_cli import _ensure_httpmon, _ensure_pi, _merge_settings, _merge_skill_paths
 
 
 def test_merge_skill_paths_preserves_existing_and_appends_required():
@@ -104,6 +105,7 @@ def test_cmd_install_warns_when_local_package_is_older_than_pypi(tmp_path, monke
     monkeypatch.setattr(storageops_cli, "PI_DEFAULT_AGENT", tmp_path / ".pi" / "agent")
     monkeypatch.setattr(storageops_cli, "find_pi", lambda: "/tmp/pi")
     monkeypatch.setattr(storageops_cli, "check_pi_version", lambda _exe: (True, "pi 0.78.0"))
+    monkeypatch.setattr(storageops_cli, "_ensure_httpmon", lambda: None)
     monkeypatch.setattr(storageops_cli, "_package_data_dir", lambda: data)
     monkeypatch.setattr(storageops_cli, "_package_version", lambda: "0.4.18")
     monkeypatch.setattr(storageops_cli, "_latest_pypi_version", lambda: "0.4.19")
@@ -127,6 +129,7 @@ def test_cmd_install_writes_install_marker(tmp_path, monkeypatch):
     monkeypatch.setattr(storageops_cli, "PI_DEFAULT_AGENT", tmp_path / ".pi" / "agent")
     monkeypatch.setattr(storageops_cli, "find_pi", lambda: "/tmp/pi")
     monkeypatch.setattr(storageops_cli, "check_pi_version", lambda _exe: (True, "pi 0.78.0"))
+    monkeypatch.setattr(storageops_cli, "_ensure_httpmon", lambda: None)
     monkeypatch.setattr(storageops_cli, "_package_data_dir", lambda: data)
     monkeypatch.setattr(storageops_cli, "_package_version", lambda: "0.4.20")
     monkeypatch.setattr(storageops_cli, "_latest_pypi_version", lambda: None)
@@ -140,3 +143,52 @@ def test_cmd_install_writes_install_marker(tmp_path, monkeypatch):
     assert marker["skills_path"] == str(root / "skills")
     assert marker["install_mode"] == "independent"
     assert "installed_at" in marker
+
+
+def test_ensure_httpmon_downloads_managed_binary(tmp_path, monkeypatch):
+    payload = b"fake-httpmon-binary"
+    sha = hashlib.sha256(payload).hexdigest()
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return payload
+
+    monkeypatch.setattr(storageops_cli, "ROOT", tmp_path / ".storageops")
+    monkeypatch.setattr(storageops_cli, "BIN_DIR", tmp_path / ".storageops" / "bin")
+    monkeypatch.setattr(storageops_cli.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(storageops_cli, "_httpmon_asset_for_platform", lambda: ("httpmon-test", sha))
+    monkeypatch.setattr(storageops_cli.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    installed = _ensure_httpmon()
+
+    target = tmp_path / ".storageops" / "bin" / "httpmon"
+    assert installed == str(target)
+    assert target.read_bytes() == payload
+    assert target.stat().st_mode & 0o111
+
+
+def test_ensure_httpmon_rejects_checksum_mismatch(tmp_path, monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b"tampered"
+
+    monkeypatch.setattr(storageops_cli, "ROOT", tmp_path / ".storageops")
+    monkeypatch.setattr(storageops_cli, "BIN_DIR", tmp_path / ".storageops" / "bin")
+    monkeypatch.setattr(storageops_cli.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(storageops_cli, "_httpmon_asset_for_platform", lambda: ("httpmon-test", "0" * 64))
+    monkeypatch.setattr(storageops_cli.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    assert _ensure_httpmon() is None
+    assert not (tmp_path / ".storageops" / "bin" / "httpmon").exists()

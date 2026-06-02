@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-06-02 — v0.4.23: Managed httpmon bootstrap
+
+- **Managed helper install**: `storageops install` now prepares a verified
+  `httpmon` release binary in `~/.storageops/bin/httpmon` when the platform is
+  supported, so `capture_http_trace` does not require users to install httpmon
+  manually.
+- **Runtime discovery**: StorageOps prepends `~/.storageops/bin` to `PATH` before
+  launching Pi, and the extension also checks the managed helper path directly
+  for merged Pi installs.
+- **Safety**: downloads are SHA-256 verified and failures are warnings, not
+  blockers for normal log-based diagnosis.
+
 ## 2026-06-02 — v0.4.22: PyPI README tool metadata
 
 - **README metadata**: updated the package README to show all four Pi extension

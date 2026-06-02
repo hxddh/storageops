@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.22  (pi: 0.78.0)
+StorageOps v0.4.23  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```
@@ -131,6 +131,8 @@ operations, keeps `capture_body=false`, does not write HAR or record files, and
 does not replay requests. Its output is a sanitized summary of method, host,
 path template, status, signing shape, and S3 error code.
 
-This tool requires the external `httpmon` binary to be available on `PATH`. If
-`httpmon` is absent, the tool returns an error and the diagnosis should continue
-with normal logs or debug output.
+`storageops install` automatically downloads a verified `httpmon` release binary
+to `~/.storageops/bin/httpmon` when it is not already available. The tool first
+uses this managed binary, then falls back to `PATH`. If automatic installation
+is unavailable on the current platform or network, the tool returns an error and
+the diagnosis should continue with normal logs or debug output.

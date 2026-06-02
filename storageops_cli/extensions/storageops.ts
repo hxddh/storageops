@@ -557,6 +557,14 @@ function summarizeTraceRequest(req: TraceRequest, resp?: TraceResponse) {
   };
 }
 
+function findHttpmonBinary(): string {
+  const configured = process.env.STORAGEOPS_HTTPMON;
+  if (configured && fs.existsSync(configured)) return configured;
+  const managed = path.join(os.homedir(), ".storageops", "bin", process.platform === "win32" ? "httpmon.exe" : "httpmon");
+  if (fs.existsSync(managed)) return managed;
+  return "httpmon";
+}
+
 async function captureHttpTrace(params: {
   command: string[];
   filter_host: string;
@@ -579,8 +587,9 @@ async function captureHttpTrace(params: {
   }
 
   return new Promise(resolve => {
+    const httpmonBinary = findHttpmonBinary();
     const httpmon = childProcess.spawn(
-      "httpmon",
+      httpmonBinary,
       ["--format", "json", "--filter", filterHost, ...params.command],
       { stdio: ["ignore", "pipe", "pipe"] },
     );

@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.22 is a Pi Coding Agent extension and skill pack.
+StorageOps v0.4.23 is a Pi Coding Agent extension and skill pack.
 
 ## Components
 
@@ -41,6 +41,11 @@ The first three tools run fully inline in Pi's TypeScript runtime.
 `capture_http_trace` may invoke the external `httpmon` binary, but only through
 a narrow wrapper: no shell, no mutating commands, no body capture, no HAR/record
 files, and no replay.
+
+`storageops install` automatically prepares a verified `httpmon` helper in
+`~/.storageops/bin/httpmon` when the platform has a supported release binary.
+The extension also looks in that managed location, so merged Pi installs do not
+need users to edit `PATH`.
 
 ## Skills
 

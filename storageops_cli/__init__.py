@@ -23,6 +23,8 @@ import json
 import re
 import shutil
 import urllib.request
+import hashlib
+import platform
 from datetime import datetime, timezone
 from pathlib import Path
 from importlib import resources
@@ -31,11 +33,25 @@ from importlib import metadata
 
 ROOT = Path.home() / ".storageops"
 AGENT_DIR = ROOT / "agent"          # PI_CODING_AGENT_DIR
+BIN_DIR = ROOT / "bin"
 PI_DEFAULT = Path.home() / ".pi"
 PI_DEFAULT_AGENT = PI_DEFAULT / "agent"
 MIN_PI_VERSION = "0.78.0"
 REQUIRED_API_KEYS = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"]
 PYPI_JSON_URL = "https://pypi.org/pypi/storageops/json"
+HTTPMON_VERSION = "v1.0.2"
+HTTPMON_BASE_URL = f"https://github.com/hxddh/https-traffic-inspector/releases/download/{HTTPMON_VERSION}"
+HTTPMON_ASSETS = {
+    ("linux", "x86_64"): ("httpmon-v1.0.2-linux-amd64", "0ff838fc6eb9fd19c10185d5ce789e54b972291723ed4077e7c8954c920d669c"),
+    ("linux", "amd64"): ("httpmon-v1.0.2-linux-amd64", "0ff838fc6eb9fd19c10185d5ce789e54b972291723ed4077e7c8954c920d669c"),
+    ("linux", "aarch64"): ("httpmon-v1.0.2-linux-arm64", "43dd49804ca3d235a339349a080eb32e9054a2daa1811fbdf002cc391a3a173d"),
+    ("linux", "arm64"): ("httpmon-v1.0.2-linux-arm64", "43dd49804ca3d235a339349a080eb32e9054a2daa1811fbdf002cc391a3a173d"),
+    ("darwin", "x86_64"): ("httpmon-v1.0.2-macos-amd64", "45fb0e2e97a4264ef4b0ce04b97acc6fdfb6f58d022261fd314d71e6141f1fde"),
+    ("darwin", "amd64"): ("httpmon-v1.0.2-macos-amd64", "45fb0e2e97a4264ef4b0ce04b97acc6fdfb6f58d022261fd314d71e6141f1fde"),
+    ("darwin", "arm64"): ("httpmon-v1.0.2-macos-arm64", "dc849b83fd7dd5e7336ad8d86944fa4b7cfccc2398733d8a8aae9e1f607d1874"),
+    ("windows", "amd64"): ("httpmon-v1.0.2-windows-amd64.exe", "c650807a927f96c5695272a1d0435e38d0ca9b37193324f59e24bb67cdf8fa88"),
+    ("windows", "x86_64"): ("httpmon-v1.0.2-windows-amd64.exe", "c650807a927f96c5695272a1d0435e38d0ca9b37193324f59e24bb67cdf8fa88"),
+}
 
 # Pi settings.json content
 SETTINGS = {
@@ -70,6 +86,83 @@ def find_pi() -> str:
         if os.path.isfile(c):
             return c
     return "pi"
+
+
+def _prepend_storageops_bin_to_path() -> None:
+    """Make StorageOps-managed helper binaries visible to Pi and extensions."""
+    current = os.environ.get("PATH", "")
+    bin_path = str(BIN_DIR)
+    parts = current.split(os.pathsep) if current else []
+    if bin_path not in parts:
+        os.environ["PATH"] = os.pathsep.join([bin_path, *parts]) if current else bin_path
+
+
+def find_httpmon() -> str | None:
+    """Locate httpmon, preferring the StorageOps-managed binary."""
+    managed = BIN_DIR / ("httpmon.exe" if os.name == "nt" else "httpmon")
+    if managed.exists():
+        return str(managed)
+    found = shutil.which("httpmon")
+    return found
+
+
+def _httpmon_asset_for_platform() -> tuple[str, str] | None:
+    """Return (asset_name, sha256) for the current platform, if supported."""
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    return HTTPMON_ASSETS.get((system, machine))
+
+
+def _ensure_httpmon() -> str | None:
+    """
+    Ensure httpmon is available for capture_http_trace.
+
+    The helper is installed into ~/.storageops/bin so users do not need to
+    install Go or manage PATH manually. Failure is a warning: StorageOps can
+    still diagnose from logs, but capture_http_trace will be unavailable.
+    """
+    _prepend_storageops_bin_to_path()
+    existing = find_httpmon()
+    if existing:
+        print(f"[ok] httpmon -> {existing}")
+        return existing
+
+    asset = _httpmon_asset_for_platform()
+    if not asset:
+        print("[warn] httpmon helper     unsupported platform for automatic install")
+        print("       capture_http_trace will be unavailable until httpmon is installed manually.")
+        return None
+
+    asset_name, expected_sha = asset
+    url = f"{HTTPMON_BASE_URL}/{asset_name}"
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    target = BIN_DIR / ("httpmon.exe" if asset_name.endswith(".exe") else "httpmon")
+    tmp = target.with_suffix(target.suffix + ".tmp")
+
+    print(f"[info] httpmon not found. Installing {HTTPMON_VERSION}...")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": f"storageops/{_package_version()}"})
+        with urllib.request.urlopen(req, timeout=30) as response:
+            data = response.read()
+        actual_sha = hashlib.sha256(data).hexdigest()
+        if actual_sha != expected_sha:
+            print("[warn] httpmon helper     download checksum mismatch")
+            print("       capture_http_trace will be unavailable; no helper was installed.")
+            return None
+        tmp.write_bytes(data)
+        tmp.chmod(0o755)
+        tmp.replace(target)
+        print(f"[ok] httpmon {HTTPMON_VERSION} -> {target}")
+        return str(target)
+    except Exception as exc:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except Exception:
+                pass
+        print(f"[warn] httpmon helper     automatic install failed: {exc}")
+        print("       capture_http_trace will be unavailable until httpmon is installed manually.")
+        return None
 
 
 def check_pi_version(exe: str) -> tuple[bool, str]:
@@ -442,6 +535,7 @@ def cmd_install(force: bool = False, merge: bool = False):
 
     # --- Step 0: ensure Pi Coding Agent is present (auto-install if absent) ---
     _ensure_pi()
+    _ensure_httpmon()
 
     # --- Step 1: detect existing Pi config ---
     has_existing = detect_existing_pi()
@@ -524,9 +618,11 @@ def cmd_version():
     except Exception:
         v = "unknown"
     ok, ver = check_pi_version(find_pi())
+    httpmon = find_httpmon() or "not found"
     independent = is_installed(AGENT_DIR)
     merged = is_installed(PI_DEFAULT_AGENT)
     print(f"StorageOps v{v}  (pi: {ver})")
+    print(f"  httpmon             : {httpmon}")
     print(f"  independent install : {'yes' if independent else 'no'}  ({AGENT_DIR})")
     print(f"  merged install      : {'yes' if merged else 'no'}  ({PI_DEFAULT_AGENT})")
 
@@ -597,4 +693,5 @@ def main():
         print(f"       Or write to: {agent_dir / 'api-key'}")
 
     os.environ["PI_CODING_AGENT_DIR"] = str(agent_dir)
+    _prepend_storageops_bin_to_path()
     os.execvp(pi, [pi] + args)
