@@ -7,10 +7,11 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
 ## What You Get
 
 - 16 diagnostic skills covering security, protocol compatibility, CLI/SDK behavior, performance, network access, lifecycle cost, replication, mount/workspace usage, migration, data consistency, access logs, big-data pipelines, notifications, reporting, and triage, plus 1 eval skill pack.
-- 3 Pi extension tools:
+- 4 Pi extension tools:
   - `scan_secrets` redacts credentials and tokens.
   - `detect_domain` ranks likely diagnostic domains from evidence text.
   - `search_memory` searches prior Pi sessions for related diagnoses.
+  - `capture_http_trace` wraps one bounded read-only command through httpmon and returns a sanitized HTTP summary.
 - Deterministic helper scripts for access logs, policy analysis, throttling, ETags, small-object cost, migration estimates, SigV4 parsing, endpoint reachability, and golden-case eval.
 - A regression suite with 33 compact golden cases and size gates to keep the repository lean.
 
