@@ -23,8 +23,8 @@ npm install -g @earendil-works/pi-coding-agent
 pi --version
 ```
 
-StorageOps warns (but does not auto-upgrade) when Pi is older than `0.78.0`, to
-avoid disrupting existing Pi configurations.
+StorageOps stops before deployment when Pi is older than `0.78.0` and prints the
+manual upgrade command, avoiding both auto-upgrades and half-ready installs.
 
 ## 2. Install StorageOps
 

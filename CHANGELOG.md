@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-06-02 — v0.4.15: Low-version Pi install guard
+
+- **Install guard**: `storageops install` now stops before deploying files when an
+  existing Pi Coding Agent is below `0.78.0`, avoiding half-ready installs where
+  StorageOps files are present but Pi cannot load the required agent directory or
+  Extension API contract.
+- **Tests/docs**: added installer regression coverage for the low-version Pi path
+  and updated user-facing install guidance plus version metadata.
+
 ## 2026-06-02 — v0.4.14: PyPI publishing, Pi auto-install, install verification
 
 - **PyPI publishing**: added `.github/workflows/publish.yml` with PyPI Trusted Publisher
@@ -9,13 +18,14 @@
   present and installs it via `npm install -g @earendil-works/pi-coding-agent`
   automatically when it is absent. If npm is not available the command exits with
   a clear error and a link to nodejs.org. When Pi is present but below the minimum
-  version, the installer warns and prints the upgrade command rather than
-  auto-upgrading, to avoid disrupting existing Pi configurations.
+  version, the installer prints the upgrade command rather than auto-upgrading,
+  to avoid disrupting existing Pi configurations.
 - **Install verification**: replaced the previous unconditional "installation complete"
   message with a structured post-install summary that reports the status of each
   component (StorageOps files, Pi Coding Agent, API key) and exits non-zero only
-  when the tool cannot run at all (Pi missing). A missing API key is reported as a
-  warning with configuration instructions, not a hard failure.
+  when the tool cannot run at all (Pi missing or below the supported version). A
+  missing API key is reported as a warning with configuration instructions, not a
+  hard failure.
 - **No-emoji CLI output**: removed all emoji from CLI print statements in
   `storageops_cli/__init__.py` for compatibility with terminals and log pipelines
   that do not handle Unicode correctly.

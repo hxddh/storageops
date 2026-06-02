@@ -41,8 +41,9 @@ storageops --print 's5cmd sync reports 429 SlowDown; diagnose likely cause'
 > `pip install storageops --break-system-packages` or create a virtualenv first.
 
 `storageops install` automatically installs Pi Coding Agent via npm if it is not
-already present. It warns (but does not auto-upgrade) when an older Pi version is
-detected, to avoid disrupting existing Pi configurations.
+already present. It stops before deployment when an older Pi version is detected
+and prints the manual upgrade command, avoiding both auto-upgrades and half-ready
+StorageOps installs.
 
 ## Configure a Model Key
 

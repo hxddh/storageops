@@ -91,7 +91,7 @@ def _ensure_pi() -> str:
     Ensure Pi Coding Agent is available; return the pi executable path.
 
     - pi present, version OK  : print confirmation, return path.
-    - pi present, version low : warn and print upgrade command, return path.
+    - pi present, version low : stop before deployment and print upgrade command.
       (No auto-upgrade: upgrading may break the user's existing Pi config.)
     - pi not found            : attempt npm auto-install; exit with guidance
       if npm is also absent.
@@ -104,11 +104,13 @@ def _ensure_pi() -> str:
         return pi_exe
 
     if ver != "not found":
-        # pi exists but version is too old; do not auto-upgrade
-        print(f"[warn] pi {ver} < {MIN_PI_VERSION} -- some features may not work.")
-        print(f"       To upgrade: npm update -g @earendil-works/pi-coding-agent")
+        # pi exists but is too old for the extension/config contract; do not auto-upgrade.
+        print(f"[error] pi {ver} < {MIN_PI_VERSION} -- StorageOps cannot run safely.")
+        print("        StorageOps requires Pi Coding Agent with Extension API support.")
+        print("        No files were deployed.")
+        print("        To upgrade: npm update -g @earendil-works/pi-coding-agent")
         print()
-        return pi_exe
+        sys.exit(1)
 
     # pi not found at all -- attempt auto-install via npm
     npm = shutil.which("npm")
