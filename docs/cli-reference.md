@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.25  (pi: 0.78.0)
+StorageOps v0.4.26  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```
@@ -120,10 +120,16 @@ StorageOps registers a small Pi tool surface:
 
 | Tool | Default posture |
 | --- | --- |
-| `scan_secrets` | Inline redaction of credential-shaped text. |
-| `detect_domain` | Inline routing hint from evidence text. |
-| `search_memory` | Read-only search of scoped prior sessions. |
+| `scan_secrets` | Inline value-level redaction of credential-shaped text. |
+| `detect_domain` | Inline routing hint with matched signals and recommended skill. |
+| `search_memory` | Read-only search of scoped prior sessions with redacted snippets. |
 | `capture_http_trace` | Bounded httpmon wrapper for one read-only command. |
+
+The inline tools are intentionally small. `scan_secrets` returns line/column,
+type, length, fingerprint, bounded redacted text, and no raw secret preview.
+`detect_domain` returns ranked domains, matched signals, a recommended skill,
+and an ambiguity flag. `search_memory` tokenizes the query, scores summary/JSONL
+matches, caps result count at 10, and redacts returned snippets.
 
 `capture_http_trace` is intentionally not a general httpmon interface. It
 requires a `filter_host`, rejects shell commands, rejects mutating object-storage

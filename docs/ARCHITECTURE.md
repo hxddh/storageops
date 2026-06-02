@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.25 is a Pi Coding Agent extension and skill pack.
+StorageOps v0.4.26 is a Pi Coding Agent extension and skill pack.
 
 ## Components
 
@@ -32,12 +32,15 @@ It does not implement an agent loop.
 
 | Tool | Purpose |
 | --- | --- |
-| `scan_secrets` | Detect and redact credential-shaped text. |
-| `detect_domain` | Rank likely diagnostic domains from evidence. |
-| `search_memory` | Search prior Pi session metadata and JSONL content. |
+| `scan_secrets` | Detect credential-shaped text, redact sensitive values, and return safe fingerprints. |
+| `detect_domain` | Rank likely diagnostic domains, matched signals, and the recommended skill. |
+| `search_memory` | Search prior Pi session metadata/JSONL with scored, redacted snippets. |
 | `capture_http_trace` | Run one bounded read-only command through httpmon and return a sanitized HTTP summary. |
 
-The first three tools run fully inline in Pi's TypeScript runtime.
+The first three tools run fully inline in Pi's TypeScript runtime. They are
+bounded and credential-averse: secret scanning caps large inputs, memory search
+redacts returned snippets, and domain detection returns routing hints rather
+than executing any workflow.
 `capture_http_trace` may invoke the external `httpmon` binary, but only through
 a narrow wrapper: no shell, no mutating commands, no body capture, no HAR/record
 files, and no replay.
