@@ -1,5 +1,21 @@
 # MinIO Client (mc) Diagnosis
 
+## Scope
+
+This reference applies to MinIO Client (`mc`) aliases and commands. Do not apply
+`mc` alias storage or flags to awscli, rclone, s5cmd, SDKs, or provider-native
+tools.
+
+## Verify Before Applying
+
+Confirm the active `mc` binary and alias before diagnosing config:
+
+```bash
+mc --version
+mc alias list
+mc alias info <alias>
+```
+
 ## Overview
 
 `mc` (MinIO Client) is a modern, concurrent S3-compatible CLI written in Go.

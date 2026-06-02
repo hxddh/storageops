@@ -2,6 +2,21 @@
 
 obsutil is the official CLI tool for Huawei Cloud Object Storage Service (OBS).
 
+## Scope
+
+This reference applies to Huawei `obsutil` CLI usage. Do not apply its
+configuration file, flags, or signing behavior to AWS CLI, rclone, SDKs, or
+other provider-native tools.
+
+## Verify Before Applying
+
+Confirm the user is actually running `obsutil` and identify the active config:
+
+```bash
+./obsutil version
+./obsutil config -help
+```
+
 ## Version Check
 ```bash
 ./obsutil version

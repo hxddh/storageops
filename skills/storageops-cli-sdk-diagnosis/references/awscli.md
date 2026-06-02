@@ -1,5 +1,23 @@
 # awscli Debug Log Analysis
 
+## Scope
+
+This reference applies to the AWS CLI (`aws`) and its botocore-based command
+execution. Do not apply these config paths directly to rclone, s5cmd, bcecmd, or
+application SDKs unless the user's tool explicitly uses the AWS shared config and
+credential chain.
+
+## Verify Before Applying
+
+Confirm the active CLI, profile, and credential source before recommending a
+path:
+
+```bash
+aws --version
+aws configure list
+aws configure list-profiles
+```
+
 ## Version Check
 ```bash
 aws --version

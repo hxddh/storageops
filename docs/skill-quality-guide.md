@@ -19,6 +19,9 @@ Every `skills/storageops-*/SKILL.md` should contain:
 - Keep `SKILL.md` operational. Move detailed provider notes into `references/`.
 - Keep volatile facts out of `SKILL.md`. Put prices, provider version behavior,
   and dated service assumptions in references with a verification date.
+- Tool and SDK references must declare scope and verification steps. Do not
+  apply a CLI config path, SDK credential chain, or provider default to another
+  tool unless the reference names that compatibility explicitly.
 - Use deterministic scripts for parsing, validation, and read-only checks when a small tool reduces ambiguity.
 - Do not ask for cloud account credentials.
 - Do not recommend destructive actions without manual-only framing.
@@ -32,6 +35,7 @@ Run:
 ```bash
 python3 scripts/skill_integrity_check.py
 python3 scripts/no_hardcoded_pricing.py
+python3 scripts/reference_scope_check.py
 python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
   skills/storageops-eval-golden-cases/cases
 python3 scripts/routing_contract_check.py
