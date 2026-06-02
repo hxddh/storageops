@@ -2,6 +2,8 @@ name: Publish to PyPI
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
   workflow_dispatch:
@@ -15,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      package_version: ${{ steps.version.outputs.package_version }}
+      should_publish: ${{ steps.version.outputs.should_publish }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,12 +28,16 @@ jobs:
           python-version: "3.12"
 
       - name: Check version metadata
+        id: version
         env:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           PKG_VER=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           echo "Package version: $PKG_VER"
+          echo "package_version=$PKG_VER" >> "$GITHUB_OUTPUT"
+
           if [[ "${REF_TYPE}" == "tag" ]]; then
             TAG_VER="${REF_NAME#v}"
             if [[ "$TAG_VER" != "$PKG_VER" ]]; then
@@ -37,7 +46,36 @@ jobs:
             fi
             echo "Tag version $TAG_VER matches pyproject.toml"
           else
-            echo "Manual dry-run for package version $PKG_VER"
+            echo "Preflight for package version $PKG_VER"
+          fi
+
+          EXISTS=$(python3 - "$PKG_VER" <<'PY'
+          import json
+          import sys
+          import urllib.error
+          import urllib.request
+
+          version = sys.argv[1]
+          try:
+              with urllib.request.urlopen("https://pypi.org/pypi/storageops/json", timeout=20) as response:
+                  data = json.load(response)
+          except urllib.error.HTTPError as exc:
+              if exc.code == 404:
+                  print("false")
+                  raise SystemExit(0)
+              raise
+
+          print("true" if version in data.get("releases", {}) else "false")
+          PY
+          )
+
+          echo "PyPI already has $PKG_VER: $EXISTS"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$EXISTS" == "true" ]]; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and validate distributions
@@ -59,7 +97,7 @@ jobs:
 
   publish:
     needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: needs.build.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
