@@ -17,6 +17,8 @@ Every `skills/storageops-*/SKILL.md` should contain:
 ## Quality Principles
 
 - Keep `SKILL.md` operational. Move detailed provider notes into `references/`.
+- Keep volatile facts out of `SKILL.md`. Put prices, provider version behavior,
+  and dated service assumptions in references with a verification date.
 - Use deterministic scripts for parsing, validation, and read-only checks when a small tool reduces ambiguity.
 - Do not ask for cloud account credentials.
 - Do not recommend destructive actions without manual-only framing.
@@ -29,6 +31,7 @@ Run:
 
 ```bash
 python3 scripts/skill_integrity_check.py
+python3 scripts/no_hardcoded_pricing.py
 python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
   skills/storageops-eval-golden-cases/cases
 python3 scripts/routing_contract_check.py
@@ -110,6 +113,26 @@ python3 skills/storageops-eval-golden-cases/scripts/regression_reporter.py \
 Baseline outputs should be compact and synthetic. Prefer structured `Category:`,
 `Route:`, `Confidence:`, evidence, recommendations, and safety sections over
 full narrative reports.
+
+## Output Contract
+
+Specialist skills should prefer this lightweight contract when the task is a
+diagnosis. The fields are required concepts, not a rigid template:
+
+- `Route`: canonical `storageops-*` skill or taxonomy category.
+- `Confidence`: score or high/medium/low plus the reason.
+- `Evidence Quality`: sufficient, partial, or insufficient.
+- `Primary Diagnosis`: root cause type, affected layer, and assumptions.
+- `Evidence`: observed facts only; keep inference separate.
+- `Recommendations`: each with applicability conditions.
+- `Validation Steps`: read-only checks or manual-only experiments that can prove
+  or disprove the diagnosis.
+- `What Would Falsify This`: evidence that would overturn the diagnosis.
+- `Risks / Open Questions`: unresolved constraints, safety risks, and missing
+  data.
+
+Start by applying the full contract to high-risk skills such as security,
+performance, and CLI/SDK diagnosis before expanding it to every skill.
 
 ## Maturity
 

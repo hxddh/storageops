@@ -83,8 +83,11 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 
 ```markdown
 # Diagnosis: [one-line]
-**Root cause**: explicit-deny | missing-allow | cross-account-gap | kms | vpc-endpoint | public-access-block | credential-leak
+**Route**: storageops-security-iam-policy
+**Root cause type**: explicit-deny | missing-allow | cross-account-gap | kms | vpc-endpoint | public-access-block | credential-leak
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[type], affected_layer=[identity|bucket-policy|kms|network-policy|credential]
 
 ## Evidence
 - Error: [code + message excerpt]
@@ -104,6 +107,15 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 
 ## Credential Scan
 [scan_secrets findings, if any]
+
+## Validation Steps
+- [read-only policy simulator, identity check, or scoped test to confirm]
+
+## What Would Falsify This
+- [policy, KMS, or credential evidence that would overturn the diagnosis]
+
+## Risks / Open Questions
+- [blast radius, missing principal/action/resource, manual-only approval needed]
 ```
 
 ## Examples

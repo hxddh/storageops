@@ -88,7 +88,7 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 - Dry-run results: error messages, transfer rate, ETag mismatch patterns
 
 ### Inform the user that:
-- Cross-provider egress fees can dominate total cost (typically $0.05–$0.12/GB)
+- Cross-provider egress fees can dominate total cost. Confirm provider, source region, destination, and current pricing before quoting numbers.
 - ETag format differences between providers may cause false checksum failures on multipart objects
 - A dry-run with 1000 representative objects is strongly recommended before committing to the full migration
 - For >100TB, offline transfer (appliance) is often cheaper and faster than network transfer
@@ -123,7 +123,7 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 ### Example 1: AWS → BOS, 50TB
 **Input**: Move 50TB from AWS S3 us-east-1 to BOS bj. 1 Gbps link. Files: 10M objects × avg 5MB.
 **Diagnosis**: Cross-provider, medium scale. Direct transfer with rclone.  
-**Strategy**: EC2 in us-east-1 running rclone. `--transfers 32 --checkers 64`. Egress cost from AWS ($0.09/GB × 50TB = $4600). Time: ~5 days at 1 Gbps.
+**Strategy**: Compute near the source running rclone. `--transfers 32 --checkers 64` is a starting point, then tune from dry-run metrics. Egress cost can dominate and must be calculated from current provider pricing. Time: roughly days at a sustained 1 Gbps before small-file overhead.
 **Recommendation**: rclone sync with `--s3-use-multipart-etag=false` for BOS. Validate 1000 random objects post-transfer.
 
 ### Example 2: Same-provider intra-region, 500TB
@@ -144,3 +144,4 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 - `references/cross-provider-compatibility.md` — ETag, metadata, ACL compatibility matrix | **Read when:** user reports checksum mismatches, metadata loss, or ACL/permission issues after migration
 - `references/integrity-verification.md` — Post-migration checksum strategies | **Read when:** user needs to verify migration completeness (object count, size, checksum comparison)
 - `references/bandwidth-estimation.md` — Throughput calculation with overhead | **Read when:** user asks for time/cost estimates or reports slower-than-expected transfer rates
+- `references/egress-cost-assumptions.md` — Dated assumptions for cross-provider egress, request, and compute cost estimates | **Read when:** user asks for migration cost estimates or compares transfer strategies

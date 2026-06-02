@@ -3,6 +3,7 @@
 Category: event_notification
 Route: storageops-event-notification
 Confidence: 0.88
+Root Cause Type: notification_filter_mismatch
 
 SQS notification delivery fails because the configured prefix filter is
 `images/`, while the object key is `uploads/images/cat.jpg`.

@@ -3,6 +3,7 @@
 Category: security_iam_policy
 Route: storageops-security-iam-policy
 Confidence: 0.86
+Root Cause Type: cross_account_missing_iam_allow
 
 Cross-account `s3:GetObject` fails because the bucket policy names principal
 `111111111111`, but the caller still needs an IAM policy allow in that account.

@@ -3,6 +3,7 @@
 Category: bigdata_pipeline
 Route: storageops-bigdata-pipeline
 Confidence: 0.80
+Root Cause Type: committer_race
 
 Spark output failures involving FileOutputCommitter and `_temporary` should route
 to the big-data pipeline skill.

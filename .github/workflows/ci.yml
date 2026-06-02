@@ -23,6 +23,9 @@ jobs:
       - name: Validate skills
         run: python scripts/skill_integrity_check.py
 
+      - name: Check hardcoded pricing
+        run: python scripts/no_hardcoded_pricing.py
+
       - name: Validate golden cases
         run: python skills/storageops-eval-golden-cases/scripts/golden_case_validator.py skills/storageops-eval-golden-cases/cases
 

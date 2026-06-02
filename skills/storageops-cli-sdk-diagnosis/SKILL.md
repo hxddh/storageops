@@ -88,9 +88,12 @@ If s5cmd `--log debug` output is available, run `python3 scripts/parse_s5cmd_log
 
 ```markdown
 # Diagnosis: [tool] — [one-line]
+**Route**: storageops-cli-sdk-diagnosis
 **Tool**: [name] [version]
-**Root cause**: tool-bug | tool-version-incompatibility | misconfiguration | clock-skew | provider-incompatibility
+**Root cause type**: tool-bug | tool-version-incompatibility | misconfiguration | clock-skew | provider-incompatibility
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[type], affected_layer=[tool|provider|configuration|environment]
 
 ## Evidence
 - Error: [code + message]
@@ -106,6 +109,15 @@ If s5cmd `--log debug` output is available, run `python3 scripts/parse_s5cmd_log
 
 ## Cross-Tool Verification
 [If applicable: does aws CLI succeed where rclone fails?]
+
+## Validation Steps
+- [small, safe command or dry-run that proves the fix]
+
+## What Would Falsify This
+- [tool/version/provider evidence that would make the diagnosis wrong]
+
+## Risks / Open Questions
+- [upgrade risk, provider compatibility, missing version/config data]
 ```
 
 ## Examples
