@@ -192,3 +192,12 @@ def test_ensure_httpmon_rejects_checksum_mismatch(tmp_path, monkeypatch):
 
     assert _ensure_httpmon() is None
     assert not (tmp_path / ".storageops" / "bin" / "httpmon").exists()
+
+
+def test_httpmon_download_uses_bounded_curl_timeout():
+    root = storageops_cli.Path(__file__).resolve().parents[1]
+    source = (root / "storageops_cli" / "__init__.py").read_text()
+
+    assert '"--max-time"' in source
+    assert '"20"' in source
+    assert "curl download failed" in source
