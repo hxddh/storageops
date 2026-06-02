@@ -3,13 +3,32 @@
 ## Install
 
 ```bash
-pip install storageops
+python3 -m pip install storageops
 storageops install
+```
+
+If a cloud or regional PyPI mirror cannot find the package:
+
+```bash
+python3 -m pip install --upgrade storageops -i https://pypi.org/simple
+```
+
+For Ubuntu/Debian `externally-managed-environment` errors, use a virtualenv or
+add `--break-system-packages`.
+
+## Model Key
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+# or:
+echo sk-... > ~/.storageops/agent/api-key
+chmod 600 ~/.storageops/agent/api-key
 ```
 
 ## Diagnose
 
 ```bash
+storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
 storageops --print 's5cmd sync reports 429 SlowDown'
 storageops --print @awscli-debug.log 'why is this SignatureDoesNotMatch?'
 storageops
@@ -18,7 +37,7 @@ storageops
 ## Update
 
 ```bash
-pip install --upgrade storageops
+python3 -m pip install --upgrade storageops
 storageops install --force
 ```
 

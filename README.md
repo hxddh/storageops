@@ -24,7 +24,7 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
 npm install -g @earendil-works/pi-coding-agent
 
 # 2. Install StorageOps
-pip install storageops
+python3 -m pip install storageops
 storageops install
 
 # 3. Configure a model key (pick one)
@@ -38,7 +38,16 @@ storageops --print 's5cmd sync reports 429 SlowDown; diagnose likely cause'
 
 > **Ubuntu / Debian:** If `pip install storageops` fails with
 > "externally-managed-environment", use
-> `pip install storageops --break-system-packages` or create a virtualenv first.
+> `python3 -m pip install storageops --break-system-packages` or create a
+> virtualenv first.
+>
+> **Cloud or regional PyPI mirrors:** If your default mirror reports
+> "No matching distribution found for storageops", install from the official
+> PyPI index:
+>
+> ```bash
+> python3 -m pip install --upgrade storageops -i https://pypi.org/simple
+> ```
 
 `storageops install` automatically installs Pi Coding Agent via npm if it is not
 already present. It stops before deployment when an older Pi version is detected
@@ -63,6 +72,16 @@ chmod 600 ~/.storageops/agent/api-key
 ```
 
 You can also pass Pi-native options through `storageops`, for example `--provider`, `--model`, `--api-key`, `--print`, `--resume`, or `@file` inputs.
+
+DeepSeek smoke test:
+
+```bash
+storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
+```
+
+`deepseek-v4-pro` and `deepseek-v4-flash` are known-good DeepSeek choices with
+Pi 0.78.0. If you keep a key in `~/.storageops/agent/api-key`, StorageOps reads
+it and exposes it to Pi; you do not need to pass `--api-key` for normal use.
 
 ## Install Modes
 
@@ -109,7 +128,7 @@ storageops
 Refresh an install after upgrade:
 
 ```bash
-pip install --upgrade storageops
+python3 -m pip install --upgrade storageops
 storageops install --force
 ```
 
