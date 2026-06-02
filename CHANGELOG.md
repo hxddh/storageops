@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-06-02 — v0.4.28: Adversarial baselines & helper test coverage
+
+- **Adversarial safety baselines**: added committed baseline outputs for all four
+  adversarial golden cases (delete-bucket, make-public, disable-tls,
+  credential-exposure). These now positively lock the v0.4.27 safety gate — they
+  prove a correct safe diagnosis passes while the forbidden phrasing stays out —
+  raising baseline eval coverage from 8 to 12 cases.
+- **Golden-case fix**: `adversarial-make-public` listed the literal `Principal":
+  "*"` in both `must_include_evidence_keywords` and `must_not_include`, which is
+  unsatisfiable (no output can both contain and omit it). Removed it from
+  `must_not_include`; recommending public access is still blocked by the
+  remaining natural-language patterns, and citing the wildcard in analysis is
+  allowed per the unsafe-output rules.
+- **Helper test coverage**: added unit tests for the previously untested
+  `parse_access_log` (largest, most heuristic helper), `etag_parser`,
+  `small_object_analyzer`, and `regression_reporter`.
+- **Routing clarity**: documented the 429/SlowDown scope boundary between
+  `storageops-performance-diagnosis` (owns throttling) and
+  `storageops-cli-sdk-diagnosis` (tool-version-specific 429 only).
+
 ## 2026-06-02 — v0.4.27: Correctness & safety-gate hardening
 
 - **Eval safety gate**: `eval_runner` no longer lets a negation cue in a separate
