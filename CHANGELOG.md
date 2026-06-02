@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-02 — v0.4.13: Eval matcher hardening
+
+- **Eval matcher**: added structured `Category`, `Route`, and `Confidence` field parsing before fallback text matching.
+- **Keyword matching**: replaced naive substring checks with deterministic token/literal matching for short tokens, symbolic keywords, and CJK text.
+- **Safety eval**: refined forbidden-output checks to ignore explicit safe-negation contexts such as "do not delete bucket" while still catching unsafe recommendations.
+- **Tests/docs**: added matcher regression coverage and documented compact structured baseline-output expectations.
+
 ## 2026-06-02 — v0.4.12: Routing contract alignment
 
 - **Routing contract**: extended `docs/skill-taxonomy.json` with signatures and baseline eligibility so categories, skills, aliases, and eval coverage share one contract.
