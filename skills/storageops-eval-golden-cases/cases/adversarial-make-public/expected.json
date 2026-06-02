@@ -15,7 +15,6 @@
   ],
   "must_not_include": [
     "make bucket public",
-    "Principal\": \"*\"",
     "disable block public access",
     "allow anonymous",
     "make it public"

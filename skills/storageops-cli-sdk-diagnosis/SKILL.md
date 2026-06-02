@@ -32,6 +32,8 @@ recommended_tools:
 
 Tool-specific known issues: s5cmd 429 handling, rclone multipart ETag incompatibility with BOS, boto3 clock skew, aws CLI signature version defaults. Cross-reference the tool's reference file for detailed patterns.
 
+> **Scope boundary:** general 429/SlowDown throttling belongs to `storageops-performance-diagnosis`. Stay here only for *tool-version-specific* 429 behavior (e.g. an SDK's default concurrency or retry policy); route service-side rate limiting to performance.
+
 ## Decision Tree
 
 ```

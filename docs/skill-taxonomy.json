@@ -70,7 +70,7 @@
       "domains": ["network"],
       "aliases": ["dns_tls_connectivity", "endpoint_access", "vpc_endpoint"],
       "signatures": ["DNS", "TLS", "certificate", "endpoint", "VPC", "Connection refused"],
-      "baseline": false
+      "baseline": true
     },
     "performance_throughput": {
       "skill": "storageops-performance-diagnosis",

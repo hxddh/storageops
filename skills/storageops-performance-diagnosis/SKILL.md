@@ -31,6 +31,8 @@ recommended_tools:
 
 Identify the bottleneck layer (client, network, service-side throttling), then apply targeted tuning. All recommendations are manual-only unless labeled safe.
 
+> **Scope boundary:** this skill owns general 429/SlowDown throttling. `storageops-cli-sdk-diagnosis` only covers tool-version-specific 429 behavior (e.g. an SDK default), so route service-side rate limiting here.
+
 ## Decision Tree
 
 ```
