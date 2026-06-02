@@ -6,7 +6,6 @@
     "versioned_delete_without_version_id"
   ],
   "expected_min_confidence": 0.85,
-  "expected_severity": "high",
   "must_include_evidence_keywords": [
     "delete marker",
     "VersionId",

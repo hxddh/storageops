@@ -1,7 +1,6 @@
 {
   "expected_category": "security_iam_policy",
   "expected_subcategory": "kms_denied",
-  "expected_severity": "high",
   "expected_min_confidence": 0.80,
   "must_include_evidence_keywords": [
     "KMS", "AccessDenied", "kms:GenerateDataKey", "Deny", "403"

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Run read-only DNS/TCP/TLS/HTTP reachability checks for one endpoint."""
 
-from __future__ import annotations
-
 import argparse
 import http.client
 import json

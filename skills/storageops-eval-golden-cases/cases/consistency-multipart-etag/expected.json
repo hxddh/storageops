@@ -7,6 +7,5 @@
   "should_include_evidence_keywords": ["9134 MiB", "local_md5"],
   "must_include_recommendation_keywords": ["checksum", "HEAD", "metadata"],
   "must_not_include": ["delete bucket", "force delete", "make public"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-  "severity": "medium"
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
 }

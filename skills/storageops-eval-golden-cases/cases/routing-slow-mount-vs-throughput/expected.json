@@ -6,6 +6,5 @@
   "must_include_evidence_keywords": ["s3fs", "git status", "metadata"],
   "must_include_recommendation_keywords": ["mount", "local", "workspace"],
   "must_not_include": ["rm -rf", "delete bucket", "make public"],
-  "required_report_sections": ["Routing", "Evidence Gaps"],
-  "severity": "medium"
+  "required_report_sections": ["Routing", "Evidence Gaps"]
 }

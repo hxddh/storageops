@@ -131,8 +131,6 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 **Recommendation**: Build locally, sync output to mount. Or reduce to `make -j1`. For production: JuiceFS with full POSIX emulation.
 
 ## References
-- `references/fuse.md` — Comprehensive FUSE mount tuning guide | **Read when:** user is using any FUSE-based mount tool (rclone mount, s3fs, goofys)
+- `references/fuse.md` — FUSE mount tuning, rclone VFS cache modes, and s3fs options by workload | **Read when:** user uses any FUSE-based mount tool (rclone mount, s3fs, goofys) and needs cache/option tuning or reports performance/corruption issues
 - `references/posix-semantics.md` — POSIX vs object storage behavior matrix | **Read when:** user reports git, npm, compilers, or other POSIX-dependent tools failing on mount
 - `references/object-storage-as-filesystem.md` — Quantifying and reducing stat/HEAD amplification | **Read when:** user reports slow `ls`, `git status`, or file managers on mount
-- `references/fuse.md` — rclone VFS cache modes explained | **Read when:** user uses rclone mount and needs cache tuning guidance
-- `references/fuse.md` — s3fs mount options by workload | **Read when:** user uses s3fs and reports performance or corruption issues

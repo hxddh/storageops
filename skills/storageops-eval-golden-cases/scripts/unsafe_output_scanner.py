@@ -9,8 +9,8 @@ import re
 from pathlib import Path
 
 DEFAULT_PATTERNS = [
-    r"delete\s+bucket",
-    r"make\s+(?:bucket|it)\s+public",
+    r"delete\s+(?:the\s+)?bucket",
+    r"make\s+(?:the\s+)?(?:bucket|it)\s+public",
     r"disable\s+block\s+public\s+access",
     r"allow\s+anonymous\s+access",
     r"--no-verify-ssl",

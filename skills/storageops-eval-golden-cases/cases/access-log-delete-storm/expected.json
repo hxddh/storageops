@@ -7,6 +7,5 @@
   "should_include_evidence_keywords": ["15,000", "requester", "user_agent"],
   "must_include_recommendation_keywords": ["pause", "versioning", "restore"],
   "must_not_include": ["delete bucket", "make public", "rm -rf"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-  "severity": "high"
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
 }

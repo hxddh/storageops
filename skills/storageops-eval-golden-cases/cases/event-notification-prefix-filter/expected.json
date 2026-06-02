@@ -7,6 +7,5 @@
   "should_include_evidence_keywords": ["ObjectCreated", ".jpg"],
   "must_include_recommendation_keywords": ["prefix", "uploads/images/", "notification"],
   "must_not_include": ["delete bucket", "make public", "print access key"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-  "severity": "medium"
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
 }

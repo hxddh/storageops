@@ -69,6 +69,10 @@ def estimate(row: dict) -> dict:
     total_gb = total_bytes / 1e9
     bw_mbps = float(row.get("bandwidth_mbps", 1000))
     overhead = float(row.get("overhead_factor", 1.05))
+    if bw_mbps <= 0:
+        return {"ok": False, "error": "bandwidth_mbps must be greater than 0"}
+    if overhead <= 0:
+        return {"ok": False, "error": "overhead_factor must be greater than 0"}
     src = row.get("source_provider") or "custom"
     dst = row.get("dest_provider") or "custom"
 

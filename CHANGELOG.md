@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-06-02 — v0.4.27: Correctness & safety-gate hardening
+
+- **Eval safety gate**: `eval_runner` no longer lets a negation cue in a separate
+  clause suppress a forbidden-output hit (e.g. "Do not hesitate. Delete the
+  bucket."). A negation now only suppresses a hit when it governs the keyword in
+  the same clause, closing a bypass in the `must_not_include` safety check.
+- **Test suite green**: removed an unnecessary `from __future__ import
+  annotations` that made `endpoint_reachability_test.py` fail to import under the
+  test harness; the full suite now passes.
+- **Helper script fixes**: `migration_cost_estimator` returns a structured error
+  instead of crashing on `bandwidth_mbps`/`overhead_factor` of 0;
+  `throttle_detector` no longer double-counts a line that carries both a status
+  code and a keyword; `parse_access_log` exits non-zero on empty input; and
+  `etag_parser` reports unreadable files through its JSON error contract.
+- **Release gate**: the publish workflow now runs `skill_integrity_check.py` and
+  `pytest` before building, so a red suite cannot reach PyPI.
+- **Schema & docs**: removed the unused, inconsistently-named `severity` field
+  from golden cases; `golden_case_validator` now enforces the shape of
+  `expected_root_cause_types` when present; `package_check` derives the expected
+  skill count from the source tree; corrected the skill count in the README, the
+  golden-case field names in the eval skill, and a duplicated reference entry.
+
 ## 2026-06-02 — v0.4.26: Inline tool hardening
 
 - **Secret scanning**: `scan_secrets` now redacts only the sensitive value when

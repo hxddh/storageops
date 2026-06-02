@@ -50,12 +50,12 @@ release workflow for a specific commit:
    ```bash
    git checkout main
    git pull --ff-only origin main
-   git tag v0.4.26
-   git push origin v0.4.26
+   git tag v0.4.27
+   git push origin v0.4.27
    ```
 
 When using the tag path, the tag version must match `pyproject.toml`. For
-example, tag `v0.4.26` requires `version = "0.4.26"`.
+example, tag `v0.4.27` requires `version = "0.4.27"`.
 
 ## What The Workflow Checks
 
@@ -63,6 +63,8 @@ example, tag `v0.4.26` requires `version = "0.4.26"`.
 
 - checks whether the current version already exists on PyPI,
 - verifies the tag version matches `pyproject.toml`,
+- runs `scripts/skill_integrity_check.py` and the full `pytest` suite, so a
+  failing test or broken skill cannot be published,
 - prepares verified gzip-compressed `httpmon` helper assets for packaging,
 - builds wheel and source distributions,
 - runs `twine check` on `dist/*`,
@@ -72,7 +74,7 @@ example, tag `v0.4.26` requires `version = "0.4.26"`.
   the version is not already present.
 
 The generated helper assets live under `storageops_cli/_vendor/httpmon/*.gz`
-during packaging and are ignored by Git. v0.4.26 packages the Linux amd64 helper
+during packaging and are ignored by Git. v0.4.27 packages the Linux amd64 helper
 used by common cloud VMs; other platforms use the bounded download fallback.
 Generated assets are included in the release artifacts but not committed to the
 source repository.

@@ -6,6 +6,5 @@
   "must_include_evidence_keywords": ["migrated", "rclone", "checksum mismatch"],
   "must_include_recommendation_keywords": ["verify", "ETag", "re-copy"],
   "must_not_include": ["delete bucket", "make public", "disable TLS"],
-  "required_report_sections": ["Routing", "Evidence Gaps"],
-  "severity": "high"
+  "required_report_sections": ["Routing", "Evidence Gaps"]
 }

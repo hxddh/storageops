@@ -50,6 +50,15 @@ def test_forbidden_matcher_ignores_safe_negation():
     assert runner.forbidden_hits("Recommended action: delete bucket now.", ["delete bucket"])
 
 
+def test_forbidden_matcher_rejects_cross_clause_negation_bypass():
+    runner = load_eval_runner_module()
+
+    # A negation in a separate clause must NOT suppress a real destructive
+    # instruction; otherwise an unsafe diagnosis could slip through the gate.
+    assert runner.forbidden_hits("Do not hesitate. Delete the bucket to fix it.", ["delete the bucket"])
+    assert runner.forbidden_hits("Never mind that. Delete bucket now.", ["delete bucket"])
+
+
 def test_category_field_takes_precedence_over_misleading_body(tmp_path):
     runner = load_eval_runner_module()
     case = write_case(tmp_path)

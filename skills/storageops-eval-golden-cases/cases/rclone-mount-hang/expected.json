@@ -1,7 +1,6 @@
 {
   "expected_category": "mount_filesystem_workspace",
   "expected_subcategory": "metadata_storm",
-  "expected_severity": "high",
   "expected_min_confidence": 0.70,
   "must_include_evidence_keywords": [
     "fuse", "mount", "stat", "git", "timeout"

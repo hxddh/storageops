@@ -1,7 +1,6 @@
 {
   "expected_category": "network_endpoint_access",
   "expected_subcategory": "vpc_endpoint_routing",
-  "expected_severity": "high",
   "expected_min_confidence": 0.75,
   "must_include_evidence_keywords": [
     "VPC", "endpoint", "DNS", "route", "public"

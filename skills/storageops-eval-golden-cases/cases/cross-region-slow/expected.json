@@ -6,6 +6,5 @@
   "should_include_evidence_keywords": ["TCP", "window", "parallel", "multipart", "bandwidth-delay"],
   "must_include_recommendation_keywords": ["parallel", "multipart", "concurrent"],
   "must_not_include": ["delete bucket", "make public", "force delete"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-  "severity": "medium"
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
 }

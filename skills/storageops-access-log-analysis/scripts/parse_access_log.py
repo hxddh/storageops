@@ -334,7 +334,7 @@ def main():
         }
         indent = 2 if args.pretty else None
         print(json.dumps(result, indent=indent))
-        sys.exit(0)
+        sys.exit(1)
 
     # Auto-detect provider
     provider = args.provider

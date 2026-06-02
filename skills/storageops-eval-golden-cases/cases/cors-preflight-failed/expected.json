@@ -6,7 +6,6 @@
     "no_cors_configuration"
   ],
   "expected_min_confidence": 0.85,
-  "expected_severity": "medium",
   "must_include_evidence_keywords": [
     "CORS",
     "NoSuchCORSConfiguration",
