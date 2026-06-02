@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "storageops"
-version = "0.4.24"
+version = "0.4.25"
 description = "StorageOps — S3-compatible object storage diagnostic toolkit. A Pi Coding Agent extension + skill pack."
 requires-python = ">=3.11"
 readme = "README.md"
@@ -37,7 +37,7 @@ storageops = "storageops_cli:main"
 include = ["storageops_cli", "storageops_cli.*"]
 
 [tool.setuptools.package-data]
-storageops_cli = ["extensions/*", "skills/**"]
+storageops_cli = ["extensions/*", "skills/**", "_vendor/httpmon/*"]
 
 [tool.setuptools.exclude-package-data]
 storageops_cli = ["**/__pycache__/*", "**/*.pyc", "**/*.pyo"]

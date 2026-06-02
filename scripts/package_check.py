@@ -14,6 +14,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_SKILLS = 16
 EXTENSION_PATH = "storageops_cli/extensions/storageops.ts"
+HTTPMON_VENDOR_PREFIX = "storageops_cli/_vendor/httpmon/"
+EXPECTED_HTTPMON_VENDOR_ASSETS = 1
 
 
 def run_build(out_dir: Path) -> None:
@@ -33,12 +35,22 @@ def check_names(names: list[str], artifact: Path) -> list[str]:
     errors: list[str] = []
     skill_count = sum(1 for name in names if name.endswith("/SKILL.md"))
     has_extension = any(name.endswith(EXTENSION_PATH) for name in names)
+    httpmon_vendor_count = sum(
+        1
+        for name in names
+        if HTTPMON_VENDOR_PREFIX in name and name.endswith(".gz")
+    )
     pycache_count = sum(1 for name in names if name.endswith(".pyc") or "/__pycache__/" in name)
 
     if skill_count != EXPECTED_SKILLS:
         errors.append(f"{artifact.name}: expected {EXPECTED_SKILLS} SKILL.md files, found {skill_count}")
     if not has_extension:
         errors.append(f"{artifact.name}: missing {EXTENSION_PATH}")
+    if httpmon_vendor_count != EXPECTED_HTTPMON_VENDOR_ASSETS:
+        errors.append(
+            f"{artifact.name}: expected {EXPECTED_HTTPMON_VENDOR_ASSETS} bundled httpmon assets, "
+            f"found {httpmon_vendor_count}"
+        )
     if pycache_count:
         errors.append(f"{artifact.name}: contains {pycache_count} pyc/__pycache__ entries")
     return errors
@@ -57,6 +69,12 @@ def check_sdist(path: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.parse_args()
+
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "prepare_httpmon_vendor.py")],
+        cwd=ROOT,
+        check=True,
+    )
 
     with tempfile.TemporaryDirectory(prefix="storageops-package-") as tmp:
         out_dir = Path(tmp)
@@ -82,7 +100,7 @@ def main() -> int:
             print(f"  - {error}")
         return 1
 
-    print("Package check passed: wheel/sdist include skills + extension and exclude pyc")
+    print("Package check passed: wheel/sdist include skills, extension, httpmon helpers and exclude pyc")
     return 0
 
 

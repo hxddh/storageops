@@ -50,12 +50,12 @@ release workflow for a specific commit:
    ```bash
    git checkout main
    git pull --ff-only origin main
-   git tag v0.4.24
-   git push origin v0.4.24
+   git tag v0.4.25
+   git push origin v0.4.25
    ```
 
 When using the tag path, the tag version must match `pyproject.toml`. For
-example, tag `v0.4.24` requires `version = "0.4.24"`.
+example, tag `v0.4.25` requires `version = "0.4.25"`.
 
 ## What The Workflow Checks
 
@@ -63,11 +63,19 @@ example, tag `v0.4.24` requires `version = "0.4.24"`.
 
 - checks whether the current version already exists on PyPI,
 - verifies the tag version matches `pyproject.toml`,
+- prepares verified gzip-compressed `httpmon` helper assets for packaging,
 - builds wheel and source distributions,
 - runs `twine check` on `dist/*`,
-- runs `scripts/package_check.py` to verify packaged skills and extension assets,
+- runs `scripts/package_check.py` to verify packaged skills, extension assets,
+  and bundled `httpmon` helpers,
 - publishes the same checked artifacts to PyPI through Trusted Publisher when
   the version is not already present.
+
+The generated helper assets live under `storageops_cli/_vendor/httpmon/*.gz`
+during packaging and are ignored by Git. v0.4.25 packages the Linux amd64 helper
+used by common cloud VMs; other platforms use the bounded download fallback.
+Generated assets are included in the release artifacts but not committed to the
+source repository.
 
 Use the workflow's manual `workflow_dispatch` preflight before the first real
 release, or whenever release plumbing changes. Manual runs build and validate

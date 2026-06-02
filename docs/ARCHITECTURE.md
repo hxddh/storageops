@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.24 is a Pi Coding Agent extension and skill pack.
+StorageOps v0.4.25 is a Pi Coding Agent extension and skill pack.
 
 ## Components
 
@@ -43,9 +43,10 @@ a narrow wrapper: no shell, no mutating commands, no body capture, no HAR/record
 files, and no replay.
 
 `storageops install` automatically prepares a verified `httpmon` helper in
-`~/.storageops/bin/httpmon` when the platform has a supported release binary.
-The extension also looks in that managed location, so merged Pi installs do not
-need users to edit `PATH`.
+`~/.storageops/bin/httpmon`. Release wheels carry the gzip-compressed Linux
+amd64 helper used by common cloud VMs; other supported platforms and source
+checkouts can still fall back to a bounded download. The extension also looks in
+the managed location, so merged Pi installs do not need users to edit `PATH`.
 
 ## Skills
 
