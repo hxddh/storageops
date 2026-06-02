@@ -24,6 +24,7 @@ recommended_tools:
   - scan_secrets
   - detect_domain
   - search_memory
+  - capture_http_trace
 ---
 
 # Performance Diagnosis
@@ -58,6 +59,11 @@ Cross-reference error codes, timing data, and workload profile:
 - **Service-side**: 429/503 errors, request latency spikes without client/network changes
 
 See `references/throughput-model.md` for expected throughput by workload type.
+
+If the user lacks timing/status evidence and a small read-only probe is enough,
+use `capture_http_trace` to capture request count, status, and rough timing for
+one bounded command. Do not use it for bulk transfers, uploads, downloads, sync,
+or body capture.
 
 ### Step 3: Apply Targeted Tuning
 - **Throttling (429)**: Reduce concurrency, add exponential backoff with jitter. See `references/throttling.md`.

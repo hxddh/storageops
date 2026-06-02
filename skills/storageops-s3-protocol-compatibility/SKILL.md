@@ -26,6 +26,7 @@ recommended_tools:
   - scan_secrets
   - detect_domain
   - search_memory
+  - capture_http_trace
 ---
 
 # S3 Protocol Compatibility Diagnosis
@@ -56,6 +57,11 @@ Protocol error →
 
 ### Step 1: Extract Signature Information
 From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/sigv4.md`. For saved XML/debug artifacts, run `scripts/parse_sigv4_error.py` to extract canonical request fields and credential scope.
+
+If the user can run a minimal read-only command and header/status evidence would
+change the diagnosis, use `capture_http_trace` with a required `filter_host`.
+Only wrap read-only commands such as `aws s3api head-object` or `aws s3 ls`.
+Do not request body capture, HAR/record output, replay, or mutating operations.
 
 ### Step 2: Compare Against AWS S3 Baseline
 AWS S3 is the reference implementation. Check `references/aws-s3-baseline.md` for expected behavior of the failing operation.

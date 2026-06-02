@@ -2,10 +2,11 @@
  * StorageOps Pi Extension — v1.0
  *
  * A lightweight Pi extension that provides object-storage diagnostic tools.
- * All tools run inline in the TypeScript runtime — no Python subprocess.
+ * Most tools run inline in the TypeScript runtime. capture_http_trace may run
+ * the external httpmon binary, but only through a bounded, read-only wrapper.
  *
  * Architecture:
- *   Pi ← storageops.ts (3 tools: scan_secrets, detect_domain, search_memory)
+ *   Pi ← storageops.ts (4 tools: scan_secrets, detect_domain, search_memory, capture_http_trace)
  *     ← skills/*.SKILL.md (16 diagnostic skill packs)
  *
  * Placement: .pi/extensions/storageops.ts (auto-discovered by Pi)
@@ -18,6 +19,7 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import * as childProcess from "child_process";
 
 // ── Secret Scanner ──────────────────────────────────────────────────────────
 // Embedded regex patterns for credential detection.
@@ -260,6 +262,423 @@ function searchMemory(query: string, limit: number = 5): Array<{ sessionId: stri
 }
 
 
+// ── HTTP Trace Capture ──────────────────────────────────────────────────────
+// Bounded wrapper around httpmon. This intentionally exposes only a narrow,
+// read-only subset to Pi: no raw HAR, no record files, no replay, and no body
+// capture in returned output.
+
+type TraceRequest = {
+  id: number;
+  method: string;
+  url: string;
+  host: string;
+  headers: Record<string, string>;
+};
+
+type TraceResponse = {
+  req_id: number;
+  status: number;
+  headers: Record<string, string>;
+  body?: string;
+};
+
+const MAX_TRACE_REQUESTS = 20;
+const MAX_TRACE_SECONDS = 30;
+const MAX_TRACE_COMMAND_ARGS = 40;
+
+const READ_ONLY_AWS_S3API = new Set([
+  "head-object",
+  "list-objects",
+  "list-objects-v2",
+  "list-buckets",
+  "get-bucket-location",
+  "get-bucket-versioning",
+  "get-bucket-replication",
+  "get-bucket-encryption",
+  "get-bucket-policy-status",
+  "get-public-access-block",
+]);
+
+const READ_ONLY_CLIENT_OPS = new Set(["ls", "lsf", "lsd", "stat", "head"]);
+
+const MUTATING_WORDS = [
+  "put-object",
+  "delete-object",
+  "delete-objects",
+  "delete-bucket",
+  "create-bucket",
+  "copy-object",
+  "complete-multipart-upload",
+  "abort-multipart-upload",
+  "restore-object",
+  "put-bucket",
+  "put-object-acl",
+  "put-bucket-acl",
+  "put-bucket-policy",
+  "delete-bucket-policy",
+  "rm",
+  "rb",
+  "mb",
+  "mv",
+  "cp",
+  "sync",
+  "copy",
+  "delete",
+  "purge",
+  "move",
+  "POST",
+  "PUT",
+  "DELETE",
+  "PATCH",
+];
+
+const SIGNED_QUERY_KEYS = [
+  "x-amz-signature",
+  "x-amz-security-token",
+  "x-amz-credential",
+  "x-oss-signature",
+  "x-oss-credential",
+  "ossaccesskeyid",
+  "signature",
+  "security-token",
+];
+
+function normalizeFilterHost(value: string): string {
+  const input = (value || "").trim();
+  if (!input) return "";
+  try {
+    if (/^https?:\/\//i.test(input)) {
+      return new URL(input).host.toLowerCase();
+    }
+  } catch {
+    return "";
+  }
+  const host = input.split("/")[0].toLowerCase();
+  if (!/^[a-z0-9.-]+(?::\d+)?$/i.test(host)) return "";
+  return host;
+}
+
+function hasSignedQueryMaterial(command: string[]): boolean {
+  const text = command.join(" ").toLowerCase();
+  return SIGNED_QUERY_KEYS.some(key => text.includes(key));
+}
+
+function validateTraceCommand(command: string[], filterHost: string, captureBody: boolean): string[] {
+  const errors: string[] = [];
+  if (!Array.isArray(command) || command.length === 0) {
+    errors.push("command must be a non-empty argv array");
+    return errors;
+  }
+  if (command.length > MAX_TRACE_COMMAND_ARGS) {
+    errors.push(`command has too many arguments; max is ${MAX_TRACE_COMMAND_ARGS}`);
+  }
+  if (!filterHost) {
+    errors.push("filter_host is required and must be a host name, not a broad substring");
+  }
+  if (captureBody) {
+    errors.push("capture_body=true is not supported in the safe default tool");
+  }
+  for (const arg of command) {
+    if (typeof arg !== "string" || arg.length === 0) {
+      errors.push("all command arguments must be non-empty strings");
+      break;
+    }
+    if (/[;&|`<>]/.test(arg)) {
+      errors.push("shell metacharacters are not allowed; pass an argv array, not a shell command");
+      break;
+    }
+  }
+  if (hasSignedQueryMaterial(command)) {
+    errors.push("presigned URL material is not accepted by capture_http_trace; provide a redacted trace instead");
+  }
+
+  const exe = path.basename(command[0] || "").toLowerCase();
+  const lowered = command.map(x => x.toLowerCase());
+  const text = lowered.join(" ");
+  const blockedShells = new Set(["sh", "bash", "zsh", "fish", "pwsh", "powershell", "sudo"]);
+  if (blockedShells.has(exe)) {
+    errors.push("shells and sudo are not allowed for HTTP trace capture");
+  }
+  for (const word of MUTATING_WORDS) {
+    const pattern = new RegExp(`(^|\\s)${word.toLowerCase()}($|\\s)`, "i");
+    if (pattern.test(text)) {
+      errors.push(`mutating or high-risk operation is not allowed: ${word}`);
+      break;
+    }
+  }
+
+  if (exe === "aws") {
+    const s3api = lowered.indexOf("s3api");
+    const s3 = lowered.indexOf("s3");
+    if (s3api >= 0) {
+      const op = lowered[s3api + 1] || "";
+      if (!READ_ONLY_AWS_S3API.has(op)) {
+        errors.push(`aws s3api operation is not in the read-only allowlist: ${op || "(missing)"}`);
+      }
+    } else if (s3 >= 0) {
+      const op = lowered[s3 + 1] || "";
+      if (op !== "ls") {
+        errors.push(`aws s3 operation is not in the read-only allowlist: ${op || "(missing)"}`);
+      }
+    } else {
+      errors.push("aws capture requires an s3 or s3api read-only operation");
+    }
+  } else if (exe === "curl") {
+    const requestIdx = lowered.findIndex((x, idx) => command[idx] === "-X" || x === "--request");
+    const method = requestIdx >= 0 ? (lowered[requestIdx + 1] || "get").toUpperCase() : "GET";
+    const usesHeadFlag = command.includes("-I") || lowered.includes("--head");
+    if (!usesHeadFlag && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+      errors.push(`curl method is not read-only: ${method}`);
+    }
+    if (lowered.some(x => ["-d", "--data", "--data-raw", "--data-binary", "-f", "--form", "-t", "--upload-file"].includes(x))) {
+      errors.push("curl body upload flags are not allowed");
+    }
+  } else if (["rclone", "s5cmd", "mc", "bcecmd", "obsutil", "s3cmd"].includes(exe)) {
+    const op = lowered.find(x => READ_ONLY_CLIENT_OPS.has(x)) || "";
+    if (!op) {
+      errors.push(`${exe} capture requires a read-only operation such as ls/stat/head`);
+    }
+  } else {
+    errors.push(`unsupported command for safe HTTP trace capture: ${exe || "(missing)"}`);
+  }
+
+  return [...new Set(errors)];
+}
+
+function getHeader(headers: Record<string, string> | undefined, name: string): string {
+  if (!headers) return "";
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === target) return String(value);
+  }
+  return "";
+}
+
+function safePathTemplate(rawURL: string): string {
+  try {
+    const u = new URL(rawURL);
+    const parts = u.pathname.split("/").map(part => {
+      if (!part) return part;
+      if (part.length > 48) return ":segment";
+      if (/^(AKIA|ASIA|AKID|LTAI|sk-)/i.test(part)) return "[REDACTED]";
+      if (/^[a-f0-9]{32,}$/i.test(part)) return ":hex";
+      return part;
+    });
+    const capped = parts.length > 7 ? parts.slice(0, 7).concat(["..."]) : parts;
+    return capped.join("/") || "/";
+  } catch {
+    return "/";
+  }
+}
+
+function parseAuthShape(headers: Record<string, string> | undefined): {
+  auth_header_present: boolean;
+  auth_scheme?: string;
+  signed_headers?: string[];
+  credential_scope?: string;
+  credential_scope_region?: string;
+  credential_scope_service?: string;
+} {
+  const auth = getHeader(headers, "Authorization");
+  if (!auth) return { auth_header_present: false };
+
+  const scheme = auth.split(/\s+/)[0] || "unknown";
+  const signed = /SignedHeaders=([^,\s]+)/i.exec(auth)?.[1] || "";
+  const credential = /Credential=([^,\s]+)/i.exec(auth)?.[1] || "";
+  let scope = "";
+  let region = "";
+  let service = "";
+  if (credential) {
+    try {
+      const decoded = decodeURIComponent(credential);
+      const parts = decoded.split("/");
+      if (parts.length >= 5) {
+        scope = parts.slice(1).join("/");
+        region = parts[2] || "";
+        service = parts[3] || "";
+      }
+    } catch {
+      scope = "";
+    }
+  }
+  return {
+    auth_header_present: true,
+    auth_scheme: scheme,
+    signed_headers: signed ? signed.split(/%3B|;/i).filter(Boolean) : [],
+    credential_scope: scope || undefined,
+    credential_scope_region: region || undefined,
+    credential_scope_service: service || undefined,
+  };
+}
+
+function queryKeySummary(rawURL: string): { has_presigned_query: boolean; query_keys: string[] } {
+  try {
+    const u = new URL(rawURL);
+    const keys = Array.from(new Set(Array.from(u.searchParams.keys()).map(k => k.toLowerCase()))).sort();
+    const hasSigned = keys.some(k => SIGNED_QUERY_KEYS.includes(k));
+    return { has_presigned_query: hasSigned, query_keys: keys.slice(0, 20) };
+  } catch {
+    return { has_presigned_query: false, query_keys: [] };
+  }
+}
+
+function extractS3ErrorCode(body: string | undefined): string | undefined {
+  if (!body) return undefined;
+  const text = body.slice(0, 4096);
+  return /<Code>([^<]{1,80})<\/Code>/i.exec(text)?.[1]
+    || /"Code"\s*:\s*"([^"]{1,80})"/i.exec(text)?.[1]
+    || /"code"\s*:\s*"([^"]{1,80})"/i.exec(text)?.[1];
+}
+
+function summarizeTraceRequest(req: TraceRequest, resp?: TraceResponse) {
+  const auth = parseAuthShape(req.headers);
+  const query = queryKeySummary(req.url);
+  let host = req.host || "";
+  try {
+    host = new URL(req.url).host || host;
+  } catch {
+    // keep req.host
+  }
+  return {
+    id: req.id,
+    method: req.method,
+    host,
+    path_template: safePathTemplate(req.url),
+    status: resp?.status,
+    s3_error_code: extractS3ErrorCode(resp?.body),
+    auth_header_present: auth.auth_header_present,
+    auth_scheme: auth.auth_scheme,
+    signed_headers: auth.signed_headers,
+    credential_scope: auth.credential_scope,
+    credential_scope_region: auth.credential_scope_region,
+    credential_scope_service: auth.credential_scope_service,
+    has_presigned_query: query.has_presigned_query,
+    query_keys: query.query_keys,
+  };
+}
+
+async function captureHttpTrace(params: {
+  command: string[];
+  filter_host: string;
+  max_requests?: number;
+  max_seconds?: number;
+  capture_body?: boolean;
+}) {
+  const filterHost = normalizeFilterHost(params.filter_host || "");
+  const maxRequests = Math.min(Math.max(Number(params.max_requests || MAX_TRACE_REQUESTS), 1), MAX_TRACE_REQUESTS);
+  const maxSeconds = Math.min(Math.max(Number(params.max_seconds || MAX_TRACE_SECONDS), 1), MAX_TRACE_SECONDS);
+  const captureBody = Boolean(params.capture_body);
+  const validationErrors = validateTraceCommand(params.command, filterHost, captureBody);
+  if (validationErrors.length > 0) {
+    return {
+      status: "rejected",
+      reason: "unsafe_or_unsupported_command",
+      errors: validationErrors,
+      limits: { max_requests: maxRequests, max_seconds: maxSeconds, capture_body: false },
+    };
+  }
+
+  return new Promise(resolve => {
+    const httpmon = childProcess.spawn(
+      "httpmon",
+      ["--format", "json", "--filter", filterHost, ...params.command],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+
+    const requests = new Map<number, TraceRequest>();
+    const responses = new Map<number, TraceResponse>();
+    let buffer = "";
+    let stderr = "";
+    let killedForLimit = false;
+    let spawnError = "";
+    let finished = false;
+
+    const finish = (exitCode: number | null) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      const summaries = Array.from(requests.values())
+        .slice(0, maxRequests)
+        .map(req => summarizeTraceRequest(req, responses.get(req.id)));
+      const redactedStderr = redactText(stderr.slice(0, 2000)).redacted;
+      resolve({
+        status: spawnError ? "error" : "completed",
+        command_name: path.basename(params.command[0]),
+        filter_host: filterHost,
+        exit_code: exitCode,
+        killed_for_limit: killedForLimit,
+        requests: summaries,
+        request_count: summaries.length,
+        stderr_summary: redactedStderr.slice(0, 500),
+        redaction: {
+          authorization_redacted: summaries.some((r: any) => r.auth_header_present),
+          presigned_query_redacted: summaries.some((r: any) => r.has_presigned_query),
+          body_captured: false,
+          raw_trace_saved: false,
+          har_saved: false,
+          replay_performed: false,
+        },
+        limits: { max_requests: maxRequests, max_seconds: maxSeconds, capture_body: false },
+        error: spawnError || undefined,
+      });
+    };
+
+    const handleLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("{")) return;
+      try {
+        const event = JSON.parse(trimmed);
+        if (typeof event.id === "number" && typeof event.method === "string" && typeof event.url === "string") {
+          requests.set(event.id, {
+            id: event.id,
+            method: event.method,
+            url: event.url,
+            host: event.host || "",
+            headers: event.headers || {},
+          });
+          if (requests.size >= maxRequests && httpmon.pid) {
+            killedForLimit = true;
+            httpmon.kill("SIGTERM");
+          }
+        } else if (typeof event.req_id === "number" && typeof event.status === "number") {
+          responses.set(event.req_id, {
+            req_id: event.req_id,
+            status: event.status,
+            headers: event.headers || {},
+            body: event.body || "",
+          });
+        }
+      } catch {
+        // Ignore subprocess output that is not httpmon NDJSON.
+      }
+    };
+
+    const timer = setTimeout(() => {
+      killedForLimit = true;
+      if (httpmon.pid) httpmon.kill("SIGTERM");
+    }, maxSeconds * 1000);
+
+    httpmon.stdout?.on("data", chunk => {
+      buffer += chunk.toString("utf8");
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || "";
+      for (const line of lines) handleLine(line);
+    });
+    httpmon.stderr?.on("data", chunk => {
+      stderr += chunk.toString("utf8");
+    });
+    httpmon.on("error", err => {
+      spawnError = err.message || String(err);
+      finish(null);
+    });
+    httpmon.on("close", code => {
+      if (buffer.trim()) handleLine(buffer);
+      finish(code);
+    });
+  });
+}
+
+
 // ── Extension Entry Point ───────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
@@ -370,6 +789,45 @@ export default function (pi: ExtensionAPI) {
         }],
         details: {
           resultCount: results.length,
+        },
+      };
+    },
+  });
+
+  // ── Tool: capture_http_trace ──
+  pi.registerTool({
+    name: "capture_http_trace",
+    label: "Capture HTTP Trace",
+    description:
+      "Run one bounded, read-only object-storage diagnostic command through httpmon and return a " +
+      "sanitized HTTP summary. This tool is manual-confirmation oriented: it rejects mutating " +
+      "commands, shell strings, presigned URL material, body capture, raw HAR/record output, and " +
+      "replay. Use when headers/status/timing would materially improve diagnosis.",
+    parameters: Type.Object({
+      command: Type.Array(Type.String(), {
+        description: "Command argv array to wrap, e.g. ['aws','s3api','head-object','--bucket','b','--key','k']",
+      }),
+      filter_host: Type.String({ description: "Required host filter, e.g. s3.example.com" }),
+      max_requests: Type.Optional(Type.Number({ description: "Maximum captured requests, capped at 20", default: 20 })),
+      max_seconds: Type.Optional(Type.Number({ description: "Maximum runtime seconds, capped at 30", default: 30 })),
+      capture_body: Type.Optional(Type.Boolean({ description: "Unsafe in P0; must be false", default: false })),
+    }),
+    async execute(_toolCallId, params) {
+      const result = await captureHttpTrace({
+        command: Array.isArray(params.command) ? params.command : [],
+        filter_host: params.filter_host || "",
+        max_requests: params.max_requests,
+        max_seconds: params.max_seconds,
+        capture_body: params.capture_body,
+      });
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(result),
+        }],
+        details: {
+          status: (result as any).status,
+          requestCount: (result as any).request_count || 0,
         },
       };
     },

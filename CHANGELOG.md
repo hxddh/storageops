@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-02 — v0.4.21: Bounded HTTP trace capture
+
+- **Agentic evidence capture**: added `capture_http_trace`, a narrow Pi tool
+  that can run one read-only object-storage command through `httpmon` and return
+  a sanitized HTTP summary.
+- **Safety boundaries**: the wrapper rejects shell commands, presigned URL
+  material, body capture, mutating object-storage operations, raw HAR/record
+  output, and replay.
+- **Skill integration**: protocol, network, CLI/SDK, and performance skills can
+  use sanitized HTTP evidence when headers, status, redirects, or signing shape
+  would materially improve diagnosis.
+- **Tests/Docs**: added static guard tests and documented the limited tool
+  surface in architecture and CLI references.
+
 ## 2026-06-02 — v0.4.20: Install version guardrails
 
 - **Install transparency**: `storageops install` now prints the local package

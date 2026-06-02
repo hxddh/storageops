@@ -25,6 +25,7 @@ recommended_tools:
   - scan_secrets
   - detect_domain
   - search_memory
+  - capture_http_trace
 ---
 
 # CLI & SDK Diagnosis
@@ -59,6 +60,11 @@ Extract tool name, version, and command used. If version is unknown, ask — man
 
 ### Step 2: Parse the Error
 Extract error code, error message, and any timing data or stack trace. Compare against known issues in the tool's reference file.
+
+If the CLI/SDK error hides the HTTP status, endpoint host, signing scope, or
+redirect behavior, use `capture_http_trace` around one minimal read-only command
+for that client. Keep `capture_body=false`, provide `filter_host`, and never wrap
+copy/sync/upload/delete commands.
 
 ### Step 3: Check Configuration
 Common misconfigurations: wrong endpoint URL, wrong region, wrong signature version (v2 vs v4), proxy settings interfering, clock skew (>5 min causes signature failure).

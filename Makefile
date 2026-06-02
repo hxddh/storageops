@@ -18,6 +18,7 @@ validate:
 	@grep -q "scan_secrets" storageops_cli/extensions/storageops.ts && echo "  OK: scan_secrets tool" || { echo "  FAIL: scan_secrets missing"; exit 1; }
 	@grep -q "detect_domain" storageops_cli/extensions/storageops.ts && echo "  OK: detect_domain tool" || { echo "  FAIL: detect_domain missing"; exit 1; }
 	@grep -q "search_memory" storageops_cli/extensions/storageops.ts && echo "  OK: search_memory tool" || { echo "  FAIL: search_memory missing"; exit 1; }
+	@grep -q "capture_http_trace" storageops_cli/extensions/storageops.ts && echo "  OK: capture_http_trace tool" || { echo "  FAIL: capture_http_trace missing"; exit 1; }
 	@echo "=== All validations passed ==="
 
 test:

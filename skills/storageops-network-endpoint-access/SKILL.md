@@ -26,6 +26,7 @@ recommended_tools:
   - scan_secrets
   - detect_domain
   - search_memory
+  - capture_http_trace
 ---
 
 # Network & Endpoint Access Diagnosis
@@ -75,6 +76,11 @@ curl -v --connect-timeout 5 https://<endpoint> 2>&1 | head -20
 # Timing breakdown
 curl -w "DNS: %{time_namelookup}s TCP: %{time_connect}s TLS: %{time_appconnect}s Total: %{time_total}s" -o /dev/null -s https://<endpoint>
 ```
+
+When proxy, TLS, redirect, or Authorization-header stripping is suspected and a
+minimal read-only command is available, use `capture_http_trace` with the exact
+endpoint host as `filter_host`. Treat the result as sanitized evidence only; do
+not ask for raw HAR, raw record files, request bodies, or replay.
 
 ### Step 4: Path Analysis
 - **MTU**: Check if path MTU discovery is working (ICMP "fragmentation needed" may be blocked)
