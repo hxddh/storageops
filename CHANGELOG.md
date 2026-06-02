@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-02 — v0.4.18: Safety and verifiability patch
+
+- **Secret scanning safety**: `scan_secrets` findings now return only line,
+  type, length, and a short SHA-256 fingerprint instead of raw secret previews.
+- **Pricing fact hygiene**: moved volatile cost assumptions out of runtime
+  `SKILL.md` instructions into dated references and added a hardcoded-pricing
+  validation gate.
+- **Eval hardening**: `eval_runner.py` now enforces
+  `expected_root_cause_types`, and baseline outputs include explicit root-cause
+  type fields where needed.
+- **Skill contracts**: documented a lightweight modern output contract with
+  validation steps and falsifiability, then applied it to security, performance,
+  and CLI/SDK diagnosis skills.
+
 ## 2026-06-02 — v0.4.17: Publish on main merge
 
 - **Main-merge publishing**: `publish.yml` now runs on every `main` push as well

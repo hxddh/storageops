@@ -28,19 +28,19 @@ recommended_tools:
 
 # Lifecycle & Cost Analysis
 
-Diagnose why storage costs are higher than expected, and recommend lifecycle strategies. Most cost surprises come from: minimum storage duration penalties (IA=30d, ARCHIVE=90d), small-file overhead (each file = 1 billable object), and retrieval fees on archived data.
+Diagnose why storage costs are higher than expected, and recommend lifecycle strategies. Most cost surprises come from: minimum storage duration penalties, small-file overhead (each file = 1 billable object), and retrieval fees on archived data. Treat class thresholds, minimum durations, and prices as provider-specific assumptions until confirmed.
 
 ## Decision Tree
 
 ```
 Cost concern →
   ├─ "Why is my storage bill so high?" →
-  │   ├─ Many small files (<64KB)? → Minimum billable size (IA=64KB, ARCHIVE=128KB)
+  │   ├─ Many small files? → Minimum billable size may amplify storage
   │   ├─ Objects in wrong tier? → IA objects accessed frequently → retrieval costs
   │   ├─ Previous versions accumulating? → Versioning costs (each version = separate billable object)
   │   └─ Incomplete multipart uploads? → Orphaned parts still billable
   ├─ "What lifecycle rules should I set?" →
-  │   ├─ Know access pattern? → Hot→30d→IA→90d→ARCHIVE→180d→DEEP_ARCHIVE
+  │   ├─ Know access pattern? → Match transition timing to provider minimum-duration rules
   │   └─ Unknown access pattern? → Intelligent Tiering (auto-moves based on access)
   ├─ "Should I use IA or Intelligent Tiering?" →
   │   ├─ Predictable access pattern? → Manual lifecycle (cheaper)
@@ -54,27 +54,27 @@ Cost concern →
 Identify: total object count, total size, size distribution (P10/P50/P90), storage class per object, versioning status (each version = separate object). See `references/inventory-cost-analysis.md`.
 
 ### Step 2: Calculate Current Cost
-Breakdown: storage cost (GB-month per class), request cost (PUT/GET/LIST), retrieval cost (IA/ARCHIVE), minimum duration penalties. See `references/storage-class.md` for per-provider pricing.
+Breakdown: storage cost (GB-month per class), request cost (PUT/GET/LIST), retrieval cost (IA/ARCHIVE), minimum duration penalties. See `references/pricing-assumptions.md`, `references/storage-class.md`, and `references/request-cost.md` before quoting any concrete price.
 
 ### Step 3: Identify Cost Amplification
-- **Small files** under minimum billable size: each round UP to 64KB (IA) or 128KB (ARCHIVE). A 1KB file in IA costs 64KB.
-- **Premature transitions**: IA has 30-day minimum, ARCHIVE has 90-day. Transitioning earlier = penalty for remaining days.
+- **Small files** under minimum billable size: objects may round up to a provider-specific billing floor.
+- **Premature transitions**: IA/archive classes often have minimum-duration rules. Transitioning earlier can create penalty charges.
 - **Retrieval costs**: ARCHIVE retrieval is expensive (per-GB + per-request). Bulk retrieval is cheapest.
 - **Versioning**: Each version = full object cost. Noncurrent versions in IA still billable.
 - **Incomplete multipart**: Orphaned parts billed at STANDARD rate until deleted.
 
 ### Step 4: Recommend Lifecycle Strategy
-- **Hot data** (<30 days since last access): STANDARD
-- **Warm data** (30-90 days): STANDARD_IA (or Intelligent Tiering)
-- **Cold data** (90-180 days): ARCHIVE (or Glacier)
-- **Frozen data** (>180 days): DEEP_ARCHIVE (or Glacier Deep Archive)
+- **Hot data**: STANDARD
+- **Warm data**: IA or Intelligent Tiering, after confirming access pattern and minimum duration
+- **Cold data**: ARCHIVE or provider equivalent, after confirming retrieval risk
+- **Frozen data**: DEEP_ARCHIVE or provider equivalent, when retrieval latency is acceptable
 - Add rule to delete incomplete multipart uploads after 7 days
 
 ### Step 5: Estimate Savings
 Monthly savings = current cost − projected cost after lifecycle. Include minimum duration risk in calculation.
 
 ### Step 6: Feedback Loop
-Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantify the small-object penalty with precision — it flags every object below the 128 KB IA threshold and computes the total waste. If the savings estimate has more than 30% uncertainty after analysis, go back to Step 1 and ask the user: *"Can you provide actual billing data (per-bucket per-class cost breakdown) so I can calibrate the estimate?"*
+Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantify the small-object penalty with precision. Confirm the provider's current minimum billable sizes before turning object counts into money. If the savings estimate has more than 30% uncertainty after analysis, go back to Step 1 and ask the user: *"Can you provide actual billing data (per-bucket per-class cost breakdown) so I can calibrate the estimate?"*
 
 ## User Interaction
 
@@ -115,13 +115,13 @@ Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantif
 
 ### Example 1: Small files in IA destroying savings
 **Input**: 10M objects × 1KB in STANDARD_IA. Bill = much higher than expected.
-**Diagnosis**: Minimum billable size = 64KB per IA object. 10M × 1KB files billed as 10M × 64KB = 640 GB billed, but only 10 GB stored. 64× cost amplification.
+**Diagnosis**: The IA class may have a provider-specific minimum billable object size. Tiny objects can be billed as much larger objects, creating large amplification.
 **Recommendation**: Archive small files into larger objects (tar/gz), or switch to STANDARD if frequently accessed.
 
 ### Example 2: Premature ARCHIVE transition
 **Input**: Lifecycle rule moves objects to ARCHIVE after 30 days. Retrieval costs are 3× storage savings.
-**Diagnosis**: ARCHIVE minimum duration = 90 days. Objects transitioned at 30d incur 60d penalty on retrieval. Plus retrieval cost is $0.01/GB for expedited.
-**Recommendation**: Transition to IA at 30d, ARCHIVE at 90d. Bulk retrieval for archived objects.
+**Diagnosis**: The archive class may have a longer minimum-duration rule than the transition age. Early retrieval or deletion can erase storage savings.
+**Recommendation**: Align transitions with provider minimum-duration rules. Prefer bulk retrieval for archived objects when latency permits.
 
 ### Example 3: Orphaned multipart parts
 **Input**: Bill shows 500GB of storage but only 200GB of visible objects.
@@ -129,6 +129,8 @@ Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantif
 **Recommendation**: Add lifecycle rule: `AbortIncompleteMultipartUpload` after 7 days. Immediate savings: 300GB/month.
 
 ## References
+- `references/pricing-assumptions.md` — Dated assumptions for minimum durations, billable sizes, and price quoting
+  **Read when:** user asks for concrete savings, prices, or lifecycle timing recommendations
 - `references/storage-class.md` — Per-class pricing (STANDARD, IA, ARCHIVE, DEEP_ARCHIVE)
   **Read when:** user needs to compare storage class costs for a specific provider, or asks "what does IA cost vs STANDARD?"
 - `references/lifecycle.md` — Lifecycle rule schema, transition constraints

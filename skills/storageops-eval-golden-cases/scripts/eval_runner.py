@@ -135,6 +135,21 @@ def category_or_route_present(text: str, category: str | None, mapped_skill: str
     return category.lower() in lower or (bool(mapped_skill) and mapped_skill.lower() in lower)
 
 
+def root_cause_type_present(text: str, root_cause_types: list[str]) -> bool:
+    if not root_cause_types:
+        return True
+    fields = parse_fields(text)
+    field_values = [
+        fields.get("root_cause_type", ""),
+        fields.get("root_cause", ""),
+        fields.get("primary_diagnosis", ""),
+    ]
+    normalized_values = " ".join(field_values).lower()
+    if any(keyword_present(normalized_values, root_cause) for root_cause in root_cause_types):
+        return True
+    return any(keyword_present(text, root_cause) for root_cause in root_cause_types)
+
+
 def evaluate(case: Path, output: Path) -> dict:
     expected = json.loads((case / "expected.json").read_text(encoding="utf-8"))
     category_to_skill = load_taxonomy()
@@ -160,6 +175,12 @@ def evaluate(case: Path, output: Path) -> dict:
         missing = contains_all(text, expected.get(key, []))
         if missing:
             failures.append(f"missing {key}: {missing}")
+
+    root_cause_types = expected.get("expected_root_cause_types", [])
+    if isinstance(root_cause_types, list) and root_cause_types:
+        typed_root_causes = [str(item) for item in root_cause_types if isinstance(item, str)]
+        if typed_root_causes and not root_cause_type_present(text, typed_root_causes):
+            failures.append(f"expected_root_cause_types not found: {typed_root_causes}")
 
     forbidden = forbidden_hits(text, expected.get("must_not_include", []))
     if forbidden:

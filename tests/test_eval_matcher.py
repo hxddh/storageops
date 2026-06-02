@@ -26,6 +26,7 @@ def write_case(tmp_path: Path, *, category: str = "s3_protocol_compatibility") -
                 "must_include_evidence_keywords": ["s3:GetObject", "GET"],
                 "must_include_recommendation_keywords": ["endpoint"],
                 "must_not_include": ["delete bucket"],
+                "expected_root_cause_types": ["clock_skew"],
                 "required_report_sections": ["Routing"],
             }
         ),
@@ -60,6 +61,7 @@ Category: security_iam_policy
 Route: storageops-security-iam-policy
 Confidence: 0.9
 Evidence: s3:GetObject failed on HTTP GET.
+Root Cause Type: clock_skew
 Recommendation: inspect endpoint configuration.
 Body mentions storageops-s3-protocol-compatibility only as a rejected route.
 """,
@@ -82,6 +84,7 @@ def test_confidence_accepts_percent_format(tmp_path):
 Route: storageops-s3-protocol-compatibility
 Confidence: 82%
 Evidence: s3:GetObject failed on HTTP GET.
+Root Cause Type: clock_skew
 Recommendation: inspect endpoint configuration.
 """,
         encoding="utf-8",
@@ -90,3 +93,24 @@ Recommendation: inspect endpoint configuration.
     result = runner.evaluate(case, output)
 
     assert result["status"] == "PASS"
+
+
+def test_root_cause_type_is_required_when_expected(tmp_path):
+    runner = load_eval_runner_module()
+    case = write_case(tmp_path)
+    output = tmp_path / "diagnosis.md"
+    output.write_text(
+        """
+# Routing
+Route: storageops-s3-protocol-compatibility
+Confidence: 0.82
+Evidence: s3:GetObject failed on HTTP GET.
+Recommendation: inspect endpoint configuration.
+""",
+        encoding="utf-8",
+    )
+
+    result = runner.evaluate(case, output)
+
+    assert result["status"] == "HARD_FAIL"
+    assert any("expected_root_cause_types not found" in failure for failure in result["failures"])

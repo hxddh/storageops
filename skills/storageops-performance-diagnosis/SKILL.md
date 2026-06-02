@@ -87,8 +87,11 @@ If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_de
 
 ```markdown
 # Diagnosis: [one-line]
+**Route**: storageops-performance-diagnosis
 **Bottleneck**: client | network | service-throttling | multipart | small-files | prefix-hotspot
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[type], affected_layer=[client|network|provider|workload]
 
 ## Evidence
 - Error codes: [list with count]
@@ -101,6 +104,15 @@ If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_de
 ## Recommendations
 1. **[action]** (manual-only | safe) — [expected effect]
 2. ...
+
+## Validation Steps
+- [read-only or low-risk experiment that can confirm the bottleneck]
+
+## What Would Falsify This
+- [evidence that would make the diagnosis unlikely]
+
+## Risks / Open Questions
+- [missing data, production risk, provider limits to confirm]
 ```
 
 ## Examples

@@ -50,12 +50,12 @@ release workflow for a specific commit:
    ```bash
    git checkout main
    git pull --ff-only origin main
-   git tag v0.4.17
-   git push origin v0.4.17
+   git tag v0.4.18
+   git push origin v0.4.18
    ```
 
 When using the tag path, the tag version must match `pyproject.toml`. For
-example, tag `v0.4.17` requires `version = "0.4.17"`.
+example, tag `v0.4.18` requires `version = "0.4.18"`.
 
 ## What The Workflow Checks
 

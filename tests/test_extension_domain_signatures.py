@@ -31,3 +31,14 @@ def test_secret_scanner_deduplicates_overlapping_matches_by_range():
 
     assert "const ranges: Array<[number, number]>" in extension
     assert "start < rangeEnd && end > rangeStart" in extension
+
+
+def test_secret_scanner_findings_do_not_return_raw_secret_previews():
+    root = Path(__file__).resolve().parents[1]
+    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+
+    assert "fingerprint" in extension
+    assert "secretFingerprint(m[0])" in extension
+    assert "preview" not in extension
+    assert "findings.push({ line, type, length, fingerprint })" in extension
+    assert "findings.push({ line, type, preview })" not in extension

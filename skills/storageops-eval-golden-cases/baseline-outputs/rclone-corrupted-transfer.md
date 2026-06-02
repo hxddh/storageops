@@ -3,6 +3,7 @@
 Category: cli_sdk_behavior
 Route: storageops-cli-sdk-diagnosis
 Confidence: 0.82
+Root Cause Type: tool_sdk_incompatibility
 
 rclone reports `corrupted on transfer` because it compares an ETag from one side
 with a multipart ETag from the other side.

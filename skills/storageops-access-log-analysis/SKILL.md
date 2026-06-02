@@ -87,8 +87,8 @@ Cross-reference error spikes with:
 Ask: **"Have any credentials or bucket policies changed in the past 24 hours?"**
 
 ### Step 5: Cost Attribution
-- **Request costs**: PUT/COPY/POST/LIST ($0.005/1k) vs GET ($0.0004/1k). PUT-heavy patterns cost 12x more per request.
-- **Data transfer costs**: BytesSent field × $0.09/GB (Internet egress)
+- **Request costs**: PUT/COPY/POST/LIST and GET/HEAD have provider-specific rates. PUT-heavy patterns often cost more per request than reads.
+- **Data transfer costs**: BytesSent can estimate egress, but only after confirming provider, region, destination, and current pricing.
 - **Storage costs**: Not visible in access logs (use billing reports or lifecycle-cost skill)
 Suggest: **"If one requester generates 80%+ of bytes sent, consider CloudFront CDN to reduce egress costs."**
 
@@ -153,7 +153,7 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 ### Example 2: Cost investigation — high PUT costs
 **Input**: "My S3 bill spiked 3x this month. Can you check if something is wrong?"
 **Log Analysis**: 2.3M PUT requests last month vs 200K baseline. All from same IP in us-east-1. User-Agent: `aws-cli/2.15.0`. Timestamps every 5 seconds → scripted upload loop.
-**Diagnosis**: A cron job uploading small files every 5 seconds. 2.3M × $0.005/1k = $11.50 in PUT costs alone. Consolidating into batch uploads would reduce costs 90%.
+**Diagnosis**: A cron job uploading small files every 5 seconds. The request count alone can explain a meaningful cost spike once current provider request pricing is applied. Consolidating into batch uploads would reduce request volume sharply.
 **Recommendation**: Modify the cron job to batch uploads every hour. Enable Intelligent-Tiering for uploaded objects. Route to lifecycle-cost for storage class optimization.
 
 ### Example 3: Anomaly detection — off-hours DELETE storm
@@ -169,6 +169,7 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 - `references/cos-access-log-format.md` — Tencent COS log delivery, CSV fields, bucket-level configuration | **Read when:** user provides COS logs or mentions Tencent Cloud
 - `references/error-code-reference.md` — Per-provider error code meanings: 403 variants, 404 distinctions, 503 subtypes | **Read when:** user reports error codes and you need provider-specific semantics
 - `references/cost-attribution-guide.md` — Request pricing by operation type across providers, data transfer cost models | **Read when:** user asks about cost, billing, or "why is my bill so high"
+- `references/cost-attribution-assumptions.md` — Dated assumptions for turning request and egress counts into cost estimates | **Read when:** user asks for dollar estimates from access logs
 - `references/logging-setup.md` — How to enable access logging on S3/BOS/COS/OSS | **Read when:** user doesn't have access logs yet and needs to enable logging
 - `references/log-pattern-reference.md` — Status code → root cause → skill routing map | **Read when:** identifying root cause from error patterns in logs
 - `references/cloudtrail-event-reference.md` — CloudTrail data event field reference for API-level auditing | **Read when:** user provides CloudTrail logs or needs CloudTrail-specific field definitions

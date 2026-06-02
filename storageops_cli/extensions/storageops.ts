@@ -14,6 +14,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -49,8 +50,12 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/(?:ghp_|gho_|github_pat_)[A-Za-z0-9]{36,}/g, "GITHUB_TOKEN"],
 ];
 
-function redactText(text: string): { findings: Array<{ line: number; type: string; preview: string }>; redacted: string } {
-  const findings: Array<{ line: number; type: string; preview: string }> = [];
+function secretFingerprint(value: string): string {
+  return "sha256:" + crypto.createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
+
+function redactText(text: string): { findings: Array<{ line: number; type: string; length: number; fingerprint: string }>; redacted: string } {
+  const findings: Array<{ line: number; type: string; length: number; fingerprint: string }> = [];
   const ranges: Array<[number, number]> = [];
   let redacted = text;
 
@@ -65,9 +70,10 @@ function redactText(text: string): { findings: Array<{ line: number; type: strin
         continue;
       }
       const line = text.slice(0, m.index!).split("\n").length;
-      const preview = m[0].length > 60 ? m[0].slice(0, 60) + "..." : m[0];
+      const length = m[0].length;
+      const fingerprint = secretFingerprint(m[0]);
       ranges.push([start, end]);
-      findings.push({ line, type, preview });
+      findings.push({ line, type, length, fingerprint });
     }
   }
 
