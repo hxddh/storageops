@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.24  (pi: 0.78.0)
+StorageOps v0.4.25  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```
@@ -131,8 +131,10 @@ operations, keeps `capture_body=false`, does not write HAR or record files, and
 does not replay requests. Its output is a sanitized summary of method, host,
 path template, status, signing shape, and S3 error code.
 
-`storageops install` automatically downloads a verified `httpmon` release binary
-to `~/.storageops/bin/httpmon` when it is not already available. The tool first
-uses this managed binary, then falls back to `PATH`. If automatic installation
-is unavailable on the current platform or network, the tool returns an error and
-the diagnosis should continue with normal logs or debug output.
+`storageops install` automatically installs a verified `httpmon` helper into
+`~/.storageops/bin/httpmon` when it is not already available. PyPI release
+packages include the Linux amd64 helper used by common cloud VMs, so those
+installs do not require users to preinstall httpmon, install Go, or download a
+GitHub release at runtime. If the package lacks a matching bundled asset,
+StorageOps falls back to a bounded network download and then to the normal
+logs/debug path.

@@ -93,8 +93,11 @@ failed or upgraded a different Python environment, this output makes the stale
 package visible before the skills are redeployed.
 
 It also prepares the optional HTTP trace helper used by `capture_http_trace`.
-When supported, StorageOps downloads a verified `httpmon` binary into
-`~/.storageops/bin/httpmon`; users do not need to install Go or edit `PATH`.
+PyPI release packages include the verified Linux amd64 `httpmon` helper used by
+common cloud VMs. During `storageops install`, StorageOps copies the matching
+helper into `~/.storageops/bin/httpmon`; users do not need to install httpmon,
+install Go, or edit `PATH`. Other supported platforms use the bounded download
+fallback when the bundled helper does not match.
 
 For upgrades, read the first three install lines before trusting the `[ok]`
 summary:

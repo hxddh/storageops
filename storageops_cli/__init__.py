@@ -25,6 +25,7 @@ import shutil
 import urllib.request
 import hashlib
 import platform
+import gzip
 from datetime import datetime, timezone
 from pathlib import Path
 from importlib import resources
@@ -113,6 +114,31 @@ def _httpmon_asset_for_platform() -> tuple[str, str] | None:
     return HTTPMON_ASSETS.get((system, machine))
 
 
+def _read_bundled_httpmon(asset_name: str) -> bytes | None:
+    """Read a bundled gzip-compressed httpmon asset from the installed package."""
+    try:
+        asset = resources.files("storageops_cli").joinpath("_vendor", "httpmon", f"{asset_name}.gz")
+        if not asset.is_file():
+            return None
+        return gzip.decompress(asset.read_bytes())
+    except Exception:
+        return None
+
+
+def _install_httpmon_bytes(data: bytes, expected_sha: str, target: Path) -> str | None:
+    """Validate and install httpmon bytes into the managed StorageOps bin dir."""
+    actual_sha = hashlib.sha256(data).hexdigest()
+    if actual_sha != expected_sha:
+        return None
+
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_bytes(data)
+    tmp.chmod(0o755)
+    tmp.replace(target)
+    return str(target)
+
+
 def _ensure_httpmon() -> str | None:
     """
     Ensure httpmon is available for capture_http_trace.
@@ -140,6 +166,14 @@ def _ensure_httpmon() -> str | None:
     tmp = target.with_suffix(target.suffix + ".tmp")
 
     print(f"[info] httpmon not found. Installing {HTTPMON_VERSION}...")
+    bundled = _read_bundled_httpmon(asset_name)
+    if bundled:
+        installed = _install_httpmon_bytes(bundled, expected_sha, target)
+        if installed:
+            print(f"[ok] httpmon {HTTPMON_VERSION} -> {target}")
+            return installed
+        print("[warn] httpmon helper     bundled helper checksum mismatch")
+
     try:
         curl = shutil.which("curl")
         if curl:
@@ -167,17 +201,15 @@ def _ensure_httpmon() -> str | None:
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = response.read()
             tmp.write_bytes(data)
-        actual_sha = hashlib.sha256(data).hexdigest()
-        if actual_sha != expected_sha:
+        installed = _install_httpmon_bytes(data, expected_sha, target)
+        if not installed:
             print("[warn] httpmon helper     download checksum mismatch")
             print("       capture_http_trace will be unavailable; no helper was installed.")
             if tmp.exists():
                 tmp.unlink()
             return None
-        tmp.chmod(0o755)
-        tmp.replace(target)
         print(f"[ok] httpmon {HTTPMON_VERSION} -> {target}")
-        return str(target)
+        return installed
     except Exception as exc:
         if tmp.exists():
             try:

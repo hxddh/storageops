@@ -163,7 +163,30 @@ def test_ensure_httpmon_downloads_managed_binary(tmp_path, monkeypatch):
     monkeypatch.setattr(storageops_cli, "BIN_DIR", tmp_path / ".storageops" / "bin")
     monkeypatch.setattr(storageops_cli.shutil, "which", lambda _name: None)
     monkeypatch.setattr(storageops_cli, "_httpmon_asset_for_platform", lambda: ("httpmon-test", sha))
+    monkeypatch.setattr(storageops_cli, "_read_bundled_httpmon", lambda _asset_name: None)
     monkeypatch.setattr(storageops_cli.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    installed = _ensure_httpmon()
+
+    target = tmp_path / ".storageops" / "bin" / "httpmon"
+    assert installed == str(target)
+    assert target.read_bytes() == payload
+    assert target.stat().st_mode & 0o111
+
+
+def test_ensure_httpmon_prefers_bundled_binary(tmp_path, monkeypatch):
+    payload = b"bundled-httpmon-binary"
+    sha = hashlib.sha256(payload).hexdigest()
+
+    def fail_urlopen(*_args, **_kwargs):
+        raise AssertionError("bundled httpmon should avoid network download")
+
+    monkeypatch.setattr(storageops_cli, "ROOT", tmp_path / ".storageops")
+    monkeypatch.setattr(storageops_cli, "BIN_DIR", tmp_path / ".storageops" / "bin")
+    monkeypatch.setattr(storageops_cli.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(storageops_cli, "_httpmon_asset_for_platform", lambda: ("httpmon-test", sha))
+    monkeypatch.setattr(storageops_cli, "_read_bundled_httpmon", lambda _asset_name: payload)
+    monkeypatch.setattr(storageops_cli.urllib.request, "urlopen", fail_urlopen)
 
     installed = _ensure_httpmon()
 
@@ -188,6 +211,7 @@ def test_ensure_httpmon_rejects_checksum_mismatch(tmp_path, monkeypatch):
     monkeypatch.setattr(storageops_cli, "BIN_DIR", tmp_path / ".storageops" / "bin")
     monkeypatch.setattr(storageops_cli.shutil, "which", lambda _name: None)
     monkeypatch.setattr(storageops_cli, "_httpmon_asset_for_platform", lambda: ("httpmon-test", "0" * 64))
+    monkeypatch.setattr(storageops_cli, "_read_bundled_httpmon", lambda _asset_name: None)
     monkeypatch.setattr(storageops_cli.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
 
     assert _ensure_httpmon() is None

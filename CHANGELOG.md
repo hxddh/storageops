@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-02 — v0.4.25: Bundled httpmon helper
+
+- **No preinstalled httpmon required on Linux amd64**: release builds now
+  package a verified, gzip-compressed Linux amd64 `httpmon` helper inside the
+  StorageOps wheel/sdist. During `storageops install`, StorageOps copies a
+  matching bundled helper into `~/.storageops/bin/httpmon` before trying any
+  network download.
+- **Packaging gate**: `scripts/package_check.py` now prepares and verifies the
+  bundled helper assets in both wheel and sdist artifacts, so PyPI releases
+  cannot silently omit the helper.
+- **Repository and package size control**: helper binaries are generated during
+  packaging and ignored by Git. v0.4.25 bundles the cloud-default Linux amd64
+  helper while other supported platforms keep the bounded download fallback.
+
 ## 2026-06-02 — v0.4.24: Bounded httpmon download
 
 - **Install robustness**: automatic httpmon helper downloads now use a bounded

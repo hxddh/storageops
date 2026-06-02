@@ -55,7 +55,10 @@ already present. It stops before deployment when an older Pi version is detected
 and prints the manual upgrade command, avoiding both auto-upgrades and half-ready
 StorageOps installs.
 It also prepares the managed `httpmon` helper for `capture_http_trace` under
-`~/.storageops/bin/` when a supported release binary is available.
+`~/.storageops/bin/`. PyPI release packages include the verified Linux amd64
+helper used by common cloud VMs, so those users do not need to install httpmon,
+install Go, or edit `PATH` manually. Other supported platforms use the bounded
+download fallback when the bundled helper does not match.
 
 ## Configure a Model Key
 

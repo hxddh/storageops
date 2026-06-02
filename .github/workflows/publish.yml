@@ -82,6 +82,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install build twine
+          python scripts/prepare_httpmon_vendor.py
           python -m build
           python -m twine check dist/*
 
