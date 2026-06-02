@@ -124,6 +124,18 @@ local package; it does not run `pip upgrade` for you. The installer prints the
 local package version and path, warns when PyPI has a newer version, and writes
 `~/.storageops/install.json` for troubleshooting.
 
+On Ubuntu/Debian cloud hosts, if the upgrade is blocked by
+`externally-managed-environment` or a fresh release is not picked up, repair with:
+
+```bash
+python3 -m pip install --upgrade storageops --break-system-packages --no-cache-dir -i https://pypi.org/simple
+storageops install --force
+storageops --version
+```
+
+Confirm that `storageops install --force` prints the new `StorageOps package:
+v...` value before relying on the deployed skills.
+
 ## 6. Validate a Checkout
 
 ```bash
