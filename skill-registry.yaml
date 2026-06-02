@@ -1,4 +1,4 @@
-# StorageOps Skill Registry v0.4.20
+# StorageOps Skill Registry v0.4.21
 
 # Machine-readable metadata for all StorageOps skills.
 # Skills are auto-discovered by Pi from the skills/ directory.
@@ -71,7 +71,7 @@ skills:
       - "throughput"
       - "throttl"
     domains: [performance]
-    recommended_tools: [scan_secrets, detect_domain, search_memory]
+    recommended_tools: [scan_secrets, detect_domain, search_memory, capture_http_trace]
 
   - name: storageops-cli-sdk-diagnosis
     path: skills/storageops-cli-sdk-diagnosis/SKILL.md
@@ -86,7 +86,7 @@ skills:
       - "obsutil"
       - "corrupted on transfer"
     domains: [cli-sdk]
-    recommended_tools: [scan_secrets, detect_domain, search_memory]
+    recommended_tools: [scan_secrets, detect_domain, search_memory, capture_http_trace]
 
   - name: storageops-network-endpoint-access
     path: skills/storageops-network-endpoint-access/SKILL.md
@@ -101,7 +101,7 @@ skills:
       - "certificate"
       - "host unreachable"
     domains: [network]
-    recommended_tools: [scan_secrets, detect_domain, search_memory]
+    recommended_tools: [scan_secrets, detect_domain, search_memory, capture_http_trace]
 
   - name: storageops-lifecycle-cost
     path: skills/storageops-lifecycle-cost/SKILL.md
@@ -206,7 +206,7 @@ skills:
       - "AuthorizationHeaderMalformed"
       - "RequestExpired"
     domains: [protocol, compatibility]
-    recommended_tools: [scan_secrets, detect_domain, search_memory]
+    recommended_tools: [scan_secrets, detect_domain, search_memory, capture_http_trace]
 
   - name: storageops-evidence-reporting
     path: skills/storageops-evidence-reporting/SKILL.md

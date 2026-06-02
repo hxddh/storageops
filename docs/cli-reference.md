@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.20  (pi: 0.78.0)
+StorageOps v0.4.21  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```
@@ -113,3 +113,24 @@ storageops --provider deepseek --model deepseek-v4-flash --print 'hello'
 
 If DeepSeek rejects a model name, retry with one of the known-good model ids
 above.
+
+## Diagnostic Tools
+
+StorageOps registers a small Pi tool surface:
+
+| Tool | Default posture |
+| --- | --- |
+| `scan_secrets` | Inline redaction of credential-shaped text. |
+| `detect_domain` | Inline routing hint from evidence text. |
+| `search_memory` | Read-only search of scoped prior sessions. |
+| `capture_http_trace` | Bounded httpmon wrapper for one read-only command. |
+
+`capture_http_trace` is intentionally not a general httpmon interface. It
+requires a `filter_host`, rejects shell commands, rejects mutating object-storage
+operations, keeps `capture_body=false`, does not write HAR or record files, and
+does not replay requests. Its output is a sanitized summary of method, host,
+path template, status, signing shape, and S3 error code.
+
+This tool requires the external `httpmon` binary to be available on `PATH`. If
+`httpmon` is absent, the tool returns an error and the diagnosis should continue
+with normal logs or debug output.

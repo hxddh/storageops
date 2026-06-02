@@ -96,7 +96,7 @@ For upgrades, read the first three install lines before trusting the `[ok]`
 summary:
 
 ```text
-StorageOps package: v0.4.20
+StorageOps package: v<latest>
 Package path      : /usr/local/lib/python3.12/dist-packages/storageops_cli
 Deploy target     : /root/.storageops/skills
 ```

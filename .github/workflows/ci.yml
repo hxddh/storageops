@@ -90,6 +90,10 @@ jobs:
             echo "ERROR: search_memory tool not found in extension"
             exit 1
           fi
+          if ! grep -q "capture_http_trace" storageops_cli/extensions/storageops.ts; then
+            echo "ERROR: capture_http_trace tool not found in extension"
+            exit 1
+          fi
           echo "Extension validated."
 
   check-docs:

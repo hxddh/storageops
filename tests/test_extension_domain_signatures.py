@@ -42,3 +42,32 @@ def test_secret_scanner_findings_do_not_return_raw_secret_previews():
     assert "preview" not in extension
     assert "findings.push({ line, type, length, fingerprint })" in extension
     assert "findings.push({ line, type, preview })" not in extension
+
+
+def test_capture_http_trace_is_registered_as_bounded_safe_tool():
+    root = Path(__file__).resolve().parents[1]
+    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+
+    assert 'name: "capture_http_trace"' in extension
+    assert "validateTraceCommand" in extension
+    assert "capture_body=true is not supported" in extension
+    assert "presigned URL material is not accepted" in extension
+    assert "shells and sudo are not allowed" in extension
+    assert "MAX_TRACE_REQUESTS = 20" in extension
+    assert "MAX_TRACE_SECONDS = 30" in extension
+
+
+def test_capture_http_trace_does_not_expose_raw_httpmon_artifacts():
+    root = Path(__file__).resolve().parents[1]
+    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+
+    assert '"--format", "json", "--filter", filterHost' in extension
+    assert '"--record"' not in extension
+    assert '"--har"' not in extension
+    assert '"--replay"' not in extension
+    assert "raw_trace_saved: false" in extension
+    assert "har_saved: false" in extension
+    assert "replay_performed: false" in extension
+    assert "body_captured: false" in extension
+    assert "Authorization" in extension
+    assert "credential_scope" in extension
