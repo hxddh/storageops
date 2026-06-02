@@ -26,6 +26,8 @@ import * as childProcess from "child_process";
 // Patterns match: AWS AK/SK, tokens, Authorization headers, Alibaba/Tencent/Baidu
 // Cloud AK/SK, rclone config secrets, private keys.
 
+const MAX_SECRET_SCAN_CHARS = 200_000;
+const MAX_REDACTED_TEXT_CHARS = 20_000;
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   // AWS access keys (AKIA...)
   [/(?:AWS|aws)[\s_-]*(?:access[\s_-]*)?(?:key[\s_-]*id|akid)[\s]*[:=][\s]*([A-Z0-9]{16,})/gi, "AWS_ACCESS_KEY"],
@@ -56,36 +58,66 @@ function secretFingerprint(value: string): string {
   return "sha256:" + crypto.createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
-function redactText(text: string): { findings: Array<{ line: number; type: string; length: number; fingerprint: string }>; redacted: string } {
-  const findings: Array<{ line: number; type: string; length: number; fingerprint: string }> = [];
+type SecretFinding = {
+  line: number;
+  column: number;
+  type: string;
+  length: number;
+  fingerprint: string;
+};
+
+function matchSecretRange(match: RegExpMatchArray): { start: number; end: number; value: string } {
+  const matchStart = match.index ?? 0;
+  const full = match[0] || "";
+  const captured = match.slice(1).find(v => typeof v === "string" && v.length > 0);
+  if (captured) {
+    const offset = full.lastIndexOf(captured);
+    if (offset >= 0) {
+      return { start: matchStart + offset, end: matchStart + offset + captured.length, value: captured };
+    }
+  }
+  return { start: matchStart, end: matchStart + full.length, value: full };
+}
+
+function lineAndColumn(text: string, index: number): { line: number; column: number } {
+  const prefix = text.slice(0, index);
+  const line = prefix.split("\n").length;
+  const lastNewline = prefix.lastIndexOf("\n");
+  return { line, column: index - lastNewline };
+}
+
+function redactText(text: string): { findings: SecretFinding[]; redacted: string; truncated: boolean } {
+  const scanText = text.slice(0, MAX_SECRET_SCAN_CHARS);
+  const findings: SecretFinding[] = [];
   const ranges: Array<[number, number]> = [];
-  let redacted = text;
 
   for (const [pattern, type] of SECRET_PATTERNS) {
     // Reset lastIndex for global regex
     pattern.lastIndex = 0;
-    const matches = Array.from(text.matchAll(pattern));
+    const matches = Array.from(scanText.matchAll(pattern));
     for (const m of matches) {
-      const start = m.index ?? 0;
-      const end = start + m[0].length;
+      const { start, end, value } = matchSecretRange(m);
       if (ranges.some(([rangeStart, rangeEnd]) => start < rangeEnd && end > rangeStart)) {
         continue;
       }
-      const line = text.slice(0, m.index!).split("\n").length;
-      const length = m[0].length;
-      const fingerprint = secretFingerprint(m[0]);
+      const { line, column } = lineAndColumn(scanText, start);
+      const length = value.length;
+      const fingerprint = secretFingerprint(value);
       ranges.push([start, end]);
-      findings.push({ line, type, length, fingerprint });
+      findings.push({ line, column, type, length, fingerprint });
     }
   }
 
-  // Redact in reverse order to preserve positions
-  for (const [pattern] of SECRET_PATTERNS) {
-    pattern.lastIndex = 0;
-    redacted = redacted.replace(pattern, "[REDACTED]");
+  let redacted = scanText;
+  for (const [start, end] of [...ranges].sort((a, b) => b[0] - a[0])) {
+    redacted = redacted.slice(0, start) + "[REDACTED]" + redacted.slice(end);
   }
 
-  return { findings, redacted };
+  return {
+    findings,
+    redacted: redacted.slice(0, MAX_REDACTED_TEXT_CHARS),
+    truncated: text.length > scanText.length || redacted.length > MAX_REDACTED_TEXT_CHARS,
+  };
 }
 
 
@@ -182,15 +214,44 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
   ],
 };
 
-function detectDomain(text: string): Array<{ domain: string; confidence: number; subdomains: string[] }> {
-  const scores: Record<string, { score: number; subdomains: Set<string> }> = {};
+type DomainDetection = {
+  domain: string;
+  recommended_skill: string;
+  confidence: number;
+  subdomains: string[];
+  signals: string[];
+  next_action: string;
+};
+
+const DOMAIN_NEXT_ACTION: Record<string, string> = {
+  "storageops-security-iam-policy": "Check identity, policy, key validity, bucket policy, and KMS constraints before changing permissions.",
+  "storageops-s3-protocol-compatibility": "Compare endpoint style, region, canonical request shape, signing version, and required headers.",
+  "storageops-performance-diagnosis": "Separate service throttling, client retry behavior, network latency, and object layout signals.",
+  "storageops-network-endpoint-access": "Verify DNS, endpoint, route, proxy, and TLS certificate evidence before testing application logic.",
+  "storageops-cli-sdk-diagnosis": "Confirm the exact CLI/SDK, config path, provider, endpoint, and version before applying reference docs.",
+  "storageops-replication-versioning": "Inspect versioning, delete markers, replication rules, and observed replication lag.",
+  "storageops-lifecycle-cost": "Check lifecycle rules, storage class transitions, request patterns, and dated pricing references.",
+  "storageops-mount-filesystem-workspace": "Treat mount tools as filesystem adapters; verify cache, FUSE, permissions, and consistency expectations.",
+  "storageops-migration-sync": "Verify read-only inventory, delta strategy, checksums, and idempotent sync planning.",
+  "storageops-data-consistency": "Collect timestamps, ETags/checksums, list/head differences, and cross-client observations.",
+  "storageops-bigdata-pipeline": "Inspect engine, committer, partition layout, speculative execution, and object-listing behavior.",
+  "storageops-event-notification": "Check event rules, prefix/suffix filters, target permissions, and delivery logs.",
+  "storageops-access-log-analysis": "Summarize request IDs, status spikes, top requesters, user agents, and time windows.",
+};
+
+function detectDomain(text: string): DomainDetection[] {
+  const scores: Record<string, { score: number; subdomains: Set<string>; signals: string[] }> = {};
+  const evidence = text.slice(0, 100_000);
 
   for (const [domain, patterns] of Object.entries(DOMAIN_SIGNATURES)) {
     for (const [regex, subdomain] of patterns) {
-      if (regex.test(text)) {
-        if (!scores[domain]) scores[domain] = { score: 0, subdomains: new Set() };
+      regex.lastIndex = 0;
+      const match = regex.exec(evidence);
+      if (match) {
+        if (!scores[domain]) scores[domain] = { score: 0, subdomains: new Set(), signals: [] };
         scores[domain].score += 1;
         scores[domain].subdomains.add(subdomain);
+        scores[domain].signals.push(match[0].slice(0, 80));
       }
     }
   }
@@ -198,8 +259,11 @@ function detectDomain(text: string): Array<{ domain: string; confidence: number;
   return Object.entries(scores)
     .map(([domain, info]) => ({
       domain,
+      recommended_skill: domain,
       confidence: Math.min(0.5 + info.score * 0.15, 0.95),
       subdomains: Array.from(info.subdomains),
+      signals: info.signals.slice(0, 5),
+      next_action: DOMAIN_NEXT_ACTION[domain] || "Collect more evidence before choosing a specialized skill.",
     }))
     .sort((a, b) => b.confidence - a.confidence);
 }
@@ -208,48 +272,76 @@ function detectDomain(text: string): Array<{ domain: string; confidence: number;
 // ── Memory Search ───────────────────────────────────────────────────────────
 // Searches Pi session JSONL files for past diagnostic context.
 
-function searchMemory(query: string, limit: number = 5): Array<{ sessionId: string; snippet: string; updated: string }> {
+type MemoryResult = {
+  sessionId: string;
+  snippet: string;
+  updated: string;
+  source: "summary" | "jsonl";
+  score: number;
+};
+
+function searchTokens(query: string): string[] {
+  const normalized = query.toLowerCase().match(/[a-z0-9_\-:.]{3,}/g) || [];
+  return Array.from(new Set(normalized)).slice(0, 12);
+}
+
+function scoreText(text: string, tokens: string[]): number {
+  const lower = text.toLowerCase();
+  return tokens.reduce((score, token) => score + (lower.includes(token) ? 1 : 0), 0);
+}
+
+function safeMemorySnippet(text: string): string {
+  return redactText(text.replace(/\s+/g, " ").trim()).redacted.slice(0, 240);
+}
+
+function searchMemory(query: string, limit: number = 5): MemoryResult[] {
   const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
   const primarySessionsDir = path.join(agentDir, "sessions");
   const fallbackSessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions");
   const sessionsDir = fs.existsSync(primarySessionsDir) ? primarySessionsDir : fallbackSessionsDir;
   if (!fs.existsSync(sessionsDir)) return [];
 
+  const tokens = searchTokens(query);
+  if (tokens.length === 0) return [];
+  const cappedLimit = Math.min(Math.max(limit || 5, 1), 10);
   const metaFiles = fs.readdirSync(sessionsDir)
     .filter(f => f.endsWith(".meta.json"))
     .sort()
-    .reverse();
+    .reverse()
+    .slice(0, 80);
 
-  const results: Array<{ sessionId: string; snippet: string; updated: string }> = [];
-  const queryLower = query.toLowerCase();
+  const results: MemoryResult[] = [];
 
   for (const metaFile of metaFiles) {
-    if (results.length >= limit) break;
     try {
       const metaPath = path.join(sessionsDir, metaFile);
       const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
       const sessionId = meta.id || metaFile.replace(".meta.json", "");
 
-      // Search summary field or read first few JSONL lines
       const summary = meta.summary || meta.name || "";
-      if (summary.toLowerCase().includes(queryLower)) {
+      const summaryScore = scoreText(summary, tokens);
+      if (summaryScore > 0) {
         results.push({
           sessionId,
-          snippet: summary.slice(0, 200),
+          snippet: safeMemorySnippet(summary),
           updated: meta.updated || meta.created || "",
+          source: "summary",
+          score: summaryScore,
         });
-        continue;
       }
 
-      // Try searching JSONL file
       const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
       if (fs.existsSync(jsonlPath)) {
-        const content = fs.readFileSync(jsonlPath, "utf8").slice(0, 10000); // First 10KB
-        if (content.toLowerCase().includes(queryLower)) {
+        const content = fs.readFileSync(jsonlPath, "utf8").slice(0, 40_000);
+        const jsonlScore = scoreText(content, tokens);
+        if (jsonlScore > 0) {
+          const line = content.split(/\r?\n/).find(x => scoreText(x, tokens) > 0) || summary || `Session ${sessionId.slice(0, 8)}...`;
           results.push({
             sessionId,
-            snippet: summary.slice(0, 200) || `Session ${sessionId.slice(0, 8)}...`,
+            snippet: safeMemorySnippet(line),
             updated: meta.updated || "",
+            source: "jsonl",
+            score: jsonlScore,
           });
         }
       }
@@ -258,7 +350,9 @@ function searchMemory(query: string, limit: number = 5): Array<{ sessionId: stri
     }
   }
 
-  return results;
+  return results
+    .sort((a, b) => b.score - a.score || String(b.updated).localeCompare(String(a.updated)))
+    .slice(0, cappedLimit);
 }
 
 
@@ -711,20 +805,22 @@ export default function (pi: ExtensionAPI) {
         };
       }
 
-      const { findings, redacted } = redactText(params.text);
+      const scan = redactText(params.text);
 
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
-            findings,
-            count: findings.length,
-            redacted_text: redacted,
+            findings: scan.findings,
+            count: scan.findings.length,
+            redacted_text: scan.redacted,
+            truncated: scan.truncated,
           }),
         }],
         details: {
-          secretCount: findings.length,
-          secretTypes: [...new Set(findings.map(f => f.type))],
+          secretCount: scan.findings.length,
+          secretTypes: [...new Set(scan.findings.map(f => f.type))],
+          truncated: scan.truncated,
         },
       };
     },
@@ -737,8 +833,8 @@ export default function (pi: ExtensionAPI) {
     description:
       "Analyze evidence text and classify the issue domain (e.g., security, performance, network, " +
       "CLI/SDK, replication, lifecycle/cost, mount/filesystem, migration, data consistency, " +
-      "event notification). Returns ranked domains with confidence scores and matched subdomains. " +
-      "Use this to quickly identify which diagnostic skill to activate.",
+      "event notification). Returns ranked domains with confidence scores, matched signals, " +
+      "recommended skill names, and the next evidence action.",
     parameters: Type.Object({
       text: Type.String({ description: "Evidence text to analyze (log output, error messages, user report)" }),
     }),
@@ -755,10 +851,15 @@ export default function (pi: ExtensionAPI) {
       return {
         content: [{
           type: "text",
-          text: JSON.stringify({ domains }),
+          text: JSON.stringify({
+            domains,
+            recommended_skill: domains[0]?.recommended_skill || null,
+            ambiguous: domains.length > 1 && Math.abs(domains[0].confidence - domains[1].confidence) < 0.1,
+          }),
         }],
         details: {
           topDomain: domains[0]?.domain || "unknown",
+          recommendedSkill: domains[0]?.recommended_skill || "unknown",
           topConfidence: domains[0]?.confidence || 0,
           domainCount: domains.length,
         },
@@ -772,8 +873,8 @@ export default function (pi: ExtensionAPI) {
     label: "Search Memory",
     description:
       "Search past StorageOps diagnostic sessions for similar issues. Returns matching session IDs, " +
-      "summaries, and timestamps. Use this to find prior diagnoses of similar problems, learn from " +
-      "past fixes, or provide continuity across sessions.",
+      "redacted snippets, timestamps, and match scores. Use this to find prior diagnoses without " +
+      "leaking credentials from old logs.",
     parameters: Type.Object({
       query: Type.String({ description: "Search query (error code, symptom, tool name, etc.)" }),
       limit: Type.Optional(Type.Number({ description: "Maximum results (default 5)", default: 5 })),

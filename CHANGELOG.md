@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-06-02 — v0.4.26: Inline tool hardening
+
+- **Secret scanning**: `scan_secrets` now redacts only the sensitive value when
+  possible, preserves surrounding context, returns line/column metadata, and
+  fingerprints only the secret value. Large inputs and outputs are bounded.
+- **Domain routing**: `detect_domain` now returns matched evidence signals,
+  `recommended_skill`, ambiguity status, and a compact next-action hint so the
+  agent can choose a skill without over-routing.
+- **Memory search**: `search_memory` now tokenizes queries, scores summary and
+  JSONL matches, caps scanned sessions, and redacts snippets before returning
+  prior-session context.
+
 ## 2026-06-02 — v0.4.25: Bundled httpmon helper
 
 - **No preinstalled httpmon required on Linux amd64**: release builds now
