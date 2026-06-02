@@ -32,13 +32,13 @@ manual upgrade command, avoiding both auto-upgrades and half-ready installs.
 ## 2. Install StorageOps
 
 ```bash
-python3 -m pip install storageops
+python3 -m pip install storageops -i https://pypi.org/simple
 storageops install
 ```
 
 > **Ubuntu / Debian:** If `pip install` fails with "externally-managed-environment",
-> use `python3 -m pip install storageops --break-system-packages` or activate a
-> virtualenv first.
+> use `python3 -m pip install storageops --break-system-packages -i https://pypi.org/simple`
+> on an isolated VM, or activate a virtualenv first.
 >
 > **Cloud or regional PyPI mirrors:** If your default mirror reports
 > "No matching distribution found for storageops", install from the official
@@ -114,11 +114,15 @@ storageops
 ## 5. Update
 
 ```bash
-python3 -m pip install --upgrade storageops
+python3 -m pip install --upgrade storageops -i https://pypi.org/simple
 storageops install --force
 ```
 
 Use `--merge --force` if you intentionally maintain a merged `~/.pi/` install.
+`storageops install --force` deploys the files bundled in the currently installed
+local package; it does not run `pip upgrade` for you. The installer prints the
+local package version and path, warns when PyPI has a newer version, and writes
+`~/.storageops/install.json` for troubleshooting.
 
 ## 6. Validate a Checkout
 
@@ -168,7 +172,7 @@ This sequence mirrors a clean Ubuntu/Debian cloud host:
 python3 --version
 node --version
 npm install -g @earendil-works/pi-coding-agent
-python3 -m pip install --upgrade storageops -i https://pypi.org/simple
+python3 -m pip install --upgrade storageops --break-system-packages -i https://pypi.org/simple
 storageops install --force
 echo sk-... > ~/.storageops/agent/api-key
 chmod 600 ~/.storageops/agent/api-key

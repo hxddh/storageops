@@ -24,7 +24,7 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
 npm install -g @earendil-works/pi-coding-agent
 
 # 2. Install StorageOps
-python3 -m pip install storageops
+python3 -m pip install storageops -i https://pypi.org/simple
 storageops install
 
 # 3. Configure a model key (pick one)
@@ -38,8 +38,8 @@ storageops --print 's5cmd sync reports 429 SlowDown; diagnose likely cause'
 
 > **Ubuntu / Debian:** If `pip install storageops` fails with
 > "externally-managed-environment", use
-> `python3 -m pip install storageops --break-system-packages` or create a
-> virtualenv first.
+> `python3 -m pip install storageops --break-system-packages -i https://pypi.org/simple`
+> on an isolated VM, or create a virtualenv first.
 >
 > **Cloud or regional PyPI mirrors:** If your default mirror reports
 > "No matching distribution found for storageops", install from the official
@@ -128,9 +128,14 @@ storageops
 Refresh an install after upgrade:
 
 ```bash
-python3 -m pip install --upgrade storageops
+python3 -m pip install --upgrade storageops -i https://pypi.org/simple
 storageops install --force
 ```
+
+`storageops install --force` redeploys files from the currently installed local
+package. During install, StorageOps prints the local package version and package
+path, warns if PyPI has a newer version, and records deployment provenance in
+`~/.storageops/install.json`.
 
 Run quality gates from a checkout:
 

@@ -22,8 +22,11 @@ import os
 import json
 import re
 import shutil
+import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from importlib import resources
+from importlib import metadata
 
 
 ROOT = Path.home() / ".storageops"
@@ -32,6 +35,7 @@ PI_DEFAULT = Path.home() / ".pi"
 PI_DEFAULT_AGENT = PI_DEFAULT / "agent"
 MIN_PI_VERSION = "0.78.0"
 REQUIRED_API_KEYS = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"]
+PYPI_JSON_URL = "https://pypi.org/pypi/storageops/json"
 
 # Pi settings.json content
 SETTINGS = {
@@ -213,6 +217,84 @@ def _package_data_dir() -> Path:
         "StorageOps data directory not found. "
         "Try: pip install --force-reinstall storageops"
     )
+
+
+def _package_version() -> str:
+    """Return the installed StorageOps package version."""
+    try:
+        return metadata.version("storageops")
+    except Exception:
+        return "unknown"
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    """Parse simple numeric versions for best-effort comparisons."""
+    match = re.match(r"^(\d+(?:\.\d+)*)", value)
+    if not match:
+        return ()
+    return tuple(int(part) for part in match.group(1).split("."))
+
+
+def _is_newer_version(candidate: str, current: str) -> bool:
+    """Return True when candidate is newer than current."""
+    cand = _version_tuple(candidate)
+    cur = _version_tuple(current)
+    return bool(cand and cur and cand > cur)
+
+
+def _latest_pypi_version(timeout: float = 2.0) -> str | None:
+    """Return latest PyPI version when reachable; never raise."""
+    if os.environ.get("STORAGEOPS_SKIP_VERSION_CHECK"):
+        return None
+    try:
+        req = urllib.request.Request(
+            PYPI_JSON_URL,
+            headers={
+                "Accept": "application/json",
+                "Cache-Control": "no-cache",
+                "User-Agent": f"storageops/{_package_version()}",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        version = payload.get("info", {}).get("version")
+        return version if isinstance(version, str) and version else None
+    except Exception:
+        return None
+
+
+def _print_package_status(data: Path, target_agent: Path) -> None:
+    """Print the exact local package that will provide deployed files."""
+    local_version = _package_version()
+    print(f"StorageOps package: v{local_version}")
+    print(f"Package path      : {data}")
+    print(f"Deploy target     : {_skills_dir_for_agent(target_agent)}")
+
+    latest = _latest_pypi_version()
+    if latest and _is_newer_version(latest, local_version):
+        print()
+        print(f"[warn] Latest StorageOps on PyPI is v{latest}, but local package is v{local_version}.")
+        print("       You are deploying bundled files from the old local package.")
+        print("       Upgrade first:")
+        print("       python3 -m pip install --upgrade storageops -i https://pypi.org/simple")
+    elif latest is None:
+        print("[info] Could not check latest PyPI version; continuing with local package.")
+
+
+def _write_install_marker(data: Path, target_agent: Path, merge: bool) -> None:
+    """Write lightweight install provenance for later troubleshooting."""
+    ROOT.mkdir(parents=True, exist_ok=True)
+    marker = {
+        "package_version": _package_version(),
+        "package_path": str(data),
+        "target_agent": str(target_agent),
+        "skills_path": str(_skills_dir_for_agent(target_agent)),
+        "install_mode": "merge" if merge else "independent",
+        "installed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    marker_path = ROOT / "install.json"
+    marker_path.write_text(json.dumps(marker, indent=2, ensure_ascii=False) + "\n")
+    print(f"  [ok] install marker -> {marker_path}")
 
 
 def _copy_extension(data: Path, dst_agent: Path) -> None:
@@ -418,8 +500,7 @@ def cmd_install(force: bool = False, merge: bool = False):
     # --- Step 2: deploy files ---
     data = _package_data_dir()
 
-    print(f"Source : {data}")
-    print(f"Target : {target_agent}")
+    _print_package_status(data, target_agent)
     print()
 
     if merge and target_agent == PI_DEFAULT_AGENT:
@@ -429,6 +510,7 @@ def cmd_install(force: bool = False, merge: bool = False):
 
     _copy_extension(data, target_agent)
     _copy_skills(data, target_agent)
+    _write_install_marker(data, target_agent, merge)
 
     # --- Step 3: post-install verification and guidance ---
     _final_check(target_agent, merge)
