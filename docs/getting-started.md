@@ -29,12 +29,21 @@ manual upgrade command, avoiding both auto-upgrades and half-ready installs.
 ## 2. Install StorageOps
 
 ```bash
-pip install storageops
+python3 -m pip install storageops
 storageops install
 ```
 
 > **Ubuntu / Debian:** If `pip install` fails with "externally-managed-environment",
-> use `pip install storageops --break-system-packages` or activate a virtualenv first.
+> use `python3 -m pip install storageops --break-system-packages` or activate a
+> virtualenv first.
+>
+> **Cloud or regional PyPI mirrors:** If your default mirror reports
+> "No matching distribution found for storageops", install from the official
+> PyPI index:
+>
+> ```bash
+> python3 -m pip install --upgrade storageops -i https://pypi.org/simple
+> ```
 
 The default install is independent and writes to `~/.storageops/`, leaving `~/.pi/` alone.
 `storageops install` automatically installs Pi Coding Agent via npm if it is not already present.
@@ -67,7 +76,19 @@ echo sk-... > ~/.storageops/agent/api-key
 chmod 600 ~/.storageops/agent/api-key
 ```
 
+StorageOps reads this local key file and exposes the key to Pi for the selected
+agent directory. You normally do not need to pass `--api-key` on each command.
+
 ## 4. Run a Diagnosis
+
+DeepSeek smoke test:
+
+```bash
+storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
+```
+
+`deepseek-v4-pro` and `deepseek-v4-flash` are known-good DeepSeek model choices
+with Pi 0.78.0.
 
 Single-shot:
 
@@ -90,7 +111,7 @@ storageops
 ## 5. Update
 
 ```bash
-pip install --upgrade storageops
+python3 -m pip install --upgrade storageops
 storageops install --force
 ```
 
@@ -121,4 +142,32 @@ If model calls fail, verify your provider key is visible in the same shell:
 
 ```bash
 env | grep -E 'DEEPSEEK|ANTHROPIC|OPENAI'
+```
+
+If you use the local key file instead of environment variables, check its path
+and permissions:
+
+```bash
+ls -l ~/.storageops/agent/api-key
+```
+
+If DeepSeek returns a model-name error, retry with a known-good model:
+
+```bash
+storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
+```
+
+## Cloud VM Minimal Check
+
+This sequence mirrors a clean Ubuntu/Debian cloud host:
+
+```bash
+python3 --version
+node --version
+npm install -g @earendil-works/pi-coding-agent
+python3 -m pip install --upgrade storageops -i https://pypi.org/simple
+storageops install --force
+echo sk-... > ~/.storageops/agent/api-key
+chmod 600 ~/.storageops/agent/api-key
+storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
 ```

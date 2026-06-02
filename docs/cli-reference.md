@@ -53,6 +53,7 @@ Examples:
 
 ```bash
 storageops
+storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
 storageops --print 'AccessDenied when reading bucket policy'
 storageops --print @debug.log 'diagnose this rclone transfer'
 storageops -c
@@ -79,6 +80,11 @@ StorageOps injects provider keys from:
 2. `{agent_dir}/auth.json`,
 3. `{agent_dir}/api-key`.
 
+The local `api-key` file is intended for the selected StorageOps/Pi agent
+directory, for example `~/.storageops/agent/api-key` in independent mode. When
+it is present, StorageOps exposes the key to Pi before launching the agent; users
+do not need to pass `--api-key` for normal commands.
+
 Supported environment variables include:
 
 ```text
@@ -92,3 +98,13 @@ CEREBRAS_API_KEY
 ```
 
 Object storage AK/SK credentials are not required for StorageOps diagnosis.
+
+DeepSeek examples:
+
+```bash
+storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
+storageops --provider deepseek --model deepseek-v4-flash --print 'hello'
+```
+
+If DeepSeek rejects a model name, retry with one of the known-good model ids
+above.
