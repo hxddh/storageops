@@ -40,7 +40,7 @@ StorageOps supports Pi `0.78.0` or newer. If an older Pi is already installed,
 Start with the normal PyPI install:
 
 ```bash
-python3 -m pip install --upgrade storageops
+python3 -m pip install --upgrade storageops -i https://pypi.org/simple
 ```
 
 On Ubuntu or Debian, system Python may reject global installs with
@@ -48,7 +48,7 @@ On Ubuntu or Debian, system Python may reject global installs with
 where system-wide install is intentional:
 
 ```bash
-python3 -m pip install --upgrade storageops --break-system-packages
+python3 -m pip install --upgrade storageops --break-system-packages -i https://pypi.org/simple
 ```
 
 Some cloud images use a regional PyPI mirror that may not have the latest
@@ -78,6 +78,12 @@ modify an existing `~/.pi/` setup.
 ```bash
 storageops install --force
 ```
+
+The install step deploys files from the local Python package. It prints the
+package version and package path before copying files, warns when PyPI has a
+newer StorageOps release, and writes `~/.storageops/install.json`. If `pip`
+failed or upgraded a different Python environment, this output makes the stale
+package visible before the skills are redeployed.
 
 Expected layout:
 

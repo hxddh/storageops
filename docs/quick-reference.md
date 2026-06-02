@@ -3,7 +3,7 @@
 ## Install
 
 ```bash
-python3 -m pip install storageops
+python3 -m pip install storageops -i https://pypi.org/simple
 storageops install
 ```
 
@@ -13,8 +13,11 @@ If a cloud or regional PyPI mirror cannot find the package:
 python3 -m pip install --upgrade storageops -i https://pypi.org/simple
 ```
 
-For Ubuntu/Debian `externally-managed-environment` errors, use a virtualenv or
-add `--break-system-packages`.
+For Ubuntu/Debian `externally-managed-environment` errors on an isolated VM:
+
+```bash
+python3 -m pip install storageops --break-system-packages -i https://pypi.org/simple
+```
 
 ## Model Key
 
@@ -37,9 +40,12 @@ storageops
 ## Update
 
 ```bash
-python3 -m pip install --upgrade storageops
+python3 -m pip install --upgrade storageops -i https://pypi.org/simple
 storageops install --force
 ```
+
+`storageops install --force` redeploys files from the local package. It prints
+the package version and path and writes `~/.storageops/install.json`.
 
 ## Skill Routing
 

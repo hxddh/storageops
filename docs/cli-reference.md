@@ -32,11 +32,16 @@ Merge mode writes:
 ```
 
 The installer backs up merged settings to `settings.json.storageops-backup`.
+Before copying files, it prints the local StorageOps package version, package
+path, and deploy target. It also makes a best-effort PyPI version check; when a
+newer release exists, the installer warns that `--force` would redeploy files
+from the older local package. Deployment provenance is written to
+`~/.storageops/install.json`.
 
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.19  (pi: 0.78.0)
+StorageOps v0.4.20  (pi: 0.78.0)
   独立安装: 是  (~/.storageops/agent)
   合并安装: 否  (~/.pi/agent)
 ```

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-02 — v0.4.20: Install version guardrails
+
+- **Install transparency**: `storageops install` now prints the local package
+  version, package path, and deploy target before copying files, so stale local
+  packages are visible during upgrades.
+- **Best-effort PyPI warning**: the installer warns when PyPI has a newer
+  StorageOps release but the local package is older, without blocking offline
+  or restricted environments.
+- **Deployment provenance**: installs now write `~/.storageops/install.json`
+  with package version, package path, target agent, skills path, mode, and time.
+- **Docs**: updated install and upgrade guidance to keep the main flow simple
+  while documenting Ubuntu/Debian `externally-managed-environment` handling.
+
 ## 2026-06-02 — v0.4.19: Reference scope guardrails
 
 - **BOS CMD correction**: fixed `bcecmd` configuration guidance to use the BOS
