@@ -102,3 +102,7 @@ make validate
 ## Release Notes
 
 Use patch versions for quality gates, docs, helper scripts, golden cases, and installer fixes. Reserve larger version changes for major architecture or packaging changes.
+
+Release automation is documented in `docs/release.md`. Published releases use a
+matching `v*` tag, and the GitHub workflow builds, validates, and publishes the
+checked artifacts to PyPI through Trusted Publisher.

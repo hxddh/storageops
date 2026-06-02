@@ -4,10 +4,17 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  verify-version:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -15,33 +22,55 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check tag matches pyproject.toml version
+      - name: Check version metadata
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          TAG_VER="${GITHUB_REF_NAME#v}"
           PKG_VER=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          if [ "$TAG_VER" != "$PKG_VER" ]; then
-            echo "ERROR: tag $TAG_VER does not match pyproject.toml version $PKG_VER"
-            exit 1
+          echo "Package version: $PKG_VER"
+          if [[ "${REF_TYPE}" == "tag" ]]; then
+            TAG_VER="${REF_NAME#v}"
+            if [[ "$TAG_VER" != "$PKG_VER" ]]; then
+              echo "ERROR: tag $TAG_VER does not match pyproject.toml version $PKG_VER"
+              exit 1
+            fi
+            echo "Tag version $TAG_VER matches pyproject.toml"
+          else
+            echo "Manual dry-run for package version $PKG_VER"
           fi
-          echo "Version $TAG_VER matches pyproject.toml"
+
+      - name: Build and validate distributions
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+          python -m build
+          python -m twine check dist/*
+
+      - name: Verify package assets
+        run: python scripts/package_check.py
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: storageops-dist
+          path: dist/*
+          if-no-files-found: error
 
   publish:
-    needs: verify-version
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: read
       id-token: write   # required for PyPI Trusted Publisher (OIDC, no token needed)
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Download distributions
+        uses: actions/download-artifact@v4
         with:
-          python-version: "3.12"
-
-      - name: Build distributions
-        run: |
-          pip install build
-          python -m build
+          name: storageops-dist
+          path: dist
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

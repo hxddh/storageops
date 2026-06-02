@@ -128,6 +128,7 @@ make validate
 - [CLI Reference](docs/cli-reference.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Quick Reference](docs/quick-reference.md)
+- [Release](docs/release.md)
 - [Tutorial](docs/tutorial.md)
 - [Skill Quality Guide](docs/skill-quality-guide.md)
 - [Skill Taxonomy](docs/skill-taxonomy.md)
