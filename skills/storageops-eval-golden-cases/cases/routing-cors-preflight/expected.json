@@ -6,6 +6,5 @@
   "must_include_evidence_keywords": ["CORS", "OPTIONS", "preflight"],
   "must_include_recommendation_keywords": ["Access-Control-Allow-Origin", "method", "origin"],
   "must_not_include": ["disable TLS", "make public", "delete bucket"],
-  "required_report_sections": ["Routing", "Evidence Gaps"],
-  "severity": "medium"
+  "required_report_sections": ["Routing", "Evidence Gaps"]
 }

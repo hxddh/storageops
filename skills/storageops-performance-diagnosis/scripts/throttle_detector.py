@@ -138,7 +138,10 @@ class ThrottleDetector:
         if self.all_ts:
             ratio = round(len(self.throttle_ts) / len(self.all_ts), 4)
         return {
-            "total_events": self.code_429 + self.code_503 + self.kw_hits,
+            # One throttle line is one event, even if it carries both a status
+            # code and a keyword (e.g. "503 SlowDown"); summing the breakdown
+            # counters would double-count such lines.
+            "total_events": len(self.events),
             "status_429": self.code_429,
             "status_503": self.code_503,
             "keyword_hits": self.kw_hits,

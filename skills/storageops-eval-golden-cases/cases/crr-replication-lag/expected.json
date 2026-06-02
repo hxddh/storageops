@@ -6,7 +6,6 @@
     "versioning_not_enabled_destination"
   ],
   "expected_min_confidence": 0.8,
-  "expected_severity": "high",
   "must_include_evidence_keywords": [
     "versioning",
     "destination",

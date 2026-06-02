@@ -12,7 +12,19 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_SKILLS = 16
+
+
+def _count_source_skills() -> int:
+    """Count canonical skill packs in the source tree (the single source of truth)."""
+    skills_dir = ROOT / "skills"
+    return sum(
+        1
+        for d in skills_dir.iterdir()
+        if d.is_dir() and d.name.startswith("storageops-") and (d / "SKILL.md").exists()
+    )
+
+
+EXPECTED_SKILLS = _count_source_skills()
 EXTENSION_PATH = "storageops_cli/extensions/storageops.ts"
 HTTPMON_VENDOR_PREFIX = "storageops_cli/_vendor/httpmon/"
 EXPECTED_HTTPMON_VENDOR_ASSETS = 1

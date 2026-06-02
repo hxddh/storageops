@@ -69,6 +69,12 @@ def validate_case(case: Path, category_to_skill: dict[str, str]) -> list[str]:
         if not isinstance(expected.get(key), list) or not expected.get(key):
             errors.append(f"{expected_path}: {key} must be a non-empty list")
 
+    # Optional, but when present it is consumed by eval_runner, so enforce shape.
+    if "expected_root_cause_types" in expected:
+        value = expected["expected_root_cause_types"]
+        if not isinstance(value, list) or not value or not all(isinstance(v, str) for v in value):
+            errors.append(f"{expected_path}: expected_root_cause_types must be a non-empty list of strings")
+
     if not input_dir.is_dir() or not any(input_dir.iterdir()):
         errors.append(f"{case}: input/ must contain at least one artifact")
     else:

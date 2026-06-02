@@ -30,6 +30,22 @@ def test_cloud_egress_requires_override_for_complete_cost():
     assert result["summary"]["pricing_warnings"]
 
 
+def test_zero_bandwidth_returns_error_not_crash():
+    estimator = load_estimator()
+    result = estimator.estimate(
+        {
+            "object_count": 1000,
+            "total_size_gb": 100,
+            "bandwidth_mbps": 0,
+            "source_provider": "aws_s3",
+            "dest_provider": "gcs",
+        }
+    )
+
+    assert result["ok"] is False
+    assert "bandwidth_mbps" in result["error"]
+
+
 def test_egress_override_makes_cost_complete():
     estimator = load_estimator()
     result = estimator.estimate(

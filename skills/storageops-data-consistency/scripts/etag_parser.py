@@ -82,7 +82,15 @@ def check_consistency(infos: List[Dict[str, Any]]) -> List[Dict[str, str]]:
 def load_input(file_path: Optional[str], use_stdin: bool) -> str:
     if use_stdin and not sys.stdin.isatty():
         return sys.stdin.read()
-    return open(file_path).read() if file_path else ""
+    if not file_path:
+        return ""
+    try:
+        with open(file_path, encoding="utf-8") as fh:
+            return fh.read()
+    except OSError as exc:
+        print(json.dumps({"ok": False, "summary": f"cannot read {file_path}: {exc}",
+                          "details": [], "findings": []}))
+        sys.exit(1)
 
 # ── Core ────────────────────────────────────────────────────────────────────
 def parse_etags(raw: str, metadata: Optional[Dict[str, str]] = None,
@@ -119,7 +127,12 @@ def main() -> None:
     if not raw:
         ap.print_help(); sys.exit(1)
 
-    meta = json.load(open(args.header)) if args.header else None
+    try:
+        meta = json.load(open(args.header)) if args.header else None
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"ok": False, "summary": f"cannot read header file {args.header}: {exc}",
+                          "details": [], "findings": []}))
+        sys.exit(1)
     result = parse_etags(raw, metadata=meta)
     print(json.dumps(result, indent=2 if args.pretty else None, ensure_ascii=False))
     sys.exit(0 if result["ok"] else 1)

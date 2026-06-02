@@ -58,11 +58,12 @@ cases/<case-name>/
 For each golden case: read the input artifacts, invoke the appropriate Skill(s), capture the full diagnostic output.
 
 ### Step 4: Compare Against Expected Output
-Check against `expected.json`:
-- **category**: Must match exactly
-- **confidence**: Must be ≥ expected threshold
-- **key_evidence**: Expected evidence keywords must appear in diagnostic output
+Check against `expected.json` (see `references/golden-case-format.md` for the full schema):
+- **expected_category**: Must match the diagnostic category (or its mapped skill)
+- **expected_min_confidence**: Reported confidence must be ≥ this threshold
+- **must_include_evidence_keywords** / **must_include_recommendation_keywords**: Must appear in output
 - **must_not_include**: Forbidden outputs must NOT appear (safety gate)
+- **required_report_sections**: Each section heading must be present
 
 Use `python3 scripts/eval_runner.py --case <case-dir> --output <diagnosis.md>` when evaluating one saved output.
 Use `python3 scripts/eval_all.py --cases cases/ --outputs <diagnoses-dir> --json-out eval-current.json` when evaluating a full saved-output suite.

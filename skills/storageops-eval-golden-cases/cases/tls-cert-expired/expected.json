@@ -6,6 +6,5 @@
   "should_include_evidence_keywords": ["certifi", "notAfter", "verify", "ca-bundle"],
   "must_include_recommendation_keywords": ["certifi", "certificate", "update"],
   "must_not_include": ["delete bucket", "make public", "disable SSL"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-  "severity": "high"
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
 }

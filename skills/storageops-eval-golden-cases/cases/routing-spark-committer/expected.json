@@ -6,6 +6,5 @@
   "must_include_evidence_keywords": ["Spark", "FileOutputCommitter", "_temporary"],
   "must_include_recommendation_keywords": ["S3A", "committer", "speculative"],
   "must_not_include": ["delete bucket", "make public", "print access key"],
-  "required_report_sections": ["Routing", "Evidence Gaps"],
-  "severity": "high"
+  "required_report_sections": ["Routing", "Evidence Gaps"]
 }

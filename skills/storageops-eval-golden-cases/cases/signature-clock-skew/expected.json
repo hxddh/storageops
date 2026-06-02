@@ -1,7 +1,6 @@
 {
   "expected_category": "s3_protocol_compatibility",
   "expected_subcategory": "sigv4",
-  "expected_severity": "medium",
   "expected_min_confidence": 0.75,
   "must_include_evidence_keywords": [
     "SignatureDoesNotMatch",

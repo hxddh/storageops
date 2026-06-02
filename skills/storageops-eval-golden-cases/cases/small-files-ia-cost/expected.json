@@ -1,7 +1,6 @@
 {
   "expected_category": "lifecycle_cost",
   "expected_subcategory": "small_object_cost",
-  "expected_severity": "medium",
   "expected_min_confidence": 0.80,
   "must_include_evidence_keywords": [
     "128 KB",

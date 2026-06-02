@@ -27,4 +27,6 @@ def test_status_codes_require_throttle_or_error_context():
 
     assert summary["status_503"] == 1
     assert summary["status_429"] == 1
-    assert summary["total_events"] == 3
+    # Two throttle lines: the "503 SlowDown" line carries both a status code and
+    # a keyword but is a single event (no double counting).
+    assert summary["total_events"] == 2

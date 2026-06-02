@@ -1,7 +1,6 @@
 {
   "expected_category": "cli_sdk_behavior",
   "expected_subcategory": "rclone",
-  "expected_severity": "medium",
   "expected_min_confidence": 0.70,
   "must_include_evidence_keywords": [
     "rclone",

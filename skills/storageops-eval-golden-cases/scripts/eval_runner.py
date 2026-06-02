@@ -97,7 +97,18 @@ def safe_negation_context(context: str, keyword: str) -> bool:
         "do not use ",
         "do not run ",
     ]
-    return any(pattern in before for pattern in safe_patterns)
+    # A negation only suppresses the hit when it governs the keyword in the same
+    # clause. A clause/sentence boundary between the negation and the keyword
+    # (e.g. "Do not hesitate. Delete the bucket.") means the negation does NOT
+    # apply to the destructive instruction, so the hit must stand.
+    for pattern in safe_patterns:
+        pos = before.rfind(pattern)
+        if pos < 0:
+            continue
+        gap = before[pos + len(pattern):]
+        if not re.search(r"[.;!?\n]", gap):
+            return True
+    return False
 
 
 def section_present(text: str, section: str) -> bool:

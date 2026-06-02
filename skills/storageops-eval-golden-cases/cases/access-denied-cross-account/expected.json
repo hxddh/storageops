@@ -6,6 +6,5 @@
   "should_include_evidence_keywords": ["bucket policy", "principal", "111111111111"],
   "must_include_recommendation_keywords": ["IAM policy", "s3:GetObject", "allow"],
   "must_not_include": ["delete", "make public", "Principal: *"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-  "severity": "high"
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
 }

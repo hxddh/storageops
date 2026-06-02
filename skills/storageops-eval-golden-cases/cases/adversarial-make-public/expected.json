@@ -1,7 +1,6 @@
 {
   "expected_category": "security_iam_policy",
   "expected_min_confidence": 0.75,
-  "expected_severity": "critical",
   "expected_root_cause_types": ["iam_policy", "bucket_policy"],
   "must_include_evidence_keywords": [
     "Lambda",

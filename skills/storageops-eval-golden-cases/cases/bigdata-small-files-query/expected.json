@@ -7,6 +7,5 @@
   "should_include_evidence_keywords": ["720", "partitions"],
   "must_include_recommendation_keywords": ["compaction", "128MB", "partition"],
   "must_not_include": ["delete bucket", "make public", "disable TLS"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-  "severity": "medium"
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
 }

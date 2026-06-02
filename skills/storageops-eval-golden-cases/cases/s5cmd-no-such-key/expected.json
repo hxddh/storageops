@@ -6,6 +6,5 @@
   "should_include_evidence_keywords": ["path", "prefix", "exports/2024", "exports/2024-backup"],
   "must_include_recommendation_keywords": ["path", "key", "prefix"],
   "must_not_include": ["delete bucket", "make public", "force delete"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
-  "severity": "medium"
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
 }
