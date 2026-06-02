@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-06-02 — v0.4.22: PyPI README tool metadata
+
+- **README metadata**: updated the package README to show all four Pi extension
+  tools, including `capture_http_trace`, so PyPI project metadata matches the
+  installed v0.4.21 tool surface.
+
 ## 2026-06-02 — v0.4.21: Bounded HTTP trace capture
 
 - **Agentic evidence capture**: added `capture_http_trace`, a narrow Pi tool
