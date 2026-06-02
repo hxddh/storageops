@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-06-02 — v0.4.17: Publish on main merge
+
+- **Main-merge publishing**: `publish.yml` now runs on every `main` push as well
+  as `v*` tags, so release PR merges can publish to PyPI automatically.
+- **Duplicate protection**: the workflow checks PyPI for the current
+  `pyproject.toml` version and skips publishing when that version already exists,
+  preventing same-version documentation or maintenance merges from failing.
+- **Docs**: updated release guidance to make version bump + PR merge the primary
+  release path, with tags retained as an optional compatibility trigger.
+
 ## 2026-06-02 — v0.4.16: PyPI release automation hardening
 
 - **Publish workflow**: split PyPI publishing into build/preflight and publish
