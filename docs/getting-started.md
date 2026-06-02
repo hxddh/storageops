@@ -5,17 +5,26 @@ This guide gets StorageOps installed and running with Pi Coding Agent.
 ## 1. Prerequisites
 
 - Python 3.11 or newer.
-- Pi Coding Agent available as `pi`.
-- Node.js supported by your Pi installation.
-- A model provider key for Pi, such as DeepSeek, Anthropic, or OpenAI.
+- Node.js 18 or newer (required by Pi Coding Agent).
+- A model provider key: DeepSeek, Anthropic, or OpenAI.
 
-Check Pi:
+Verify your environment:
 
 ```bash
+python3 --version   # need 3.11+
+node --version      # need 18+
+```
+
+Pi Coding Agent is installed automatically by `storageops install` if it is not
+already present. To install it manually:
+
+```bash
+npm install -g @earendil-works/pi-coding-agent
 pi --version
 ```
 
-StorageOps warns when Pi is older than `0.78.0`.
+StorageOps warns (but does not auto-upgrade) when Pi is older than `0.78.0`, to
+avoid disrupting existing Pi configurations.
 
 ## 2. Install StorageOps
 
@@ -24,7 +33,11 @@ pip install storageops
 storageops install
 ```
 
+> **Ubuntu / Debian:** If `pip install` fails with "externally-managed-environment",
+> use `pip install storageops --break-system-packages` or activate a virtualenv first.
+
 The default install is independent and writes to `~/.storageops/`, leaving `~/.pi/` alone.
+`storageops install` automatically installs Pi Coding Agent via npm if it is not already present.
 
 To merge into an existing Pi setup:
 
