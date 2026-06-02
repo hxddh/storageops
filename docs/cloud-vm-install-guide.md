@@ -92,6 +92,10 @@ newer StorageOps release, and writes `~/.storageops/install.json`. If `pip`
 failed or upgraded a different Python environment, this output makes the stale
 package visible before the skills are redeployed.
 
+It also prepares the optional HTTP trace helper used by `capture_http_trace`.
+When supported, StorageOps downloads a verified `httpmon` binary into
+`~/.storageops/bin/httpmon`; users do not need to install Go or edit `PATH`.
+
 For upgrades, read the first three install lines before trusting the `[ok]`
 summary:
 
@@ -115,6 +119,8 @@ Expected layout:
 │   ├── api-key
 │   ├── extensions/storageops.ts
 │   └── sessions/
+├── bin/
+│   └── httpmon
 └── skills/
 ```
 

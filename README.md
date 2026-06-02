@@ -54,6 +54,8 @@ storageops --print 's5cmd sync reports 429 SlowDown; diagnose likely cause'
 already present. It stops before deployment when an older Pi version is detected
 and prints the manual upgrade command, avoiding both auto-upgrades and half-ready
 StorageOps installs.
+It also prepares the managed `httpmon` helper for `capture_http_trace` under
+`~/.storageops/bin/` when a supported release binary is available.
 
 ## Configure a Model Key
 
