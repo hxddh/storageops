@@ -47,6 +47,19 @@ storageops install --force
 `storageops install --force` redeploys files from the local package. It prints
 the package version and path and writes `~/.storageops/install.json`.
 
+For Ubuntu/Debian cloud hosts, or immediately after a new release when pip cache
+or mirrors may lag:
+
+```bash
+python3 -m pip install --upgrade storageops --break-system-packages --no-cache-dir -i https://pypi.org/simple
+storageops install --force
+storageops --version
+```
+
+Trust the `StorageOps package: v...` line printed by `storageops install`; if it
+is still old, pip did not upgrade the package and the old bundled skills were
+redeployed.
+
 ## Skill Routing
 
 | Symptom | Primary skill |

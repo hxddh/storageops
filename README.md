@@ -137,6 +137,18 @@ package. During install, StorageOps prints the local package version and package
 path, warns if PyPI has a newer version, and records deployment provenance in
 `~/.storageops/install.json`.
 
+For Ubuntu/Debian cloud hosts, or right after a fresh release when pip cache may
+lag:
+
+```bash
+python3 -m pip install --upgrade storageops --break-system-packages --no-cache-dir -i https://pypi.org/simple
+storageops install --force
+storageops --version
+```
+
+If the installer still prints an old `StorageOps package: v...`, the Python
+package did not upgrade and old bundled skills were redeployed.
+
 Run quality gates from a checkout:
 
 ```bash

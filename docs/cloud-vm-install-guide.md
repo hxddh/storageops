@@ -70,6 +70,13 @@ Verify the install:
 storageops --version
 ```
 
+If a just-published release is not picked up immediately, bypass local pip
+cache while staying on the official PyPI index:
+
+```bash
+python3 -m pip install --upgrade storageops --break-system-packages --no-cache-dir -i https://pypi.org/simple
+```
+
 ## 3. Deploy StorageOps Files
 
 Use the default independent install. It writes to `~/.storageops/` and does not
@@ -84,6 +91,20 @@ package version and package path before copying files, warns when PyPI has a
 newer StorageOps release, and writes `~/.storageops/install.json`. If `pip`
 failed or upgraded a different Python environment, this output makes the stale
 package visible before the skills are redeployed.
+
+For upgrades, read the first three install lines before trusting the `[ok]`
+summary:
+
+```text
+StorageOps package: v0.4.20
+Package path      : /usr/local/lib/python3.12/dist-packages/storageops_cli
+Deploy target     : /root/.storageops/skills
+```
+
+`storageops install --force` does not upgrade the Python package. It only copies
+the files bundled with the package already installed at `Package path`. If that
+line still shows an older version, rerun the pip upgrade command first, then run
+`storageops install --force` again.
 
 Expected layout:
 
@@ -273,6 +294,43 @@ ps -eo pid,ppid,etime,cmd | grep -E '(storageops|pi)( |$)' | grep -v grep
 
 Exit the old terminal session or stop the old process, then launch StorageOps
 again from a fresh shell.
+
+### Upgrade Did Not Change The Skills
+
+This usually means the Python package did not actually upgrade, even though
+`storageops install --force` printed `[ok]`.
+
+Check the installed package and deployed marker:
+
+```bash
+storageops --version
+python3 - <<'PY'
+import json
+from pathlib import Path
+p = Path.home() / ".storageops/install.json"
+print(p.read_text() if p.exists() else "missing install marker")
+PY
+```
+
+On Ubuntu/Debian cloud hosts, use this repair sequence:
+
+```bash
+python3 -m pip install --upgrade storageops --break-system-packages --no-cache-dir -i https://pypi.org/simple
+storageops install --force
+storageops --version
+```
+
+Expected signs of success:
+
+```text
+Successfully installed storageops-<latest>
+StorageOps package: v<latest>
+[ok] install marker -> /root/.storageops/install.json
+```
+
+If the pip command fails with `externally-managed-environment`, the package was
+not upgraded. If `storageops install --force` then runs, it will redeploy the old
+bundled skills from the old package.
 
 ## Minimal Command Sequence
 
