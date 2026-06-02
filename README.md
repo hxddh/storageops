@@ -6,7 +6,7 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
 
 ## What You Get
 
-- 15 diagnostic skills covering security, protocol compatibility, CLI/SDK behavior, performance, network access, lifecycle cost, replication, mount/workspace usage, migration, data consistency, access logs, big-data pipelines, notifications, reporting, and triage, plus 1 eval skill pack.
+- 16 diagnostic skills covering security, protocol compatibility, CLI/SDK behavior, performance, network access, lifecycle cost, replication, mount/workspace usage, migration, data consistency, access logs, big-data pipelines, notifications, reporting, and triage, plus 1 eval skill pack.
 - 3 Pi extension tools:
   - `scan_secrets` redacts credentials and tokens.
   - `detect_domain` ranks likely diagnostic domains from evidence text.
@@ -16,13 +16,33 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
 
 ## Quick Start
 
+**Prerequisites:** Node.js 18+, Python 3.11+, and a model provider key.
+
 ```bash
+# 1. Install Pi Coding Agent (the runtime engine)
+#    storageops install does this automatically, but you can also install manually:
+npm install -g @earendil-works/pi-coding-agent
+
+# 2. Install StorageOps
 pip install storageops
 storageops install
+
+# 3. Configure a model key (pick one)
+export ANTHROPIC_API_KEY=sk-...
+export DEEPSEEK_API_KEY=sk-...
+export OPENAI_API_KEY=sk-...
+
+# 4. Run a diagnosis
 storageops --print 's5cmd sync reports 429 SlowDown; diagnose likely cause'
 ```
 
-StorageOps requires Pi Coding Agent and warns if the detected `pi` version is below `0.78.0`.
+> **Ubuntu / Debian:** If `pip install storageops` fails with
+> "externally-managed-environment", use
+> `pip install storageops --break-system-packages` or create a virtualenv first.
+
+`storageops install` automatically installs Pi Coding Agent via npm if it is not
+already present. It warns (but does not auto-upgrade) when an older Pi version is
+detected, to avoid disrupting existing Pi configurations.
 
 ## Configure a Model Key
 

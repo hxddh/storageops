@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-06-02 — v0.4.14: PyPI publishing, Pi auto-install, install verification
+
+- **PyPI publishing**: added `.github/workflows/publish.yml` with PyPI Trusted Publisher
+  (OIDC) so releases are published automatically on `v*` tags. A pre-publish job
+  verifies that the tag version matches `pyproject.toml` to prevent version drift.
+- **Pi auto-install**: `storageops install` now detects whether Pi Coding Agent is
+  present and installs it via `npm install -g @earendil-works/pi-coding-agent`
+  automatically when it is absent. If npm is not available the command exits with
+  a clear error and a link to nodejs.org. When Pi is present but below the minimum
+  version, the installer warns and prints the upgrade command rather than
+  auto-upgrading, to avoid disrupting existing Pi configurations.
+- **Install verification**: replaced the previous unconditional "installation complete"
+  message with a structured post-install summary that reports the status of each
+  component (StorageOps files, Pi Coding Agent, API key) and exits non-zero only
+  when the tool cannot run at all (Pi missing). A missing API key is reported as a
+  warning with configuration instructions, not a hard failure.
+- **No-emoji CLI output**: removed all emoji from CLI print statements in
+  `storageops_cli/__init__.py` for compatibility with terminals and log pipelines
+  that do not handle Unicode correctly.
+- **Docs**: updated README Quick Start with the explicit Pi install step, an
+  Ubuntu/Debian pip note, and the corrected skill count (16). Updated
+  `docs/getting-started.md` Prerequisites to list Node.js as a requirement and
+  document the auto-install behavior.
+- **Skill count**: corrected "15 diagnostic skills" to "16 diagnostic skills" in
+  README (the eval skill pack was always present in code but the prose was inconsistent).
+
 ## 2026-06-02 — v0.4.13: Eval matcher hardening
 
 - **Eval matcher**: added structured `Category`, `Route`, and `Confidence` field parsing before fallback text matching.

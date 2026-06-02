@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-StorageOps CLI — 一行安装，开箱即用。
+StorageOps CLI -- one-command install, ready to use.
 
-用法:
-    storageops install         一键安装（首次执行）
-    storageops install --merge 合并安装到已有 Pi 配置中
-    storageops [pi args]       启动 StorageOps 诊断
+Usage:
+    storageops install         first-time install
+    storageops install --merge merge into an existing Pi setup
+    storageops [pi args]       start a StorageOps diagnosis session
 
-安装后目录（独立模式）:
-    ~/.storageops/                        根目录
-    ├── agent/                            Pi 配置 (PI_CODING_AGENT_DIR)
-    │   ├── settings.json
-    │   ├── api-key                       可选：持久化 API key
-    │   └── extensions/storageops.ts
-    └── skills/                            16 个技能包
+Post-install layout (independent mode):
+    ~/.storageops/
+    |-- agent/                 Pi config dir (PI_CODING_AGENT_DIR)
+    |   |-- settings.json
+    |   |-- api-key            optional: persistent API key
+    |   `-- extensions/storageops.ts
+    `-- skills/                16 skill packs
 """
 
 import subprocess
@@ -33,7 +33,7 @@ PI_DEFAULT_AGENT = PI_DEFAULT / "agent"
 MIN_PI_VERSION = "0.78.0"
 REQUIRED_API_KEYS = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"]
 
-# Pi 配置（settings.json 内容）
+# Pi settings.json content
 SETTINGS = {
     "skills": ["../skills"],
     "enableSkillCommands": True,
@@ -41,7 +41,7 @@ SETTINGS = {
 SETTINGS_JSON = json.dumps(SETTINGS, indent=2)
 STORAGEOPS_KEYS = {"skills", "enableSkillCommands"}
 
-# auth.json 的 pi provider key → 环境变量映射
+# Pi auth.json provider key -> environment variable mapping
 PROVIDER_ENV = {
     "anthropic": "ANTHROPIC_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
@@ -54,7 +54,7 @@ PROVIDER_ENV = {
 
 
 def find_pi() -> str:
-    """定位 pi 二进制文件."""
+    """Locate the pi binary."""
     found = shutil.which("pi")
     if found:
         return found
@@ -69,13 +69,13 @@ def find_pi() -> str:
 
 
 def check_pi_version(exe: str) -> tuple[bool, str]:
-    """检查 pi 版本是否 ≥ MIN_PI_VERSION."""
+    """Return (meets_minimum, version_string) for the given pi binary."""
     try:
         r = subprocess.run([exe, "--version"], capture_output=True, text=True)
         raw = (r.stdout + r.stderr).strip()
         ver = raw.strip() if raw else "0.0.0"
     except Exception:
-        return False, "无法检测"
+        return False, "not found"
 
     def _parse(v: str) -> tuple[int, int, int]:
         match = re.search(r"(\d+)\.(\d+)\.(\d+)", v)
@@ -86,13 +86,62 @@ def check_pi_version(exe: str) -> tuple[bool, str]:
     return _parse(ver) >= _parse(MIN_PI_VERSION), ver
 
 
+def _ensure_pi() -> str:
+    """
+    Ensure Pi Coding Agent is available; return the pi executable path.
+
+    - pi present, version OK  : print confirmation, return path.
+    - pi present, version low : warn and print upgrade command, return path.
+      (No auto-upgrade: upgrading may break the user's existing Pi config.)
+    - pi not found            : attempt npm auto-install; exit with guidance
+      if npm is also absent.
+    """
+    pi_exe = find_pi()
+    ok, ver = check_pi_version(pi_exe)
+
+    if ok:
+        print(f"[ok] pi {ver} -> {pi_exe}")
+        return pi_exe
+
+    if ver != "not found":
+        # pi exists but version is too old; do not auto-upgrade
+        print(f"[warn] pi {ver} < {MIN_PI_VERSION} -- some features may not work.")
+        print(f"       To upgrade: npm update -g @earendil-works/pi-coding-agent")
+        print()
+        return pi_exe
+
+    # pi not found at all -- attempt auto-install via npm
+    npm = shutil.which("npm")
+    if not npm:
+        print("[error] Pi Coding Agent not found and npm is not available.")
+        print("        Install Node.js first: https://nodejs.org")
+        print("        Then re-run: storageops install")
+        sys.exit(1)
+
+    print("[info] Pi Coding Agent not found. Installing via npm...")
+    result = subprocess.run([npm, "install", "-g", "@earendil-works/pi-coding-agent"])
+    if result.returncode != 0:
+        print("[error] Pi Coding Agent installation failed.")
+        print("        Run manually: npm install -g @earendil-works/pi-coding-agent")
+        sys.exit(1)
+
+    # Re-locate after npm install (global bin dir is already in PATH)
+    pi_exe = shutil.which("pi") or find_pi()
+    ok, ver = check_pi_version(pi_exe)
+    if ok:
+        print(f"[ok] Pi Coding Agent {ver} installed -> {pi_exe}")
+    else:
+        print(f"[warn] Pi Coding Agent installed but version detection returned: {ver}")
+    return pi_exe
+
+
 def _skills_dir_for_agent(agent_dir: Path) -> Path:
     """Return the skills directory referenced by the default ../skills setting."""
     return agent_dir.parent / "skills"
 
 
 def is_installed(agent_dir: Path | None = None) -> bool:
-    """检查 StorageOps 是否已配置."""
+    """Return True if StorageOps files are deployed under agent_dir."""
     ad = agent_dir or AGENT_DIR
     return (
         (ad / "settings.json").exists()
@@ -102,18 +151,20 @@ def is_installed(agent_dir: Path | None = None) -> bool:
 
 
 def detect_existing_pi() -> bool:
-    """检测用户是否已有 Pi Coding Agent 配置."""
+    """Return True if the user already has a Pi Coding Agent config at ~/.pi/."""
     return (PI_DEFAULT_AGENT / "settings.json").exists()
 
 
 def detect_api_keys() -> list[str]:
-    """检测环境变量中已设置的 API key."""
+    """Return the names of model provider API keys already set in the environment."""
     return [k for k in REQUIRED_API_KEYS if os.environ.get(k)]
 
 
 def _inject_auth_env(agent_dir: Path) -> None:
-    """从 auth.json 注入环境变量（Pi 0.78.0 对 DeepSeek 不走 auth.json，
-    需要手动转成 env var）。也从 api-key 文件读取。"""
+    """
+    Inject API keys from Pi auth.json and the StorageOps api-key file into
+    the current environment so that the pi subprocess can authenticate.
+    """
     # 1. Pi auth.json
     auth_file = agent_dir / "auth.json"
     if auth_file.exists():
@@ -129,12 +180,11 @@ def _inject_auth_env(agent_dir: Path) -> None:
         except Exception:
             pass
 
-    # 2. StorageOps api-key 文件（纯文本 key）
+    # 2. StorageOps api-key file (plain-text key)
     key_file = agent_dir / "api-key"
     if key_file.exists():
         key = key_file.read_text().strip()
         if key:
-            # 猜 provider：优先 DEEPSEEK，其次 ANTHROPIC，最后 OPENAI
             for candidate in ["DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]:
                 if candidate not in os.environ:
                     os.environ[candidate] = key
@@ -142,7 +192,7 @@ def _inject_auth_env(agent_dir: Path) -> None:
 
 
 def _package_data_dir() -> Path:
-    """定位包内数据目录（skills + extensions）."""
+    """Locate the installed package data directory (skills + extensions)."""
     try:
         ref = resources.files("storageops_cli")
         if isinstance(ref, Path):
@@ -158,24 +208,25 @@ def _package_data_dir() -> Path:
     if (this_dir / "skills").is_dir():
         return this_dir
     raise FileNotFoundError(
-        "找不到 StorageOps 数据目录。请 pip install --force-reinstall storageops"
+        "StorageOps data directory not found. "
+        "Try: pip install --force-reinstall storageops"
     )
 
 
 def _copy_extension(data: Path, dst_agent: Path) -> None:
-    """复制 extension 到目标 agent 目录."""
+    """Copy the StorageOps Pi extension to the target agent directory."""
     ext_src = data / "extensions" / "storageops.ts"
     ext_dst = dst_agent / "extensions" / "storageops.ts"
     ext_dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ext_src, ext_dst)
-    print(f"  ✅ storageops.ts  → {ext_dst}")
+    print(f"  [ok] storageops.ts  -> {ext_dst}")
 
 
 def _copy_skills(data: Path, dst_agent: Path) -> None:
-    """复制 skills 到 settings.json 中 ../skills 对应的目录."""
+    """Copy StorageOps skill packs to the directory referenced by ../skills."""
     skills_src = data / "skills"
     if not skills_src.is_dir():
-        print(f"  ⚠️  技能目录未找到: {skills_src}")
+        print(f"  [warn] skill directory not found: {skills_src}")
         return
 
     skills_dst = _skills_dir_for_agent(dst_agent)
@@ -190,18 +241,18 @@ def _copy_skills(data: Path, dst_agent: Path) -> None:
         1 for d in skills_dst.iterdir()
         if d.is_dir() and d.name.startswith("storageops-")
     )
-    print(f"  ✅ skills ({count}个) → {skills_dst}")
+    print(f"  [ok] skills ({count}) -> {skills_dst}")
 
 
 def _merge_settings(dst_agent: Path, settings: dict) -> None:
-    """合并 StorageOps 配置到已有 settings.json，自动备份."""
+    """Merge StorageOps keys into an existing settings.json, backing up first."""
     dst = dst_agent / "settings.json"
     dst.parent.mkdir(parents=True, exist_ok=True)
 
     if dst.exists():
         backup = dst_agent / "settings.json.storageops-backup"
         shutil.copy2(dst, backup)
-        print(f"  💾 已备份原配置 → {backup}")
+        print(f"  [info] backed up existing config -> {backup}")
         try:
             existing = json.loads(dst.read_text())
         except Exception:
@@ -219,7 +270,7 @@ def _merge_settings(dst_agent: Path, settings: dict) -> None:
             merged[key] = settings[key]
 
     dst.write_text(json.dumps(merged, indent=2, ensure_ascii=False) + "\n")
-    print(f"  ✅ settings.json  → {dst} (合并完成)")
+    print(f"  [ok] settings.json  -> {dst} (merged)")
 
 
 def _merge_skill_paths(existing: object, required: object) -> list[str]:
@@ -235,124 +286,123 @@ def _merge_skill_paths(existing: object, required: object) -> list[str]:
 
 
 def _write_settings(dst_agent: Path, settings: dict) -> None:
-    """写入全新 settings.json."""
+    """Write a fresh settings.json."""
     dst = dst_agent / "settings.json"
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(json.dumps(settings, indent=2) + "\n")
-    print(f"  ✅ settings.json  → {dst}")
+    print(f"  [ok] settings.json  -> {dst}")
 
 
-def _print_api_key_hint(keys: list[str]) -> None:
+def _final_check(agent_dir: Path, merge: bool) -> None:
+    """
+    Verify each component after install and print a clear status summary.
+    Exit non-zero only when the tool cannot run at all (pi missing).
+    A missing API key is a warning, not a hard failure -- it can be added later.
+    """
+    print()
+    print("--- install summary ---")
+
+    # StorageOps files
+    if is_installed(agent_dir):
+        print("[ok] StorageOps files    skills + extension deployed")
+    else:
+        print("[error] StorageOps files    deployment incomplete")
+        print("        Re-run: storageops install --force")
+        sys.exit(1)
+
+    # Pi Coding Agent
+    pi_exe = find_pi()
+    ok, ver = check_pi_version(pi_exe)
+    if ok:
+        print(f"[ok] Pi Coding Agent     {ver}")
+    else:
+        print(f"[error] Pi Coding Agent     not ready ({ver})")
+        print(f"        Run: npm install -g @earendil-works/pi-coding-agent")
+        print()
+        print("StorageOps files are in place. Install Pi Coding Agent to start diagnosing.")
+        sys.exit(1)
+
+    # API key
+    keys = detect_api_keys()
     if keys:
-        print(f"  ✅ 检测到 API key: {', '.join(keys)}")
+        print(f"[ok] API key             detected ({keys[0]})")
+        print()
+        print("StorageOps is ready. Start a diagnosis:")
+        print()
+        print("  storageops --print 's5cmd sync reports 429 SlowDown; diagnose'")
+        print("  storageops           # interactive mode")
     else:
-        print("  💡 未检测到 API key，请配置后使用:")
-        print("       export ANTHROPIC_API_KEY=sk-xxx")
-        print("       或运行时传入 --api-key sk-xxx")
-
-
-def _print_install_help(keys: list[str], merge: bool, agent_dir: Path) -> None:
-    """安装完成后的引导."""
-    print()
-    print("🎉 StorageOps 安装完成！")
-    print()
-    if not keys:
-        print("━━━ ⚠️  还差一步：配置 API key ━━━")
+        print("[warn] API key           not configured")
         print()
-        print("  StorageOps 需要 AI 模型的 API key 才能工作。")
+        print("Set a model provider key before running a diagnosis (pick one):")
         print()
-        print("  任选一种方式:")
+        print("  export ANTHROPIC_API_KEY=sk-...   # Claude")
+        print("  export DEEPSEEK_API_KEY=sk-...    # DeepSeek")
+        print("  export OPENAI_API_KEY=sk-...      # OpenAI")
         print()
-        print("    方式A (推荐)  设置环境变量，一劳永逸:")
-        print("      export ANTHROPIC_API_KEY=sk-xxx   # Claude")
-        print("      或 export DEEPSEEK_API_KEY=sk-xxx  # DeepSeek")
-        print("      或 export OPENAI_API_KEY=sk-xxx    # OpenAI")
+        print(f"  echo sk-... > {agent_dir / 'api-key'}")
+        print(f"  chmod 600 {agent_dir / 'api-key'}")
         print()
-        print("    方式B  写入本地文件 (不受 shell 影响):")
-        print(f"      echo sk-xxx > {agent_dir / 'api-key'}")
-        print()
-        print("    方式C  每次诊断时传入:")
-        print("      storageops --print --provider deepseek --api-key sk-xxx '...'")
-        print()
-        print("    方式D  启动后登录 (Pi 原生):")
-        print("      storageops  → 进入 TUI → /login")
-        print()
-        print("  获取 key: https://console.anthropic.com")
-        print("        或: https://platform.deepseek.com")
-        print()
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    else:
-        print(f"  检测到 API key ({', '.join(keys)})，可以直接使用:")
-        print()
-        print("  storageops --print 's5cmd 报 429，帮我诊断'")
-        print()
-        print("  或进入交互模式: storageops")
+        print("  Get a key: https://console.anthropic.com")
+        print("         or: https://platform.deepseek.com")
     print()
     if merge:
-        print("💡 你已选择合并安装。原 Pi 配置已备份，使用 pi 命令即可调用 StorageOps。")
+        print("Merge install: original Pi config backed up; use the pi command to call StorageOps.")
     else:
-        print("💡 使用 storageops 命令即可启动诊断。你的原 Pi 配置 (~/.pi/) 未受影响。")
+        print("Independent install: your existing Pi config (~/.pi/) was not modified.")
 
 
 def cmd_install(force: bool = False, merge: bool = False):
-    """一键安装 StorageOps."""
-    target_agent = AGENT_DIR  # 独立模式默认
+    """Install StorageOps."""
+    target_agent = AGENT_DIR  # default: independent mode
 
-    # --- Step 0: 版本检查 ---
-    pi_exe = find_pi()
-    ok, ver = check_pi_version(pi_exe)
-    if not ok:
-        print(f"⚠️  pi 版本 {ver} < {MIN_PI_VERSION}，可能不支持 Extension API。")
-        print(f"   建议升级: npm update -g @earendil-works/pi-coding-agent")
-        print()
-    else:
-        print(f"✅ pi ({ver}) → {pi_exe}")
+    # --- Step 0: ensure Pi Coding Agent is present (auto-install if absent) ---
+    _ensure_pi()
 
-    # --- Step 1: 检测已有 pi 配置 ---
+    # --- Step 1: detect existing Pi config ---
     has_existing = detect_existing_pi()
 
     if merge:
         if not has_existing:
-            print("⚠️  未检测到已有 Pi 配置 (~/.pi/agent/settings.json)，使用独立安装。")
+            print("[warn] No existing Pi config found (~/.pi/agent/settings.json). Using independent install.")
             print()
             merge = False
         else:
             target_agent = PI_DEFAULT_AGENT
             if is_installed(target_agent) and not force:
-                print("StorageOps 已合并安装到现有 Pi 配置中。")
-                print(f"  配置目录: {target_agent}")
-                print(f"  如需重装: storageops install --merge --force")
+                print("StorageOps is already merged into your Pi config.")
+                print(f"  Config dir: {target_agent}")
+                print(f"  To reinstall: storageops install --merge --force")
                 return
 
     elif has_existing:
         if is_installed() and not force:
-            print("StorageOps 已安装，无需重复执行。")
-            print(f"  配置目录: {AGENT_DIR}")
-            print(f"  如需重装: storageops install --force")
+            print("StorageOps is already installed.")
+            print(f"  Config dir: {AGENT_DIR}")
+            print(f"  To reinstall: storageops install --force")
             return
 
         if force:
-            # --force 时自动延续当前模式，不询问
             if is_installed(PI_DEFAULT_AGENT):
                 target_agent = PI_DEFAULT_AGENT
                 merge = True
         else:
             print()
-            print("━" * 60)
-            print("检测到你已经在使用 Pi Coding Agent (~/.pi/)。")
+            print("-" * 60)
+            print("An existing Pi Coding Agent config was detected (~/.pi/).")
             print()
-            print("StorageOps 支持两种安装模式:")
+            print("StorageOps supports two install modes:")
             print()
-            print("  1. 独立安装 (推荐) — 安装到 ~/.storageops/")
-            print("     不影响你已有的 Pi 配置，两个环境互不干扰。")
+            print("  1. Independent (recommended) -- installs to ~/.storageops/")
+            print("     Your existing Pi config is untouched.")
             print()
-            print("  2. 合并安装 — 安装到 ~/.pi/")
-            print("     将 StorageOps 的 skills 和 extension 融入你现有的 Pi。")
-            print("     你的 settings.json 会被自动备份。")
-            print("━" * 60)
+            print("  2. Merge -- installs into ~/.pi/")
+            print("     StorageOps skills and extension are added to your Pi.")
+            print("     settings.json is backed up automatically.")
+            print("-" * 60)
             print()
             try:
-                choice = input("选择安装模式 [回车=独立安装 / m=合并安装]: ").strip().lower()
+                choice = input("Install mode [Enter = independent / m = merge]: ").strip().lower()
             except (EOFError, KeyboardInterrupt):
                 choice = ""
             print()
@@ -360,34 +410,30 @@ def cmd_install(force: bool = False, merge: bool = False):
                 target_agent = PI_DEFAULT_AGENT
                 merge = True
                 if is_installed(target_agent) and not force:
-                    print("StorageOps 已合并安装，无需重复。")
-                    print("  如需重装: storageops install --merge --force")
+                    print("StorageOps is already merged. To reinstall: storageops install --merge --force")
                     return
 
-    # --- Step 2: 安装 ---
+    # --- Step 2: deploy files ---
     data = _package_data_dir()
-    api_keys = detect_api_keys()
 
-    print(f"📦 安装数据源: {data}")
-    print(f"🏠 配置目录:   {target_agent}")
+    print(f"Source : {data}")
+    print(f"Target : {target_agent}")
     print()
 
-    # settings.json
     if merge and target_agent == PI_DEFAULT_AGENT:
         _merge_settings(target_agent, SETTINGS)
     else:
         _write_settings(target_agent, SETTINGS)
 
-    # extension + skills
     _copy_extension(data, target_agent)
     _copy_skills(data, target_agent)
 
-    _print_api_key_hint(api_keys)
-    _print_install_help(api_keys, merge, target_agent)
+    # --- Step 3: post-install verification and guidance ---
+    _final_check(target_agent, merge)
 
 
 def cmd_version():
-    """显示版本号."""
+    """Print version and install status."""
     try:
         from importlib.metadata import version
         v = version("storageops")
@@ -397,34 +443,34 @@ def cmd_version():
     independent = is_installed(AGENT_DIR)
     merged = is_installed(PI_DEFAULT_AGENT)
     print(f"StorageOps v{v}  (pi: {ver})")
-    print(f"  独立安装: {'是' if independent else '否'}  ({AGENT_DIR})")
-    print(f"  合并安装: {'是' if merged else '否'}  ({PI_DEFAULT_AGENT})")
+    print(f"  independent install : {'yes' if independent else 'no'}  ({AGENT_DIR})")
+    print(f"  merged install      : {'yes' if merged else 'no'}  ({PI_DEFAULT_AGENT})")
 
 
 def cmd_help():
-    """显示帮助."""
-    print("🧰 StorageOps — S3 兼容对象存储 AI 诊断工具")
+    """Print usage help."""
+    print("StorageOps -- AI-powered S3-compatible object storage diagnostics")
     print()
-    print("  安装只需两步:")
+    print("  Install:")
     print("    pip install storageops")
     print("    storageops install")
     print()
-    print("  然后开始诊断:")
-    print("    storageops 's5cmd 报 429 SlowDown 错误'")
+    print("  Run a diagnosis:")
+    print("    storageops 's5cmd reports 429 SlowDown error'")
     print()
-    print("  安装相关:")
-    print("    storageops install                 独立安装（默认）")
-    print("    storageops install --merge         合并到已有 Pi 配置")
-    print("    storageops install --force         强制重装")
+    print("  Install options:")
+    print("    storageops install                 independent install (default)")
+    print("    storageops install --merge         merge into existing Pi config")
+    print("    storageops install --force         force reinstall")
     print()
-    print("  其他命令:")
-    print("    storageops --version               版本与安装状态")
+    print("  Other:")
+    print("    storageops --version               version and install status")
     print()
-    print("  配置 API key (四选一):")
-    print("    export ANTHROPIC_API_KEY=sk-xxx     # 环境变量")
-    print(f"    echo sk-xxx > {AGENT_DIR / 'api-key'}  # 本地文件")
-    print("    storageops --api-key sk-xxx ...     # 命令行传入")
-    print("    pi /login                           # Pi 内登录")
+    print("  Configure an API key (pick one):")
+    print("    export ANTHROPIC_API_KEY=sk-...     environment variable")
+    print(f"    echo sk-... > {AGENT_DIR / 'api-key'}  local file")
+    print("    storageops --api-key sk-... ...     pass at runtime")
+    print("    pi /login                           login inside Pi TUI")
 
 
 def main():
@@ -444,35 +490,27 @@ def main():
         cmd_help()
         return
 
-    # 检查已安装
+    # Check installed
     installed_independent = is_installed(AGENT_DIR)
     installed_merged = is_installed(PI_DEFAULT_AGENT)
 
     if not (installed_independent or installed_merged):
-        print("⚠️  StorageOps 尚未安装。")
+        print("[error] StorageOps is not installed.")
         print()
-        print("  请先运行: storageops install")
+        print("  Run: storageops install")
         sys.exit(1)
 
-    # 选 agent 目录
-    if installed_independent:
-        agent_dir = AGENT_DIR
-    else:
-        agent_dir = PI_DEFAULT_AGENT
+    agent_dir = AGENT_DIR if installed_independent else PI_DEFAULT_AGENT
 
     pi = find_pi()
 
-    # 注入 API key（shell 无关）
+    # Inject API key from file/auth.json so it survives shell changes
     _inject_auth_env(agent_dir)
 
-    # 轻量提示
-    if len(args) == 0:
-        if not detect_api_keys():
-            print("💡 未设置 API key（支持 ANTHROPIC / DEEPSEEK / OPENAI）。")
-            print("   进入 TUI 后运行 /login，或 export ANTHROPIC_API_KEY=sk-xxx")
-            print(f"   或写入 {agent_dir / 'api-key'}")
+    if len(args) == 0 and not detect_api_keys():
+        print("[info] No API key set (ANTHROPIC / DEEPSEEK / OPENAI).")
+        print(f"       Run /login inside Pi, or: export ANTHROPIC_API_KEY=sk-...")
+        print(f"       Or write to: {agent_dir / 'api-key'}")
 
-    # 设置 Pi 配置目录
     os.environ["PI_CODING_AGENT_DIR"] = str(agent_dir)
-
     os.execvp(pi, [pi] + args)
