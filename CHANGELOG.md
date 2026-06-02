@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-06-02 — v0.4.24: Bounded httpmon download
+
+- **Install robustness**: automatic httpmon helper downloads now use a bounded
+  `curl --max-time 20` path when curl is available, falling back to a short
+  urllib timeout otherwise. Slow GitHub release downloads warn and continue
+  instead of hanging `storageops install`.
+
 ## 2026-06-02 — v0.4.23: Managed httpmon bootstrap
 
 - **Managed helper install**: `storageops install` now prepares a verified

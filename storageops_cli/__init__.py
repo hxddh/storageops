@@ -141,15 +141,39 @@ def _ensure_httpmon() -> str | None:
 
     print(f"[info] httpmon not found. Installing {HTTPMON_VERSION}...")
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": f"storageops/{_package_version()}"})
-        with urllib.request.urlopen(req, timeout=30) as response:
-            data = response.read()
+        curl = shutil.which("curl")
+        if curl:
+            result = subprocess.run(
+                [
+                    curl,
+                    "--fail",
+                    "--location",
+                    "--silent",
+                    "--show-error",
+                    "--max-time",
+                    "20",
+                    "--output",
+                    str(tmp),
+                    url,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError((result.stderr or result.stdout or "curl download failed").strip())
+            data = tmp.read_bytes()
+        else:
+            req = urllib.request.Request(url, headers={"User-Agent": f"storageops/{_package_version()}"})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = response.read()
+            tmp.write_bytes(data)
         actual_sha = hashlib.sha256(data).hexdigest()
         if actual_sha != expected_sha:
             print("[warn] httpmon helper     download checksum mismatch")
             print("       capture_http_trace will be unavailable; no helper was installed.")
+            if tmp.exists():
+                tmp.unlink()
             return None
-        tmp.write_bytes(data)
         tmp.chmod(0o755)
         tmp.replace(target)
         print(f"[ok] httpmon {HTTPMON_VERSION} -> {target}")
