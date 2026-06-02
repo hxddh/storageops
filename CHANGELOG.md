@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-02 — v0.4.16: PyPI release automation hardening
+
+- **Publish workflow**: split PyPI publishing into build/preflight and publish
+  jobs so the exact checked artifacts are uploaded on every matching `v*` tag.
+- **Release validation**: added `twine check`, package asset verification, artifact
+  upload/download, concurrency control, and explicit read/OIDC permissions.
+- **Preflight**: added manual `workflow_dispatch` validation for release plumbing
+  changes without publishing to PyPI.
+- **Docs**: added a release guide documenting the one-time PyPI Trusted Publisher
+  setup and the tag-based release flow.
+
 ## 2026-06-02 — v0.4.15: Low-version Pi install guard
 
 - **Install guard**: `storageops install` now stops before deploying files when an
