@@ -2,6 +2,9 @@
 
 This guide gets StorageOps installed and running with Pi Coding Agent.
 
+For a step-by-step Linux cloud VM walkthrough with DeepSeek setup and common
+401/403 fixes, see [Cloud VM Install Guide](cloud-vm-install-guide.md).
+
 ## 1. Prerequisites
 
 - Python 3.11 or newer.

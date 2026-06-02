@@ -144,6 +144,7 @@ make validate
 ## Documentation Map
 
 - [Getting Started](docs/getting-started.md)
+- [Cloud VM Install Guide](docs/cloud-vm-install-guide.md)
 - [CLI Reference](docs/cli-reference.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Quick Reference](docs/quick-reference.md)
