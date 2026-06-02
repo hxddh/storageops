@@ -55,6 +55,8 @@ skills/storageops-eval-golden-cases/baseline-outputs/<case>.md
 
 Keep them short and structural. They are quality sentinels for route, evidence,
 confidence, recommendations, and safety boundaries, not long model answers.
+Include simple `Category:`, `Route:`, and `Confidence:` fields so deterministic
+eval can read intent without relying on prose style.
 
 ### Change the Extension
 

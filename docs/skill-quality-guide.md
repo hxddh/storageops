@@ -107,8 +107,9 @@ python3 skills/storageops-eval-golden-cases/scripts/regression_reporter.py \
   --current eval-current.json
 ```
 
-Baseline outputs should be compact and synthetic. Prefer route, confidence,
-evidence, recommendations, and safety sections over full narrative reports.
+Baseline outputs should be compact and synthetic. Prefer structured `Category:`,
+`Route:`, `Confidence:`, evidence, recommendations, and safety sections over
+full narrative reports.
 
 ## Maturity
 

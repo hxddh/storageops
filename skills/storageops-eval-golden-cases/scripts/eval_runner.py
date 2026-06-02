@@ -25,8 +25,79 @@ def load_taxonomy() -> dict[str, str]:
 
 
 def contains_all(text: str, keywords: list[str]) -> list[str]:
-    lower = text.lower()
-    return [kw for kw in keywords if kw.lower() not in lower]
+    return [kw for kw in keywords if not keyword_present(text, kw)]
+
+
+def parse_fields(text: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for line in text.splitlines():
+        match = re.match(r"^\s*([A-Za-z][A-Za-z _-]{0,40})\s*:\s*(.+?)\s*$", line)
+        if match:
+            key = match.group(1).strip().lower().replace(" ", "_").replace("-", "_")
+            fields[key] = match.group(2).strip()
+    return fields
+
+
+def has_cjk(value: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in value)
+
+
+def keyword_present(text: str, keyword: str) -> bool:
+    if not keyword:
+        return True
+    if has_cjk(keyword):
+        return keyword.lower() in text.lower()
+    escaped = re.escape(keyword)
+    if re.fullmatch(r"[A-Za-z0-9_]+", keyword):
+        pattern = rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])"
+    else:
+        pattern = escaped
+    return re.search(pattern, text, re.I) is not None
+
+
+def forbidden_hits(text: str, keywords: list[str]) -> list[dict[str, str]]:
+    hits: list[dict[str, str]] = []
+    for keyword in keywords:
+        for match in keyword_matches(text, keyword):
+            context = text[max(0, match.start() - 48): match.end() + 48]
+            if safe_negation_context(context, keyword):
+                continue
+            hits.append({"keyword": keyword, "context": " ".join(context.split())})
+    return hits
+
+
+def keyword_matches(text: str, keyword: str) -> list[re.Match[str]]:
+    if not keyword:
+        return []
+    escaped = re.escape(keyword)
+    if has_cjk(keyword):
+        pattern = escaped
+    elif re.fullmatch(r"[A-Za-z0-9_]+", keyword):
+        pattern = rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])"
+    else:
+        pattern = escaped
+    return list(re.finditer(pattern, text, re.I))
+
+
+def safe_negation_context(context: str, keyword: str) -> bool:
+    lower = context.lower()
+    keyword_lower = keyword.lower()
+    index = lower.find(keyword_lower)
+    if index < 0:
+        return False
+    before = lower[max(0, index - 32):index]
+    safe_patterns = [
+        "do not ",
+        "don't ",
+        "avoid ",
+        "never ",
+        "must not ",
+        "should not ",
+        "not recommend ",
+        "do not use ",
+        "do not run ",
+    ]
+    return any(pattern in before for pattern in safe_patterns)
 
 
 def section_present(text: str, section: str) -> bool:
@@ -49,19 +120,32 @@ def extract_confidence(text: str) -> float | None:
     return None
 
 
+def category_or_route_present(text: str, category: str | None, mapped_skill: str) -> bool:
+    if not category:
+        return True
+    fields = parse_fields(text)
+    category_field = fields.get("category", "")
+    route_field = fields.get("route", "")
+    if category_field:
+        normalized = category_field.lower()
+        return normalized in {category.lower(), mapped_skill.lower()}
+    if route_field and mapped_skill:
+        return mapped_skill.lower() in route_field.lower()
+    lower = text.lower()
+    return category.lower() in lower or (bool(mapped_skill) and mapped_skill.lower() in lower)
+
+
 def evaluate(case: Path, output: Path) -> dict:
     expected = json.loads((case / "expected.json").read_text(encoding="utf-8"))
     category_to_skill = load_taxonomy()
     text = output.read_text(encoding="utf-8", errors="ignore")
-    lower = text.lower()
 
     failures = []
     warnings = []
 
     category = expected.get("expected_category")
     mapped_skill = category_to_skill.get(category, "")
-    mapped_skill_found = bool(mapped_skill) and mapped_skill.lower() in lower
-    if category and category.lower() not in lower and not mapped_skill_found:
+    if not category_or_route_present(text, category, mapped_skill):
         failures.append(f"expected_category or mapped skill not found: {category} -> {mapped_skill}")
 
     expected_confidence = expected.get("expected_min_confidence")
@@ -77,7 +161,7 @@ def evaluate(case: Path, output: Path) -> dict:
         if missing:
             failures.append(f"missing {key}: {missing}")
 
-    forbidden = [kw for kw in expected.get("must_not_include", []) if kw.lower() in lower]
+    forbidden = forbidden_hits(text, expected.get("must_not_include", []))
     if forbidden:
         failures.append(f"forbidden output present: {forbidden}")
 
