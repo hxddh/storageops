@@ -2,6 +2,26 @@
 
 bcecmd is the official CLI tool for Baidu Object Storage (BOS).
 
+## Scope
+
+This reference applies to the BOS CMD / `bcecmd` command-line tool only. Do not
+apply its config paths to BCE SDKs, application libraries, or BOS connectors
+unless the user's tool explicitly documents compatibility with the BOS CMD
+config directory.
+
+## Verify Before Applying
+
+Always identify the exact tool and version before recommending a config path:
+
+```bash
+bcecmd --version
+bcecmd -c --help 2>&1 | head
+```
+
+Ask the user which command or SDK produced the error. If the evidence is from a
+BCE SDK stack trace rather than `bcecmd`, use the SDK's own credential and client
+configuration documentation instead of this file.
+
 ## Version Check
 ```bash
 bcecmd --version
@@ -9,9 +29,12 @@ bcecmd --version
 
 ## Key Configuration
 
-- `~/.bce/credentials` — AK/SK in plaintext (**REDACT in all output**).
-- `~/.bce/config` — Region, endpoint, multipart settings.
-- Configuration format:
+- Default BOS CMD configuration directory: `~/.go-bcecli/`.
+- `~/.go-bcecli/credentials` — AK/SK or STS token in plaintext (**REDACT in all output**).
+- `~/.go-bcecli/config` — Region, endpoint/domain, proxy, path-style, and multipart settings.
+- A custom config directory can be selected with `bcecmd -c <conf-path>` or the
+  documented `--conf-path` form, depending on the installed version.
+- Example configuration shape:
 ```
 [credentials]
 ak = [REDACTED]
@@ -23,6 +46,11 @@ endpoint = bj.bcebos.com
 multi_upload_thread_num = 5
 memory_unit = MB
 ```
+
+Do not confuse this with BCE SDK configuration. For example, Python SDK code
+typically constructs a `BceClientConfiguration` with `BceCredentials` in
+application code or uses that SDK's documented credential chain. The SDK does not
+become a `bcecmd` client merely because both talk to BOS.
 
 ## Debug Output
 
@@ -104,7 +132,7 @@ DNS lookup: <N>ms, TCP connect: <N>ms, TLS handshake: <N>ms
 |-------|--------------|-----|
 | `SignatureDoesNotMatch` | Wrong AK/SK or clock skew | Verify credentials, sync NTP |
 | `InvalidAccessKeyId` | AK deleted or rotated | Check BOS console |
-| `NoSuchBucket` | Wrong region or bucket name | Verify region in `~/.bce/config` |
+| `NoSuchBucket` | Wrong region or bucket name | Verify region in the active BOS CMD config directory |
 | `AccessDenied` | IAM/bucket policy | Check BOS IAM console |
 | `EntityTooLarge` | Object >5GB (single PUT) | Use multipart upload |
 | `InvalidURI` | Malformed object key | Check URL encoding, special chars |
@@ -116,17 +144,17 @@ DNS lookup: <N>ms, TCP connect: <N>ms, TLS handshake: <N>ms
 | Multipart default | 5MB threshold | 8MB threshold |
 | Debug verbosity | `--debug` flag | `--debug` flag |
 | Path style | Default | Required for non-AWS |
-| Region config | `~/.bce/config` | `--region` flag |
+| Region config | `~/.go-bcecli/config` by default, or custom `conf-path` | `--region` flag |
 | Works against non-BOS? | ❌ No (proprietary signing) | ⚠️ May work with config |
 
 ## Performance Tuning
 
 ```bash
 # Increase multipart threads for faster upload
-~/.bce/config: multi_upload_thread_num = 10
+~/.go-bcecli/config: multi_upload_thread_num = 10
 
 # Increase part size for larger files
-~/.bce/config: multi_upload_part_size = 10  # MB
+~/.go-bcecli/config: multi_upload_part_size = 10  # MB
 
 # Disable CRC check for speed (warning: integrity risk)
 # Do NOT use in production

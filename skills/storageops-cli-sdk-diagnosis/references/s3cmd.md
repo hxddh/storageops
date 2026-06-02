@@ -1,5 +1,20 @@
 # s3cmd Diagnosis
 
+## Scope
+
+This reference applies to `s3cmd` and its own `~/.s3cfg` configuration format.
+Do not apply `s3cmd` paths or settings to AWS CLI, rclone, s5cmd, SDKs, or
+provider-native tools.
+
+## Verify Before Applying
+
+Confirm the active `s3cmd` version and config before diagnosing:
+
+```bash
+s3cmd --version
+s3cmd --dump-config | grep -v secret_key | grep -v access_key
+```
+
 ## Overview
 
 s3cmd is a Python command-line tool for S3-compatible storage, widely used in

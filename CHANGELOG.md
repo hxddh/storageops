@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-02 — v0.4.19: Reference scope guardrails
+
+- **BOS CMD correction**: fixed `bcecmd` configuration guidance to use the BOS
+  CMD default `~/.go-bcecli/` directory or an explicit `conf-path`, and clarified
+  that BCE SDKs have separate configuration patterns.
+- **Reference scope gate**: added `scripts/reference_scope_check.py` so CLI/SDK
+  references must state their scope and verification steps before tool-specific
+  paths, defaults, or config facts are applied.
+- **Known false-fact denylist**: added a guard against the old `~/.bce/*`
+  bcecmd path claims returning in any skill reference.
+- **Tests/CI**: added regression tests for the new reference gate and wired it
+  into `make validate` and GitHub Actions.
+
 ## 2026-06-02 — v0.4.18: Safety and verifiability patch
 
 - **Secret scanning safety**: `scan_secrets` findings now return only line,

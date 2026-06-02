@@ -2,6 +2,25 @@
 
 rclone is a widely-used tool for syncing files across storage providers including S3-compatible endpoints.
 
+## Scope
+
+This reference applies to rclone commands and rclone remote configuration. Do
+not apply rclone backend flags, config keys, or default values to awscli, s5cmd,
+bcecmd, SDKs, or provider-native tools.
+
+## Verify Before Applying
+
+Confirm rclone version, config file path, and remote type before recommending
+flags:
+
+```bash
+rclone version
+rclone config file
+rclone config show <remote>
+```
+
+Redact access keys, secret keys, tokens, and signed URLs before sharing output.
+
 ## Version Check
 ```bash
 rclone version

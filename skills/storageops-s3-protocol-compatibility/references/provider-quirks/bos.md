@@ -22,7 +22,7 @@
 
 | Tool | Native Support | Requires Config | Known Issues |
 |------|---------------|-----------------|--------------|
-| bcecmd | ✅ Native | `~/.bce/credentials` | Best for BOS |
+| bcecmd | ✅ Native | `~/.go-bcecli/` by default, or custom `conf-path` | Best for BOS; do not reuse this path for BCE SDKs |
 | rclone | ✅ Native | Use `bcebos` backend type | Most reliable cross-tool |
 | s5cmd | ⚠️ Via S3 compat | `--endpoint-url` + SigV4 | Path-style only |
 | awscli | ⚠️ Via S3 compat | `--endpoint-url` + `--region` | Use signed requests; do not bypass authentication |

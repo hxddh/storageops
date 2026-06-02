@@ -2,6 +2,24 @@
 
 s5cmd is a high-performance S3 client written in Go, optimized for parallel operations.
 
+## Scope
+
+This reference applies to `s5cmd` command-line behavior. s5cmd commonly uses
+AWS-style environment variables and flags, but it is not awscli, rclone, or an
+SDK. Do not transfer config-file assumptions from other tools unless the user's
+evidence proves s5cmd is using them.
+
+## Verify Before Applying
+
+Confirm the installed version and active command flags:
+
+```bash
+s5cmd version
+s5cmd --help | head
+```
+
+Ask for the exact command line with secrets redacted.
+
 ## Version Check
 ```bash
 s5cmd version

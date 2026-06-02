@@ -45,7 +45,7 @@ Example: https://...?X-Amz-Signature=abc123... → https://...?X-Amz-Signature=[
 ### Credential File Content
 ```
 - ~/.aws/credentials → Entire file content must be scanned and redacted.
-- ~/.bce/credentials → Entire file content must be scanned and redacted.
+- ~/.go-bcecli/credentials → BOS CMD credential file; scan and redact if present.
 - ~/.obsutilconfig → Entire file content must be scanned and redacted.
 - rclone config → Output of `rclone config show` must be scanned and redacted.
 ```

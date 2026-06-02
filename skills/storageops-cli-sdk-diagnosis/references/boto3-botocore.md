@@ -1,5 +1,26 @@
 # boto3 / botocore Exception Analysis
 
+## Scope
+
+This reference applies to Python applications using `boto3` and `botocore`.
+Although botocore can read AWS shared config files, application code may also
+pass credentials, endpoint, region, retries, and S3 addressing style directly.
+Do not infer a CLI config path unless the evidence shows the SDK is using that
+credential chain.
+
+## Verify Before Applying
+
+Confirm the SDK versions and how the client is constructed:
+
+```python
+import boto3, botocore
+print(boto3.__version__)
+print(botocore.__version__)
+```
+
+Ask for sanitized client construction code or debug logs before asserting which
+credential source is active.
+
 ## Version Check
 ```python
 import boto3, botocore

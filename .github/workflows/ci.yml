@@ -26,6 +26,9 @@ jobs:
       - name: Check hardcoded pricing
         run: python scripts/no_hardcoded_pricing.py
 
+      - name: Check reference scope
+        run: python scripts/reference_scope_check.py
+
       - name: Validate golden cases
         run: python skills/storageops-eval-golden-cases/scripts/golden_case_validator.py skills/storageops-eval-golden-cases/cases
 
