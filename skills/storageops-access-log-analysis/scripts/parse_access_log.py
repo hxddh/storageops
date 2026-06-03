@@ -142,7 +142,13 @@ def parse_csv_log(lines: List[str], provider: str) -> Dict[str, Any]:
     reader = csv.DictReader(io.StringIO("\n".join(lines)))
     records = []
 
-    # Provider-specific field mapping
+    # Provider-specific field mapping.
+    # NOTE (unverified): the BOS/COS wire formats and column names here have NOT
+    # been confirmed against vendor docs, and the repo's own references disagree
+    # (provider-log-formats.md describes BOS=tab / COS=JSON, while SKILL.md and
+    # this parser assume CSV). Until the real formats are verified, this path
+    # fails loudly when the expected columns are absent rather than emitting
+    # silently-zeroed records. See provider-log-formats.md.
     mappings = {
         "bos": {"status": "http_status", "error_code": "error_code",
                 "requester": "requester", "operation": "operation",
@@ -153,6 +159,19 @@ def parse_csv_log(lines: List[str], provider: str) -> Dict[str, Any]:
     }
 
     m = mappings.get(provider, mappings["bos"])
+
+    headers = set(reader.fieldnames or [])
+    if m["status"] not in headers:
+        return {
+            "ok": False,
+            "error": (
+                f"{provider.upper()} log format not recognized (unverified mapping): "
+                f"expected column '{m['status']}' not found. This parser's BOS/COS "
+                f"column mapping is unconfirmed; do not trust partial results."
+            ),
+            "details": {"provider": provider, "detected_headers": sorted(headers)[:20]},
+            "findings": [f"{provider.upper()} CSV mapping unverified — refusing to emit zeroed records"],
+        }
 
     for row in reader:
         status_str = row.get(m["status"], "0")

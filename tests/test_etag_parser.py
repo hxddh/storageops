@@ -20,11 +20,26 @@ def test_classify_plain_md5():
     assert info["type"] == "md5"
 
 
-def test_classify_multipart_extracts_part_count():
+def test_classify_s3_multipart_extracts_part_count():
     parser = load_parser()
     info = parser.classify_etag('"d41d8cd98f00b204e9800998ecf8427e-3"')
     assert info["type"] == "multipart"
     assert info["part_count"] == 3
+
+
+def test_classify_bos_multipart_leading_dash():
+    parser = load_parser()
+    # BOS multipart: leading dash, no part count (contrast with S3's trailing -N).
+    info = parser.classify_etag("-d41d8cd98f00b204e9800998ecf8427e")
+    assert info["type"] == "bos-multipart"
+    assert info["md5"] == "d41d8cd98f00b204e9800998ecf8427e"
+
+
+def test_old_crct_pattern_is_no_longer_classified_as_bos():
+    parser = load_parser()
+    # The previously-invented "crct...-md5" composite is not a real BOS format.
+    info = parser.classify_etag("crctABCD-d41d8cd98f00b204e9800998ecf8427e")
+    assert info["type"] != "bos-multipart"
 
 
 def test_parse_etags_empty_input_is_not_ok():

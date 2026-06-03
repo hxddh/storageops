@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-06-03 — v0.4.30: Provider-fact correctness & tool gaps
+
+- **BOS vs S3 multipart ETag**: corrected a wrong cross-provider fact. The data-
+  consistency parser classified an invented `crct…-md5` "composite" BOS ETag, and
+  the BOS quirks reference claimed BOS uses S3's trailing `-N` suffix. Reality:
+  BOS multipart ETags are the md5 of concatenated part md5s with a **leading `-`**
+  and **no part count** (`-<32 hex>`), versus S3's **trailing** `<32 hex>-N`.
+  `etag_parser.py`, `bos.md`, and `checksum-etag.md` now agree on this.
+- **Intelligent-Tiering**: `small_object_analyzer.py` no longer flags IT objects
+  under 128 KB as a min-billable "penalty" — IT has no per-object minimum size
+  charge (set to 0).
+- **Access-log BOS/COS**: the parser now refuses to emit silently-zeroed records
+  when its (unverified) BOS/COS column mapping doesn't match the input headers,
+  and the contradictory `provider-log-formats.md` is marked unverified. The real
+  formats still need confirmation against vendor docs.
+- **search_memory CJK**: Chinese queries previously tokenized to nothing and
+  recalled zero results; the tokenizer now emits CJK bigrams.
+- **capture_http_trace allowlist**: added the read-only S3 ops the CORS /
+  lifecycle / multipart / tagging skills depend on (`head-bucket`,
+  `get-bucket-cors`, `get-bucket-lifecycle-configuration`, `get-bucket-tagging`,
+  `get-bucket-acl`, `get-object-attributes`, `list-multipart-uploads`).
+- **Honesty**: relabeled `storageops-migration-sync` `mature → beta` (its
+  references are stub-level). Added Python static-assertion tests locking the
+  extension fixes (CJK tokens, allowlist, recursive session recall).
+
 ## 2026-06-02 — v0.4.29: Memory recall & provider-explicit keys
 
 - **`search_memory` recall fix**: the tool only scanned the top level of the

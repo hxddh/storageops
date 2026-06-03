@@ -8,9 +8,11 @@
 - **Note:** If SSE (Server-Side Encryption) is used, the ETag is NOT the MD5.
 
 ### Multipart Upload
-- **AWS S3:** ETag is the hex-encoded MD5 of the concatenated binary MD5 hashes of each part, followed by `-<part count>`.
+- **AWS S3:** ETag is the hex-encoded MD5 of the concatenated binary MD5 hashes of each part, followed by a **trailing** `-<part count>`.
   Example: `"a1b2c3d4e5f6...-4"` for a 4-part upload.
-- **This is NOT the MD5 of the full object content.**
+- **Baidu BOS:** same underlying hash (MD5 of concatenated part MD5s), but formatted with a **leading `-`** and **no part count** — `-<32 hex>`.
+  Example: `"-a1b2c3d4e5f6..."`. A parser that assumes the AWS trailing-`-N` shape will misclassify BOS multipart ETags.
+- **This is NOT the MD5 of the full object content** (for either provider).
 
 ### CopyObject
 - ETag of the copy may differ from the source object's ETag.

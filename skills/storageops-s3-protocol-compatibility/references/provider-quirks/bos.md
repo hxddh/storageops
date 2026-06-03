@@ -4,8 +4,11 @@
 
 - **Single PUT:** Returns MD5 hash of object content (32 hex chars, no suffix).
   Compatible with AWS S3.
-- **Multipart Upload:** Returns MD5 of concatenated part MD5s + `-N` suffix.
-  However, BOS may compute the MD5 differently from AWS S3 in edge cases.
+- **Multipart Upload:** Returns the MD5 of the concatenated part MD5s, hex-encoded,
+  with a **leading `-`** and **no part count** — i.e. `-<32 hex>`. This differs
+  from AWS S3, which uses a **trailing** `-<part count>` (`<32 hex>-N`). The
+  underlying hash (md5 of concatenated part md5s) is the same; only the string
+  format differs. A tool that assumes the AWS `-N` shape will misparse BOS ETags.
 
 ## Signature (Auth) Behavior
 

@@ -15,7 +15,10 @@ _MIN_BILLABLE = {
     "GLACIER_IR": 128 << 10,
     "GLACIER": 40 << 10,
     "DEEP_ARCHIVE": 40 << 10,
-    "INTELLIGENT_TIERING": 128 << 10,
+    # Intelligent-Tiering has NO per-object minimum billable size. Objects under
+    # 128 KB are simply never auto-tiered (and incur a monitoring/automation fee),
+    # so there is no min-size storage penalty to flag here.
+    "INTELLIGENT_TIERING": 0,
 }
 
 
