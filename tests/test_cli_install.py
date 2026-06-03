@@ -4,7 +4,60 @@ import hashlib
 import pytest
 
 import storageops_cli
-from storageops_cli import _ensure_httpmon, _ensure_pi, _merge_settings, _merge_skill_paths
+from storageops_cli import (
+    _ensure_httpmon,
+    _ensure_pi,
+    _inject_auth_env,
+    _merge_settings,
+    _merge_skill_paths,
+    _resolve_api_key_entry,
+)
+
+
+def test_resolve_api_key_entry_routes_known_provider_prefixes():
+    assert _resolve_api_key_entry("anthropic:sk-ant-xyz") == ("ANTHROPIC_API_KEY", "sk-ant-xyz")
+    assert _resolve_api_key_entry("openai:sk-proj-xyz") == ("OPENAI_API_KEY", "sk-proj-xyz")
+    assert _resolve_api_key_entry("gemini:AIzaXYZ") == ("GEMINI_API_KEY", "AIzaXYZ")
+    assert _resolve_api_key_entry("groq:gsk_xyz") == ("GROQ_API_KEY", "gsk_xyz")
+
+
+def test_resolve_api_key_entry_without_known_prefix_is_unrouted():
+    # Bare key -> no provider, caller applies the default fallback.
+    assert _resolve_api_key_entry("sk-deepseekkey") == (None, "sk-deepseekkey")
+    # Unknown prefix is not treated as a provider; the whole value stays the key.
+    assert _resolve_api_key_entry("notaprovider:abc") == (None, "notaprovider:abc")
+
+
+def _clear_provider_env(monkeypatch):
+    for var in ("DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_inject_auth_env_routes_explicit_provider(tmp_path, monkeypatch):
+    _clear_provider_env(monkeypatch)
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "api-key").write_text("anthropic:sk-ant-zzz\n")
+
+    _inject_auth_env(agent_dir)
+
+    import os
+
+    assert os.environ.get("ANTHROPIC_API_KEY") == "sk-ant-zzz"
+    assert "DEEPSEEK_API_KEY" not in os.environ
+
+
+def test_inject_auth_env_unprefixed_key_falls_back_to_deepseek(tmp_path, monkeypatch):
+    _clear_provider_env(monkeypatch)
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "api-key").write_text("sk-plainkey\n")
+
+    _inject_auth_env(agent_dir)
+
+    import os
+
+    assert os.environ.get("DEEPSEEK_API_KEY") == "sk-plainkey"
 
 
 def test_merge_skill_paths_preserves_existing_and_appends_required():

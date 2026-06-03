@@ -60,7 +60,6 @@ def case_name(path: Path) -> str | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--json", action="store_true", help="Reserved for future machine output")
     parser.parse_args()
 
     files = tracked_files()

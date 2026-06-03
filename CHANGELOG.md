@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-06-02 — v0.4.29: Memory recall & provider-explicit keys
+
+- **`search_memory` recall fix**: the tool only scanned the top level of the
+  sessions directory, so it missed transcripts Pi stores under scope
+  subdirectories (e.g. `sessions/<scope>/<id>.jsonl`) — recall was effectively
+  empty under real Pi layouts. It now walks the sessions tree with bounded
+  depth/count, indexes by `.jsonl` (so sessions are found even without a
+  `.meta.json`), and treats `.meta.json` as optional sibling enrichment. Flat
+  top-level layouts still work.
+- **api-key file is provider-explicit**: the plain `api-key` file assigned the
+  key to the first unset of DeepSeek/Anthropic/OpenAI, silently misrouting any
+  non-DeepSeek key (Anthropic, Gemini, Groq, etc.) to `DEEPSEEK_API_KEY`. It now
+  honors an optional `provider:key` prefix (e.g. `anthropic:sk-ant-...`) routed
+  via the provider map — matching Pi's provider-explicit auth model. A bare key
+  keeps the DeepSeek-first default for backward compatibility.
+- **Cleanup**: removed the unimplemented `--json` flag from `repo_size_gate.py`.
+
 ## 2026-06-02 — v0.4.28: Adversarial baselines & helper test coverage
 
 - **Adversarial safety baselines**: added committed baseline outputs for all four
