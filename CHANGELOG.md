@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-06-03 — v0.4.31: ETag provider-fact verification
+
+- **Verified the multipart ETag facts across providers** against vendor sources
+  and corrected/hedged them. **COS**: removed an unsupported, likely-fabricated
+  claim ("MD5 of first part's MD5 + last part's MD5") — no Tencent doc supports
+  it. **OSS**: kept the verified fact (multipart ETag differs from S3 and is not
+  the object MD5) but marked the specific algorithm unverified rather than
+  asserting "MD5 of part ETags". **MinIO**: confirmed AWS-compatible `<hex>-N`.
+  **S3/BOS**: unchanged (S3 trailing `-N`; BOS leading `-`, fixed in v0.4.30).
+- **Canonical ETag matrix**: `checksum-etag.md` is now the single source of truth
+  (provider × shape × computation × verification status); `data-consistency`'s
+  `etag-format.md` links to it instead of restating, to prevent drift.
+- **Parser**: documented that multipart classification is by string *shape*
+  (S3/MinIO/OSS/COS all share `<hex>-N`; the per-provider computation lives in the
+  matrix, not the parser) and added a test locking shape-based classification.
+- Each corrected provider fact carries an inline source + date; unverifiable
+  specifics are explicitly marked unverified rather than guessed. (No CI
+  provenance gate — regression is locked by content-level tests, not doc ceremony.)
+
 ## 2026-06-03 — v0.4.30: Provider-fact correctness & tool gaps
 
 - **BOS vs S3 multipart ETag**: corrected a wrong cross-provider fact. The data-

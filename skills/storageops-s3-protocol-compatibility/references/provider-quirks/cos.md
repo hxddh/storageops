@@ -4,12 +4,16 @@
 
 - **Single PUT:** Returns MD5 hash of object content wrapped in quotes (32 hex chars).
   Compatible with AWS S3.
-- **Multipart Upload:** Uses a **different ETag algorithm** than AWS S3:
-  COS returns the MD5 of the first part's MD5 + last part's MD5, not
-  MD5 of concatenated MD5s of ALL parts. This means tools that expect
-  AWS-style multipart ETag will fail integrity checks.
-- **Workaround:** Always use `--ignore-checksum` or `disable_checksum = true`
-  when using non-native tools against COS. Or use COSCMD (native tool).
+- **Multipart Upload:** The completed object's ETag is **not** the MD5 of the
+  object content (like AWS S3, it carries the `<hex>-N` shape with a trailing part
+  count). The previous claim here — that COS returns "MD5 of the first part's MD5
+  + last part's MD5" — was **unverified and unsupported by Tencent docs**, so it
+  has been removed; do not rely on a specific computation. If you must verify
+  integrity, capture a real COS ETag and compare, or use a native tool.
+  (Verified: ETag is not the object MD5 — Tencent COS docs, 2026-06. Exact
+  multipart computation not confirmed against vendor docs.)
+- **Workaround:** Use `--ignore-checksum` or `disable_checksum = true` with
+  non-native tools against COS, or use a native tool (e.g. coscmd).
 
 ## Tool Compatibility Matrix
 

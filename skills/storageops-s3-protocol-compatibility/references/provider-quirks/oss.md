@@ -5,10 +5,14 @@
 - **Single PUT:** Returns MD5 hash of object content (32 hex chars, no suffix).
   Generally compatible with AWS S3. However, OSS may return ETags in a
   case-insensitive format in some regions.
-- **Multipart Upload:** ETag is the MD5 of concatenated part ETags, not
-  the MD5 of concatenated part MD5s. **This differs from AWS S3** and
-  can cause rclone `corrupted on transfer` errors if rclone computes
-  the multi-part ETag using AWS semantics.
+- **Multipart Upload:** The completed object's ETag **differs from AWS S3** and
+  is **not** the MD5 of the object content, so AWS-style multipart ETag
+  verification (md5 of concatenated part md5s + `-N`) will fail — this can surface
+  as rclone `corrupted on transfer`. Use the native `alibaba` backend or disable
+  the AWS-style multipart-ETag check. (Verified that it differs from S3 / is not
+  the object MD5 — Alibaba OSS docs, 2026-06. The exact OSS computation is **not**
+  documented publicly; do not assume any specific algorithm — verify against a
+  real ETag.)
 - **CRC64:** OSS supports CRC64 checksums in addition to MD5. Use
   `x-oss-hash-crc64ecma` response header for integrity verification.
 

@@ -27,6 +27,15 @@ def test_classify_s3_multipart_extracts_part_count():
     assert info["part_count"] == 3
 
 
+def test_s3_shaped_multipart_classifies_regardless_of_provider():
+    # S3 / MinIO / OSS / COS all expose the "<hex>-N" multipart shape; the parser
+    # classifies by shape (it cannot identify the provider from the string alone).
+    parser = load_parser()
+    info = parser.classify_etag("ceb8853ddc5086cc4ab9e149f8f09c88-5")
+    assert info["type"] == "multipart"
+    assert info["part_count"] == 5
+
+
 def test_classify_bos_multipart_leading_dash():
     parser = load_parser()
     # BOS multipart: leading dash, no part count (contrast with S3's trailing -N).
