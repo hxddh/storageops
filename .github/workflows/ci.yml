@@ -126,7 +126,7 @@ jobs:
           python-version: "3.11"
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
       - name: Build wheel with bundled httpmon
         run: |
           python -m pip install --upgrade pip build
@@ -162,7 +162,7 @@ jobs:
           python-version: "3.11"
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
       - name: Gate on model-key secret
         id: gate
         env:

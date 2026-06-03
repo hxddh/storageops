@@ -46,7 +46,9 @@ StorageOps separates observed evidence from inference, labels destructive action
 
 ## Quick Start
 
-**Prerequisites:** Node.js 18+, Python 3.11+, and a model provider key.
+**Prerequisites:** Node.js **22.19+**, Python 3.11+, and a model provider key.
+(Pi Coding Agent 0.78+ requires Node 22.19+; on older Node, npm installs an
+incompatible legacy Pi and `storageops install` will refuse it.)
 
 ```bash
 # 1. Install Pi Coding Agent (the runtime engine)

@@ -9,7 +9,7 @@ default model selection, and stale shell environment variables.
 
 - SSH access to the VM.
 - Python 3.11 or newer.
-- Node.js 18 or newer.
+- Node.js 22.19 or newer (Pi 0.78+ requires Node >= 22.19).
 - One model provider key. DeepSeek is used in the examples below.
 
 Check the VM:
