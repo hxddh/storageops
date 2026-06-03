@@ -8,14 +8,15 @@ For a step-by-step Linux cloud VM walkthrough with DeepSeek setup and common
 ## 1. Prerequisites
 
 - Python 3.11 or newer.
-- Node.js 18 or newer (required by Pi Coding Agent).
+- Node.js 22.19 or newer (Pi Coding Agent 0.78+ requires Node >= 22.19; on older
+  Node, npm installs a legacy Pi that StorageOps will reject).
 - A model provider key: DeepSeek, Anthropic, or OpenAI.
 
 Verify your environment:
 
 ```bash
 python3 --version   # need 3.11+
-node --version      # need 18+
+node --version      # need 22.19+
 ```
 
 Pi Coding Agent is installed automatically by `storageops install` if it is not

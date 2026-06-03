@@ -15,9 +15,40 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
 - Deterministic helper scripts for access logs, policy analysis, throttling, ETags, small-object cost, migration estimates, SigV4 parsing, endpoint reachability, and golden-case eval.
 - A regression suite with 33 compact golden cases and size gates to keep the repository lean.
 
+## Example
+
+A real diagnosis (`rclone copy` to Baidu BOS reporting `corrupted on transfer`):
+
+```text
+$ storageops --print @rclone.log 'explain this checksum mismatch and safe next steps'
+
+# Diagnosis: rclone — BOS multipart ETag format mismatch (false corruption)
+Route: storageops-cli-sdk-diagnosis   Confidence: high
+
+Root cause: a FALSE positive — the data is intact. rclone validates uploads with an
+AWS-style multipart ETag, but BOS formats it differently:
+  AWS S3    <32hex>-N   (trailing dash + part count)
+  Baidu BOS -<32hex>    (leading dash, no part count)
+The underlying hash (MD5 of concatenated part MD5s) is identical; only the string
+shape differs, so rclone's comparison fails on intact data.
+
+Fix (minimal blast radius):
+  rclone copy source remote:bucket --s3-use-multipart-etag=false
+Long-term: use rclone's native `bcebos` backend for BOS.
+
+Validation: copy one small file with -v, then `rclone check` to confirm intact.
+What would falsify this: if size/content actually differ at the destination,
+it's real corruption (network/proxy), not an ETag-format mismatch.
+```
+
+StorageOps separates observed evidence from inference, labels destructive actions
+`manual-only`, and states what would disprove each diagnosis.
+
 ## Quick Start
 
-**Prerequisites:** Node.js 18+, Python 3.11+, and a model provider key.
+**Prerequisites:** Node.js **22.19+**, Python 3.11+, and a model provider key.
+(Pi Coding Agent 0.78+ requires Node 22.19+; on older Node, npm installs an
+incompatible legacy Pi and `storageops install` will refuse it.)
 
 ```bash
 # 1. Install Pi Coding Agent (the runtime engine)

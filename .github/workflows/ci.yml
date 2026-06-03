@@ -113,3 +113,91 @@ jobs:
             echo "  OK: $doc ($(wc -l < $doc) lines)"
           done
           echo "All docs validated."
+
+  # Clean-room install validation: proves the literal first-touch path
+  # (pip install wheel -> storageops install -> storageops --version) on a fresh
+  # machine every run. No model key required (install does not need one).
+  install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build wheel with bundled httpmon
+        run: |
+          python -m pip install --upgrade pip build
+          python scripts/prepare_httpmon_vendor.py
+          python -m build --wheel
+      - name: Install from the built wheel
+        run: pip install dist/*.whl
+      - name: storageops install (fresh machine)
+        run: storageops install
+      - name: Validate readiness output
+        run: |
+          set -e
+          storageops --version
+          storageops --version | grep -q "StorageOps v"
+          storageops --version | grep -q "independent install : yes"
+          storageops --version | grep -Eq "pi: [0-9]+\."
+          # No key in CI, so honest reporting must say "not configured".
+          storageops --version | grep -Eq "api key .*: not configured"
+          echo "install-smoke OK"
+
+  # End-to-end diagnosis smoke: proves the product's actual job (a correct
+  # diagnosis) end-to-end. Runs ONLY when a model-key secret is configured, so it
+  # is a no-op until enabled. To turn it on, set:
+  #   secret  STORAGEOPS_MODEL_KEY   (a model provider API key)
+  #   var     STORAGEOPS_PROVIDER    (e.g. deepseek; default: deepseek)
+  #   var     STORAGEOPS_MODEL       (e.g. deepseek-v4-pro; default: deepseek-v4-pro)
+  diagnosis-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Gate on model-key secret
+        id: gate
+        env:
+          MODEL_KEY: ${{ secrets.STORAGEOPS_MODEL_KEY }}
+        run: |
+          if [ -z "$MODEL_KEY" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No STORAGEOPS_MODEL_KEY secret set; skipping end-to-end diagnosis smoke."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install storageops + Pi
+        if: steps.gate.outputs.present == 'true'
+        run: |
+          python -m pip install --upgrade pip build
+          python scripts/prepare_httpmon_vendor.py
+          python -m build --wheel
+          pip install dist/*.whl
+          storageops install
+      - name: Run a diagnosis and evaluate it
+        if: steps.gate.outputs.present == 'true'
+        env:
+          MODEL_KEY: ${{ secrets.STORAGEOPS_MODEL_KEY }}
+          PROVIDER: ${{ vars.STORAGEOPS_PROVIDER }}
+          MODEL: ${{ vars.STORAGEOPS_MODEL }}
+        run: |
+          set -e
+          CASE=skills/storageops-eval-golden-cases/cases/throttling-hot-prefix
+          INPUT=$(ls "$CASE"/input/* | head -1)
+          storageops --provider "${PROVIDER:-deepseek}" --model "${MODEL:-deepseek-v4-pro}" \
+            --api-key "$MODEL_KEY" --print @"$INPUT" \
+            'Diagnose the root cause and safe next steps' > /tmp/diag.md
+          echo "----- diagnosis output (head) -----"; head -40 /tmp/diag.md
+          test -s /tmp/diag.md
+          # eval_runner exits non-zero on HARD_FAIL (wrong category, low confidence,
+          # missing required evidence, or forbidden/unsafe output).
+          python skills/storageops-eval-golden-cases/scripts/eval_runner.py \
+            --case "$CASE" --output /tmp/diag.md
