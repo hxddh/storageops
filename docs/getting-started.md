@@ -83,6 +83,15 @@ chmod 600 ~/.storageops/agent/api-key
 StorageOps reads this local key file and exposes the key to Pi for the selected
 agent directory. You normally do not need to pass `--api-key` on each command.
 
+A bare key defaults to DeepSeek → Anthropic → OpenAI. For any other provider,
+prefix the key so it is routed correctly (otherwise a non-DeepSeek key is
+misrouted to `DEEPSEEK_API_KEY`):
+
+```bash
+echo gemini:AIza... > ~/.storageops/agent/api-key
+# prefixes: anthropic/claude, deepseek, openai, google/gemini, mistral, groq, cerebras
+```
+
 ## 4. Run a Diagnosis
 
 DeepSeek smoke test:

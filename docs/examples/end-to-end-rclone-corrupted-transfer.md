@@ -45,11 +45,10 @@ The triage result should be:
 input_type: log_file
 category: cli_sdk_behavior
 secondary_categories:
-  - checksum_etag
+  - consistency_integrity
 route_to:
   - storageops-cli-sdk-diagnosis
 evidence_quality: sufficient
-severity: medium
 confidence: 0.85
 ```
 

@@ -25,11 +25,10 @@ The triage skill should classify this as:
 ```yaml
 category: cli_sdk_behavior
 secondary_categories:
-  - checksum_etag
+  - consistency_integrity
 route_to:
   - storageops-cli-sdk-diagnosis
 evidence_quality: sufficient
-severity: medium
 ```
 
 The main signal is not the word `corrupted`; it is the shape of the two values.

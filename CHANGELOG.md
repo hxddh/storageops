@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-06-03 — v0.4.34: Node pre-flight + documentation cleanup
+
+- **Node pre-flight check**: `storageops install` now verifies Node before
+  installing Pi. If Node `< 22.19.0` it stops with an actionable message
+  ("upgrade Node, then re-run") instead of npm-installing the incompatible legacy
+  Pi (0.74.2) that StorageOps then rejects with a confusing "not ready". The
+  "pi too old" path likewise points at Node when Node is the real blocker.
+- **`--version` shows a `node` line** alongside the existing readiness fields.
+- **Documentation review/cleanup** (clear stale info, fill gaps, improve clarity):
+  - `SECURITY.md`: corrected the tool count (3 → 4) and the `scan_secrets`
+    coverage list (presigned-URL material, GCP, Azure); noted the plaintext
+    `api-key` file surface and `chmod 600`.
+  - `CONTRIBUTING.md`: added `capture_http_trace` to the extension tool list;
+    noted commands run from the repo root.
+  - Documented the `provider:key` api-key prefix (previously only in the
+    CHANGELOG) in README, getting-started, and cli-reference.
+  - Fixed the example docs: non-canonical `checksum_etag` category →
+    `consistency_integrity`, and removed the stale `severity` field (dropped from
+    the golden-case schema in v0.4.27).
+  - Fixed eval examples that referenced an undefined `diagnoses/` directory;
+    clarified the maturity-level table (`core` is orthogonal).
+- Removed the worked-example block from the README.
+
 ## 2026-06-03 — v0.4.33: Honest key-status reporting
 
 - **Fixed misleading "API key not configured"**: the install summary (and now

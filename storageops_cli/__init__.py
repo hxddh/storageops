@@ -13,7 +13,7 @@ Post-install layout (independent mode):
     |   |-- settings.json
     |   |-- api-key            optional: persistent API key
     |   `-- extensions/storageops.ts
-    `-- skills/                16 skill packs
+    `-- skills/                16 packs (15 diagnostic + 1 eval)
 """
 
 import subprocess

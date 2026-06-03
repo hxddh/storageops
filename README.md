@@ -79,6 +79,17 @@ echo sk-... > ~/.storageops/agent/api-key
 chmod 600 ~/.storageops/agent/api-key
 ```
 
+A bare key in that file defaults to DeepSeek, then Anthropic, then OpenAI. To
+bind it to a specific provider, prefix it with `provider:`:
+
+```bash
+echo anthropic:sk-ant-... > ~/.storageops/agent/api-key   # also: gemini:, groq:, ...
+```
+
+Supported prefixes: `anthropic`/`claude`, `deepseek`, `openai`, `google`/`gemini`,
+`mistral`, `groq`, `cerebras`. (Without a prefix, a non-DeepSeek key would be
+misrouted to `DEEPSEEK_API_KEY`.)
+
 You can also pass Pi-native options through `storageops`, for example `--provider`, `--model`, `--api-key`, `--print`, `--resume`, or `@file` inputs.
 
 DeepSeek smoke test:

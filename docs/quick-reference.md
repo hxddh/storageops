@@ -81,10 +81,16 @@ redeployed.
 
 ## Useful Helper Scripts
 
+Run from the repository root. (`--outputs` points at a directory of saved model
+diagnoses, one `<case-name>.md` per case; the repo's bundled examples live in
+`skills/storageops-eval-golden-cases/baseline-outputs`.)
+
 ```bash
 python3 skills/storageops-s3-protocol-compatibility/scripts/parse_sigv4_error.py error.xml --json
 python3 skills/storageops-network-endpoint-access/scripts/endpoint_reachability_test.py https://s3.example.com
-python3 skills/storageops-eval-golden-cases/scripts/eval_all.py --cases skills/storageops-eval-golden-cases/cases --outputs diagnoses --json-out eval-current.json
+python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
+  --cases skills/storageops-eval-golden-cases/cases \
+  --outputs skills/storageops-eval-golden-cases/baseline-outputs --only-with-outputs
 ```
 
 ## Validate

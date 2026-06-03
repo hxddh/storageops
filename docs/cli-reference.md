@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.33  (pi: 0.78.0)
+StorageOps v0.4.34  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -96,6 +96,13 @@ The local `api-key` file is intended for the selected StorageOps/Pi agent
 directory, for example `~/.storageops/agent/api-key` in independent mode. When
 it is present, StorageOps exposes the key to Pi before launching the agent; users
 do not need to pass `--api-key` for normal commands.
+
+A bare key in the `api-key` file is routed to the first unset of
+`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`. To bind it to a
+specific provider, prefix the value with `provider:` — e.g. `anthropic:sk-ant-...`
+or `gemini:AIza...`. Recognized prefixes: `anthropic`/`claude`, `deepseek`,
+`openai`, `google`/`gemini`, `mistral`, `groq`, `cerebras`. The `--version`
+command's `api key` line reports which source is in effect.
 
 Supported environment variables include:
 

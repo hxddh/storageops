@@ -101,7 +101,7 @@ python3 skills/storageops-eval-golden-cases/scripts/eval_runner.py \
 
 python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
   --cases skills/storageops-eval-golden-cases/cases \
-  --outputs diagnoses \
+  --outputs <your-saved-diagnoses-dir> \
   --json-out eval-current.json
 
 python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
@@ -140,10 +140,13 @@ performance, and CLI/SDK diagnosis before expanding it to every skill.
 
 ## Maturity
 
+Maturity increases `alpha` → `beta` → `mature`/`stable`. `core` is **orthogonal**:
+it marks foundational skills (routing, reporting, safety), not a higher tier.
+
 | Level | Meaning |
 | --- | --- |
-| `alpha` | Skill exists, but eval/helper coverage is thin. |
+| `alpha` | Skill exists, but references, eval, and helper coverage are thin. |
 | `beta` | References and integrity checks are in good shape. |
-| `mature` | Domain has useful deterministic helpers or focused eval coverage. |
-| `stable` | Domain has representative golden cases and deterministic validation. |
-| `core` | Routing, reporting, safety, or other foundational behavior. |
+| `mature` | Adds useful deterministic helpers (parsers/analyzers). |
+| `stable` | Adds representative golden cases and deterministic validation. |
+| `core` | Foundational behavior (routing, reporting, safety) — orthogonal to the above. |
