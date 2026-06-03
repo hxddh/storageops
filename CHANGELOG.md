@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-06-03 — v0.4.32: Tool reliability & effectiveness
+
+- **`scan_secrets` — presigned-URL material**: now redacts presigned signature/
+  credential params (`X-Amz-Signature`/`X-Amz-Credential`/`X-Amz-Security-Token`,
+  `X-Goog-Signature`, OSS `Signature`/`OSSAccessKeyId`, COS `q-signature`/`q-ak`).
+  These appear constantly in rclone/aws/s5cmd debug logs and were passing through
+  un-redacted.
+- **`scan_secrets` — multi-cloud keys**: added GCP service-account keys (PKCS8
+  `PRIVATE KEY` + `private_key_id`) and Azure (`AccountKey=`, SAS `sig=`).
+- **`search_memory` — dedupe per session**: a session matching in both its
+  summary and JSONL no longer occupies two result slots, improving recall
+  diversity.
+- **`detect_domain` — CJK parity**: added Chinese signatures to the core domains
+  that lacked them (security, performance, network, cli/sdk, s3-protocol), so
+  Chinese inputs route correctly.
+- All changes are additive and stay inside the single-file extension (no new
+  tools, files, dependencies, or installer/CI changes); each was verified with
+  positive + negative samples and locked with static-assertion tests.
+
 ## 2026-06-03 — v0.4.31: ETag provider-fact verification
 
 - **Verified the multipart ETag facts across providers** against vendor sources

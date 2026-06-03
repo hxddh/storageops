@@ -35,3 +35,34 @@ def test_http_trace_allowlist_covers_skill_read_only_ops():
         "list-multipart-uploads",
     ]:
         assert f'"{op}"' in ext
+
+
+def test_scan_secrets_covers_presigned_and_multicloud_keys():
+    # Presigned URL material is extremely common in rclone/aws/s5cmd debug logs;
+    # GCP/Azure are documented domains. The scanner must redact all of these.
+    ext = _extension()
+    for label in [
+        "PRESIGNED_SIGNATURE",
+        "PRESIGNED_AWS_PARAM",
+        "OSS_PRESIGNED",
+        "COS_PRESIGNED",
+        "GCP_PRIVATE_KEY_ID",
+        "AZURE_ACCOUNT_KEY",
+        "AZURE_SAS",
+    ]:
+        assert label in ext
+    # PEM pattern must also match GCP's plain PKCS8 "PRIVATE KEY" (no algorithm word).
+    assert "(?:RSA|EC|DSA|OPENSSH|ENCRYPTED) )?PRIVATE KEY" in ext
+
+
+def test_search_memory_dedupes_per_session():
+    ext = _extension()
+    assert "bestBySession" in ext
+
+
+def test_detect_domain_has_cjk_parity_for_core_domains():
+    # Chinese inputs to these domains previously matched nothing.
+    ext = _extension()
+    for term in ["访问被拒", "限速", "连接", "损坏", "签名"]:
+        assert term in ext
+

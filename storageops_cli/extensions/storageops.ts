@@ -44,14 +44,24 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/(?:ak[\s]*=|access_key[\s]*=)[\s]*['"]?([a-f0-9]{32})['"]?/gi, "BAIDU_ACCESS_KEY"],
   // Generic Authorization: Bearer / Basic tokens
   [/Authorization[\s]*:[\s]*(?:Bearer|Basic|AWS4-HMAC-SHA256)[\s]+([^\s]{20,})/gi, "AUTHORIZATION_HEADER"],
-  // Private keys (PEM format)
-  [/-----BEGIN (?:RSA|EC|DSA|OPENSSH) PRIVATE KEY-----/g, "PRIVATE_KEY"],
+  // Private keys (PEM) — incl. plain PKCS8 "PRIVATE KEY" used by GCP service-account keys
+  [/-----BEGIN (?:(?:RSA|EC|DSA|OPENSSH|ENCRYPTED) )?PRIVATE KEY-----/g, "PRIVATE_KEY"],
   // rclone config passwords
   [/(?:pass|password|token|secret)[\s]*=[\s]*['"]?([^\s'"]{8,})['"]?/gi, "RCLONE_CREDENTIAL"],
   // Generic API keys (sk-... for OpenAI/DeepSeek style)
   [/(?:api[\s_-]*)?(?:key|token)[\s]*[:=][\s]*['"]?(sk-[A-Za-z0-9]{20,})['"]?/gi, "API_KEY"],
   // GitHub tokens (ghp_, gho_, github_pat_)
   [/(?:ghp_|gho_|github_pat_)[A-Za-z0-9]{36,}/g, "GITHUB_TOKEN"],
+  // Presigned-URL signature material — extremely common in rclone/aws/s5cmd debug logs
+  [/[?&](?:X-Amz-Signature|X-Goog-Signature)=([A-Za-z0-9%]{16,})/gi, "PRESIGNED_SIGNATURE"],
+  [/[?&]X-Amz-(?:Credential|Security-Token)=([^&\s]{16,})/gi, "PRESIGNED_AWS_PARAM"],
+  [/[?&](?:OSSAccessKeyId|Signature)=([^&\s]{10,})/gi, "OSS_PRESIGNED"],
+  [/[?&]q-(?:signature|ak)=([^&\s]{8,})/gi, "COS_PRESIGNED"],
+  // GCP service-account key id (the PEM private_key itself is caught above)
+  [/"private_key_id"[\s]*:[\s]*"([a-f0-9]{16,})"/gi, "GCP_PRIVATE_KEY_ID"],
+  // Azure storage account key + SAS signature
+  [/AccountKey=([A-Za-z0-9+\/=]{40,})/gi, "AZURE_ACCOUNT_KEY"],
+  [/[?&]sig=([A-Za-z0-9%]{20,})/gi, "AZURE_SAS"],
 ];
 
 function secretFingerprint(value: string): string {
@@ -133,6 +143,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/KMS/i, "kms_error"],
     [/Unauthorized/i, "unauthorized"],
     [/AssumeRole|sts:/i, "role_error"],
+    [/权限|无权限|鉴权|拒绝访问|访问被拒/i, "access_denied_cjk"],
   ],
   "storageops-s3-protocol-compatibility": [
     [/SignatureDoesNotMatch|AuthorizationHeaderMalformed|InvalidArgument/i, "signature_or_protocol_error"],
@@ -140,6 +151,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/CORS|preflight|Access-Control-Allow-Origin|Access-Control-Allow-Methods/i, "cors"],
     [/MalformedXML|InvalidDigest|Content-MD5|x-amz-content-sha256/i, "protocol_header"],
     [/virtual.?hosted|path.?style|chunked|STREAMING-AWS4-HMAC-SHA256-PAYLOAD/i, "provider_compatibility"],
+    [/签名|校验和|校验值/i, "signature_or_protocol_cjk"],
   ],
   "storageops-performance-diagnosis": [
     [/429|TooManyRequests|RequestRateLimitExceeded/i, "rate_limit"],
@@ -148,11 +160,13 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/timeout|timed?\s*out/i, "timeout"],
     [/bandwidth/i, "bandwidth"],
     [/retry/i, "retry"],
+    [/限速|限流|超时|慢|带宽/i, "performance_cjk"],
   ],
   "storageops-network-endpoint-access": [
     [/DNS|Name\s*or\s*service\s*not\s*known|NXDOMAIN/i, "dns"],
     [/Could\s*not\s*connect|Connection\s*refused|connect\s*ETIMEDOUT/i, "connectivity"],
     [/TLS|SSL|Certificate|cert/i, "tls"],
+    [/连接(?:失败|超时|被拒)|证书|解析失败|无法访问/i, "network_cjk"],
     [/VPC|endpoint|ENDPOINT/i, "endpoint"],
     [/host\s*unreachable|no\s*route/i, "route"],
   ],
@@ -163,6 +177,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/bcecmd|bos:/i, "bcecmd"],
     [/obsutil|obs:/i, "obsutil"],
     [/corrupted\s*on\s*transfer|multipart.*etag/i, "corruption"],
+    [/损坏|校验失败|传输失败/i, "corruption_cjk"],
   ],
   "storageops-replication-versioning": [
     [/replicat/i, "replication"],
@@ -401,7 +416,16 @@ function searchMemory(query: string, limit: number = 5): MemoryResult[] {
     }
   }
 
-  return results
+  // Keep only the best-scoring entry per session so one session can't occupy
+  // multiple result slots (a session matching in both summary and jsonl would
+  // otherwise crowd out other relevant sessions).
+  const bestBySession = new Map<string, MemoryResult>();
+  for (const r of results) {
+    const prev = bestBySession.get(r.sessionId);
+    if (!prev || r.score > prev.score) bestBySession.set(r.sessionId, r);
+  }
+
+  return Array.from(bestBySession.values())
     .sort((a, b) => b.score - a.score || String(b.updated).localeCompare(String(a.updated)))
     .slice(0, cappedLimit);
 }
