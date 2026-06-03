@@ -5,14 +5,40 @@ import pytest
 
 import storageops_cli
 from storageops_cli import (
+    MIN_NODE_VERSION,
     _configured_key_source,
     _ensure_httpmon,
     _ensure_pi,
     _inject_auth_env,
     _merge_settings,
     _merge_skill_paths,
+    _node_too_old,
+    _parse_version_triple,
     _resolve_api_key_entry,
 )
+
+
+def test_parse_version_triple():
+    assert _parse_version_triple("v22.19.0") == (22, 19, 0)
+    assert _parse_version_triple("v20.10.5") == (20, 10, 5)
+    assert _parse_version_triple("garbage") is None
+
+
+def test_min_node_threshold():
+    # Pi 0.78+ needs Node >= 22.19.0; older must be rejected, equal/newer accepted.
+    assert (20, 10, 0) < MIN_NODE_VERSION
+    assert (22, 18, 9) < MIN_NODE_VERSION
+    assert (22, 19, 0) >= MIN_NODE_VERSION
+    assert (24, 0, 0) >= MIN_NODE_VERSION
+
+
+def test_node_too_old_uses_threshold(monkeypatch):
+    monkeypatch.setattr(storageops_cli, "_node_version", lambda: (20, 10, 0))
+    assert _node_too_old() == (True, "20.10.0")
+    monkeypatch.setattr(storageops_cli, "_node_version", lambda: (22, 19, 0))
+    assert _node_too_old() == (False, "22.19.0")
+    monkeypatch.setattr(storageops_cli, "_node_version", lambda: None)
+    assert _node_too_old() == (False, "not found")
 
 
 def _clear_all_provider_env(monkeypatch):
@@ -148,6 +174,7 @@ def test_merge_settings_adds_storageops_skills_when_missing(tmp_path):
 def test_ensure_pi_stops_before_deploying_for_old_pi(monkeypatch, capsys):
     monkeypatch.setattr(storageops_cli, "find_pi", lambda: "/tmp/pi")
     monkeypatch.setattr(storageops_cli, "check_pi_version", lambda _exe: (False, "pi 0.77.0"))
+    monkeypatch.setattr(storageops_cli, "_node_version", lambda: (22, 19, 0))  # node OK
 
     with pytest.raises(SystemExit) as exc:
         _ensure_pi()
@@ -156,7 +183,24 @@ def test_ensure_pi_stops_before_deploying_for_old_pi(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "StorageOps cannot run safely" in output
     assert "No files were deployed" in output
-    assert "npm update -g @earendil-works/pi-coding-agent" in output
+    assert "npm install -g @earendil-works/pi-coding-agent" in output
+
+
+def test_ensure_pi_blocks_on_old_node_before_npm_install(monkeypatch, capsys):
+    # pi not found + Node too old -> stop with an actionable Node message instead
+    # of npm-installing a legacy Pi that gets rejected.
+    monkeypatch.setattr(storageops_cli, "find_pi", lambda: "pi")
+    monkeypatch.setattr(storageops_cli, "check_pi_version", lambda _exe: (False, "not found"))
+    monkeypatch.setattr(storageops_cli.shutil, "which", lambda name: "/usr/bin/npm")
+    monkeypatch.setattr(storageops_cli, "_node_version", lambda: (20, 10, 0))
+
+    with pytest.raises(SystemExit) as exc:
+        _ensure_pi()
+
+    assert exc.value.code == 1
+    output = capsys.readouterr().out
+    assert "Node.js 20.10.0 is too old" in output
+    assert "22.19" in output
 
 
 def test_cmd_install_does_not_deploy_files_when_pi_is_too_old(tmp_path, monkeypatch):

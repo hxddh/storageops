@@ -60,7 +60,10 @@ eval can read intent without relying on prose style.
 
 ### Change the Extension
 
-Edit `storageops_cli/extensions/storageops.ts`. It currently registers `scan_secrets`, `detect_domain`, and `search_memory` via Pi's extension API.
+Edit `storageops_cli/extensions/storageops.ts`. It registers four tools via Pi's
+extension API: `scan_secrets`, `detect_domain`, `search_memory`, and
+`capture_http_trace` (the only one that may invoke the external `httpmon` binary,
+through a bounded read-only wrapper).
 
 ### Change Install or Launch Behavior
 
@@ -73,7 +76,7 @@ Edit `storageops_cli/__init__.py`. Be careful with:
 
 ## Validation
 
-Run:
+Run these from the repository root:
 
 ```bash
 python3 scripts/skill_integrity_check.py
