@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-03 — v0.4.33: Honest key-status reporting
+
+- **Fixed misleading "API key not configured"**: the install summary (and now
+  `--version`) reported key presence using environment variables only, while the
+  launcher actually authenticates from environment **+ the `api-key` file +
+  `auth.json`**. On the install/version path the injector never runs, so a
+  file-configured key (which works for diagnosis) was reported as missing. A
+  single `_configured_key_source()` now checks the same three sources the
+  launcher uses, across all seven supported providers.
+- **`--version` now shows an `api key` readiness line** (env / api-key file /
+  auth.json), making it the honest one-glance status view. It reports presence,
+  not validity.
+- Found via real-host validation on a configured cloud instance.
+
 ## 2026-06-03 — v0.4.32: Tool reliability & effectiveness
 
 - **`scan_secrets` — presigned-URL material**: now redacts presigned signature/

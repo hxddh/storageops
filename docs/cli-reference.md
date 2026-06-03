@@ -41,10 +41,17 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.32  (pi: 0.78.0)
-  独立安装: 是  (~/.storageops/agent)
-  合并安装: 否  (~/.pi/agent)
+StorageOps v0.4.33  (pi: 0.78.0)
+  httpmon             : /root/.storageops/bin/httpmon
+  api key             : api-key file
+  independent install : yes  (~/.storageops/agent)
+  merged install      : no   (~/.pi/agent)
 ```
+
+The `api key` line reports where a key is configured — environment variable,
+the `api-key` file, or `auth.json` — i.e. the same sources the launcher reads,
+so it stays accurate when the key is set via file rather than environment. It
+reports presence, not validity.
 
 ## `storageops --help`
 
