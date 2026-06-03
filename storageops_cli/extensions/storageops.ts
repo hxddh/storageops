@@ -294,6 +294,55 @@ function safeMemorySnippet(text: string): string {
   return redactText(text.replace(/\s+/g, " ").trim()).redacted.slice(0, 240);
 }
 
+const MAX_SESSION_SCAN_DEPTH = 4;
+const MAX_SESSION_FILES = 200;
+
+// Pi stores session transcripts under scope subdirectories
+// (e.g. sessions/<scope>/<id>.jsonl), so a flat top-level scan misses them.
+// Walk the sessions tree with bounded depth/count and index by .jsonl files;
+// .meta.json is optional sibling enrichment, not required for recall.
+function collectSessionJsonl(root: string): string[] {
+  const found: string[] = [];
+  const walk = (dir: string, depth: number): void => {
+    if (depth > MAX_SESSION_SCAN_DEPTH || found.length >= MAX_SESSION_FILES) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (found.length >= MAX_SESSION_FILES) return;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full, depth + 1);
+      } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+        found.push(full);
+      }
+    }
+  };
+  walk(root, 0);
+  return found;
+}
+
+function readSessionMeta(jsonlPath: string): { sessionId: string; summary: string; updated: string } {
+  const sessionId = path.basename(jsonlPath, ".jsonl");
+  const metaPath = path.join(path.dirname(jsonlPath), `${sessionId}.meta.json`);
+  if (fs.existsSync(metaPath)) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+      return {
+        sessionId: meta.id || sessionId,
+        summary: meta.summary || meta.name || "",
+        updated: meta.updated || meta.created || "",
+      };
+    } catch {
+      // Malformed meta; the jsonl content is still searchable.
+    }
+  }
+  return { sessionId, summary: "", updated: "" };
+}
+
 function searchMemory(query: string, limit: number = 5): MemoryResult[] {
   const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
   const primarySessionsDir = path.join(agentDir, "sessions");
@@ -304,46 +353,40 @@ function searchMemory(query: string, limit: number = 5): MemoryResult[] {
   const tokens = searchTokens(query);
   if (tokens.length === 0) return [];
   const cappedLimit = Math.min(Math.max(limit || 5, 1), 10);
-  const metaFiles = fs.readdirSync(sessionsDir)
-    .filter(f => f.endsWith(".meta.json"))
+
+  const jsonlFiles = collectSessionJsonl(sessionsDir)
     .sort()
     .reverse()
-    .slice(0, 80);
+    .slice(0, MAX_SESSION_FILES);
 
   const results: MemoryResult[] = [];
 
-  for (const metaFile of metaFiles) {
+  for (const jsonlPath of jsonlFiles) {
     try {
-      const metaPath = path.join(sessionsDir, metaFile);
-      const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
-      const sessionId = meta.id || metaFile.replace(".meta.json", "");
+      const { sessionId, summary, updated } = readSessionMeta(jsonlPath);
 
-      const summary = meta.summary || meta.name || "";
-      const summaryScore = scoreText(summary, tokens);
+      const summaryScore = summary ? scoreText(summary, tokens) : 0;
       if (summaryScore > 0) {
         results.push({
           sessionId,
           snippet: safeMemorySnippet(summary),
-          updated: meta.updated || meta.created || "",
+          updated,
           source: "summary",
           score: summaryScore,
         });
       }
 
-      const jsonlPath = path.join(sessionsDir, `${sessionId}.jsonl`);
-      if (fs.existsSync(jsonlPath)) {
-        const content = fs.readFileSync(jsonlPath, "utf8").slice(0, 40_000);
-        const jsonlScore = scoreText(content, tokens);
-        if (jsonlScore > 0) {
-          const line = content.split(/\r?\n/).find(x => scoreText(x, tokens) > 0) || summary || `Session ${sessionId.slice(0, 8)}...`;
-          results.push({
-            sessionId,
-            snippet: safeMemorySnippet(line),
-            updated: meta.updated || "",
-            source: "jsonl",
-            score: jsonlScore,
-          });
-        }
+      const content = fs.readFileSync(jsonlPath, "utf8").slice(0, 40_000);
+      const jsonlScore = scoreText(content, tokens);
+      if (jsonlScore > 0) {
+        const line = content.split(/\r?\n/).find(x => scoreText(x, tokens) > 0) || summary || `Session ${sessionId.slice(0, 8)}...`;
+        results.push({
+          sessionId,
+          snippet: safeMemorySnippet(line),
+          updated,
+          source: "jsonl",
+          score: jsonlScore,
+        });
       }
     } catch {
       // Skip unreadable files

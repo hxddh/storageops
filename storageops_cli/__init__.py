@@ -73,6 +73,26 @@ PROVIDER_ENV = {
     "cerebras": "CEREBRAS_API_KEY",
 }
 
+# Provider prefixes accepted in the plain api-key file ("provider:key"), plus a
+# couple of friendly aliases. Pi binds credentials to an explicit provider, so
+# the file does too rather than guessing the provider from the key shape.
+API_KEY_FILE_PROVIDERS = {**PROVIDER_ENV, "gemini": "GEMINI_API_KEY", "claude": "ANTHROPIC_API_KEY"}
+
+
+def _resolve_api_key_entry(raw: str) -> tuple[str | None, str]:
+    """
+    Parse an api-key file value, honoring an optional ``provider:key`` prefix.
+
+    Returns ``(env_var, key)``. ``env_var`` is None when no known provider
+    prefix is present, in which case the caller applies the default fallback.
+    """
+    prefix, sep, rest = raw.partition(":")
+    if sep:
+        env_var = API_KEY_FILE_PROVIDERS.get(prefix.strip().lower())
+        if env_var:
+            return env_var, rest.strip()
+    return None, raw
+
 
 def find_pi() -> str:
     """Locate the pi binary."""
@@ -335,15 +355,23 @@ def _inject_auth_env(agent_dir: Path) -> None:
         except Exception:
             pass
 
-    # 2. StorageOps api-key file (plain-text key)
+    # 2. StorageOps api-key file. Supports an optional explicit "provider:key"
+    #    prefix (e.g. "anthropic:sk-ant-...") routed via the provider map, matching
+    #    Pi's provider-explicit auth model. Without a known prefix it falls back to
+    #    the DeepSeek-first default for backward compatibility.
     key_file = agent_dir / "api-key"
     if key_file.exists():
-        key = key_file.read_text().strip()
-        if key:
-            for candidate in ["DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]:
-                if candidate not in os.environ:
-                    os.environ[candidate] = key
-                    break
+        raw = key_file.read_text().strip()
+        if raw:
+            env_var, key = _resolve_api_key_entry(raw)
+            if env_var:
+                if env_var not in os.environ:
+                    os.environ[env_var] = key
+            else:
+                for candidate in ["DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]:
+                    if candidate not in os.environ:
+                        os.environ[candidate] = key
+                        break
 
 
 def _package_data_dir() -> Path:
