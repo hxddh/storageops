@@ -1,5 +1,11 @@
 # Provider-Specific Log Format Differences
 
+> **⚠️ Unverified:** the BOS/COS rows below have not been confirmed against vendor
+> docs and **contradict** both `SKILL.md` Step 1 (which says BOS/COS are CSV) and
+> `scripts/parse_access_log.py` (which parses both as CSV). Treat the BOS/COS
+> format details here as provisional until verified against a real sample; the
+> parser deliberately refuses to emit results when its expected columns are absent.
+
 ## Comparison Table
 
 | Provider | Format | Delimiter | Encoding | Timestamp Format | Key Encoding |

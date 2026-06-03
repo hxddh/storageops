@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ETag Parser — classify cloud-storage ETag formats and detect encryption/mismatches.
 
-Formats: plain-MD5 | multipart (MD5-N) | BOS composite (crctY-md5) | weak | KMS-blob
+Formats: plain-MD5 | multipart (MD5-N, S3) | BOS multipart (-MD5, leading dash) | weak | KMS-blob
 Encryption heuristics: SSE-KMS (AQID* base64), SSE-S3, SSE-C, BOS-SSE (via headers)
 Output: JSON {ok, summary, details[], findings[]}
 """
@@ -12,7 +12,9 @@ from typing import Any, Dict, List, Optional
 # ── Patterns ────────────────────────────────────────────────────────────────
 RE_PLAIN_MD5 = re.compile(r'^"?[0-9a-fA-F]{32}"?$')
 RE_MULTIPART = re.compile(r'^"?([0-9a-fA-F]{32})-(\d+)"?$')
-RE_BOS_COMP  = re.compile(r'^"?crct[-A-Za-z0-9=+]+-([0-9a-fA-F]{32})"?$')
+# BOS multipart ETag: md5 of the concatenated part md5s, hex, with a LEADING dash
+# and no part count (contrast with S3's trailing "-N").
+RE_BOS_MULTIPART = re.compile(r'^"?-([0-9a-fA-F]{32})"?$')
 RE_WEAK      = re.compile(r'^W/".+"$')
 RE_KMS_B64   = re.compile(r'^"?[A-Za-z0-9+/=]{40,}"?$')
 SSE_HEADERS  = {
@@ -35,9 +37,9 @@ def classify_etag(raw: str) -> Dict[str, Any]:
     elif (m := RE_MULTIPART.match(no_q) or RE_MULTIPART.match(s)):
         info.update(type="multipart", md5=m.group(1).lower(),
                      part_count=int(m.group(2)), encryption="none (inferable)")
-    elif (m := RE_BOS_COMP.match(no_q) or RE_BOS_COMP.match(s)):
-        info.update(type="bos-composite", md5=m.group(1).lower(),
-                     algorithm="CRC-32C+MD5", encryption="none (inferable)")
+    elif (m := RE_BOS_MULTIPART.match(no_q) or RE_BOS_MULTIPART.match(s)):
+        info.update(type="bos-multipart", md5=m.group(1).lower(),
+                     algorithm="md5-of-part-md5s (leading dash)", encryption="none (inferable)")
     elif (m := RE_PLAIN_MD5.match(no_q) or RE_PLAIN_MD5.match(s)):
         info.update(type="md5", md5=no_q.lower(), encryption="none (inferable)")
     elif (m := RE_KMS_B64.match(no_q) or RE_KMS_B64.match(s)):

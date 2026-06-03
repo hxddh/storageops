@@ -6,7 +6,7 @@ description: >
   time/cost estimation, ETag and metadata compatibility across providers,
   integrity verification, and rollback planning. Use when user plans to move
   data between object storage providers or set up ongoing cross-provider sync.
-maturity: mature
+maturity: beta
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:

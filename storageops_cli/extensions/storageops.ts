@@ -281,8 +281,16 @@ type MemoryResult = {
 };
 
 function searchTokens(query: string): string[] {
-  const normalized = query.toLowerCase().match(/[a-z0-9_\-:.]{3,}/g) || [];
-  return Array.from(new Set(normalized)).slice(0, 12);
+  const ascii = query.toLowerCase().match(/[a-z0-9_\-:.]{3,}/g) || [];
+  // CJK queries carry no ASCII word tokens, so the old tokenizer returned [] and
+  // recall was empty for Chinese. Emit overlapping bigrams (and single chars for
+  // length-1 runs) so Chinese memory searches recall partial matches.
+  const cjkTokens: string[] = [];
+  for (const run of query.match(/[一-鿿]+/g) || []) {
+    if (run.length === 1) cjkTokens.push(run);
+    else for (let i = 0; i < run.length - 1; i++) cjkTokens.push(run.slice(i, i + 2));
+  }
+  return Array.from(new Set([...ascii, ...cjkTokens])).slice(0, 12);
 }
 
 function scoreText(text: string, tokens: string[]): number {
@@ -425,15 +433,22 @@ const MAX_TRACE_COMMAND_ARGS = 40;
 
 const READ_ONLY_AWS_S3API = new Set([
   "head-object",
+  "head-bucket",
   "list-objects",
   "list-objects-v2",
   "list-buckets",
+  "list-multipart-uploads",
   "get-bucket-location",
   "get-bucket-versioning",
   "get-bucket-replication",
   "get-bucket-encryption",
   "get-bucket-policy-status",
   "get-public-access-block",
+  "get-bucket-cors",
+  "get-bucket-lifecycle-configuration",
+  "get-bucket-tagging",
+  "get-bucket-acl",
+  "get-object-attributes",
 ]);
 
 const READ_ONLY_CLIENT_OPS = new Set(["ls", "lsf", "lsd", "stat", "head"]);
