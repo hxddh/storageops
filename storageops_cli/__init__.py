@@ -38,6 +38,9 @@ BIN_DIR = ROOT / "bin"
 PI_DEFAULT = Path.home() / ".pi"
 PI_DEFAULT_AGENT = PI_DEFAULT / "agent"
 MIN_PI_VERSION = "0.78.0"
+# Pi 0.78+ declares engines node >= 22.19.0; on older Node, npm installs an
+# incompatible legacy Pi that StorageOps rejects, so check Node before installing.
+MIN_NODE_VERSION = (22, 19, 0)
 REQUIRED_API_KEYS = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"]
 PYPI_JSON_URL = "https://pypi.org/pypi/storageops/json"
 HTTPMON_VERSION = "v1.0.2"
@@ -259,6 +262,32 @@ def check_pi_version(exe: str) -> tuple[bool, str]:
     return _parse(ver) >= _parse(MIN_PI_VERSION), ver
 
 
+def _parse_version_triple(raw: str) -> tuple[int, int, int] | None:
+    """Parse the first X.Y.Z found in a version string (e.g. 'v22.19.0')."""
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", raw or "")
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def _node_version() -> tuple[int, int, int] | None:
+    """Return the installed Node.js version as a tuple, or None if not found."""
+    node = shutil.which("node")
+    if not node:
+        return None
+    try:
+        result = subprocess.run([node, "--version"], capture_output=True, text=True)
+        return _parse_version_triple(result.stdout + result.stderr)
+    except Exception:
+        return None
+
+
+def _node_too_old() -> tuple[bool, str]:
+    """Return (is_too_old, version_label). Absent Node is not 'too old' here."""
+    nv = _node_version()
+    if nv is None:
+        return False, "not found"
+    return nv < MIN_NODE_VERSION, ".".join(str(p) for p in nv)
+
+
 def _ensure_pi() -> str:
     """
     Ensure Pi Coding Agent is available; return the pi executable path.
@@ -276,12 +305,21 @@ def _ensure_pi() -> str:
         print(f"[ok] pi {ver} -> {pi_exe}")
         return pi_exe
 
+    min_node = ".".join(str(p) for p in MIN_NODE_VERSION)
+
     if ver != "not found":
         # pi exists but is too old for the extension/config contract; do not auto-upgrade.
+        too_old, nv = _node_too_old()
         print(f"[error] pi {ver} < {MIN_PI_VERSION} -- StorageOps cannot run safely.")
         print("        StorageOps requires Pi Coding Agent with Extension API support.")
         print("        No files were deployed.")
-        print("        To upgrade: npm update -g @earendil-works/pi-coding-agent")
+        if too_old:
+            # npm will keep serving the legacy Pi on old Node, so upgrading Node is the real fix.
+            print(f"        Your Node.js is {nv}; Pi {MIN_PI_VERSION}+ requires Node >= {min_node}.")
+            print("        Upgrade Node first (e.g. nvm install 22), then:")
+        else:
+            print("        To upgrade:")
+        print("        npm install -g @earendil-works/pi-coding-agent")
         print()
         sys.exit(1)
 
@@ -289,8 +327,17 @@ def _ensure_pi() -> str:
     npm = shutil.which("npm")
     if not npm:
         print("[error] Pi Coding Agent not found and npm is not available.")
-        print("        Install Node.js first: https://nodejs.org")
+        print(f"        Install Node.js {min_node}+ first: https://nodejs.org")
         print("        Then re-run: storageops install")
+        sys.exit(1)
+
+    # Pre-flight Node check: an old Node makes npm install an incompatible legacy
+    # Pi that StorageOps then rejects. Stop with actionable guidance instead.
+    too_old, nv = _node_too_old()
+    if too_old:
+        print(f"[error] Node.js {nv} is too old. Pi {MIN_PI_VERSION}+ requires Node >= {min_node}.")
+        print("        npm would install an incompatible legacy Pi that StorageOps rejects.")
+        print("        Upgrade Node (e.g. nvm install 22), then re-run: storageops install")
         sys.exit(1)
 
     print("[info] Pi Coding Agent not found. Installing via npm...")
@@ -740,7 +787,10 @@ def cmd_version():
     merged = is_installed(PI_DEFAULT_AGENT)
     active_agent = PI_DEFAULT_AGENT if (merged and not independent) else AGENT_DIR
     key_source = _configured_key_source(active_agent) or "not configured"
+    nv = _node_version()
+    node_str = ("v" + ".".join(str(p) for p in nv)) if nv else "not found"
     print(f"StorageOps v{v}  (pi: {ver})")
+    print(f"  node                : {node_str}")
     print(f"  httpmon             : {httpmon}")
     print(f"  api key             : {key_source}")
     print(f"  independent install : {'yes' if independent else 'no'}  ({AGENT_DIR})")
