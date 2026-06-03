@@ -5,6 +5,7 @@ import pytest
 
 import storageops_cli
 from storageops_cli import (
+    _configured_key_source,
     _ensure_httpmon,
     _ensure_pi,
     _inject_auth_env,
@@ -12,6 +13,43 @@ from storageops_cli import (
     _merge_skill_paths,
     _resolve_api_key_entry,
 )
+
+
+def _clear_all_provider_env(monkeypatch):
+    for var in ["DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+                "GEMINI_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY", "CEREBRAS_API_KEY"]:
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_key_source_detects_api_key_file_without_env(tmp_path, monkeypatch):
+    # The exact bug a real host surfaced: install summary said "not configured"
+    # even though an api-key file was present and diagnoses worked.
+    _clear_all_provider_env(monkeypatch)
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "api-key").write_text("sk-something\n")
+
+    assert _configured_key_source(agent_dir) == "api-key file"
+
+
+def test_key_source_detects_env_and_authjson(tmp_path, monkeypatch):
+    _clear_all_provider_env(monkeypatch)
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
+    assert _configured_key_source(agent_dir) == "env (ANTHROPIC_API_KEY)"
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    (agent_dir / "auth.json").write_text(json.dumps({"deepseek": {"apiKey": "sk-d"}}))
+    assert _configured_key_source(agent_dir) == "auth.json (deepseek)"
+
+
+def test_key_source_none_when_unconfigured(tmp_path, monkeypatch):
+    _clear_all_provider_env(monkeypatch)
+    agent_dir = tmp_path / "agent"
+    agent_dir.mkdir()
+    assert _configured_key_source(agent_dir) is None
 
 
 def test_resolve_api_key_entry_routes_known_provider_prefixes():

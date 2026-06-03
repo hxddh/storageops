@@ -335,6 +335,39 @@ def detect_api_keys() -> list[str]:
     return [k for k in REQUIRED_API_KEYS if os.environ.get(k)]
 
 
+def _configured_key_source(agent_dir: Path) -> str | None:
+    """
+    Return a human description of where a usable model key is configured, or None.
+
+    Checks the same sources the launcher injects from -- environment variables, the
+    StorageOps api-key file, and Pi auth.json -- so status output is honest when a
+    key is configured via file rather than via the environment. Reports presence,
+    not validity (a key being well-formed does not mean it authenticates).
+    """
+    for var in dict.fromkeys([*REQUIRED_API_KEYS, *PROVIDER_ENV.values()]):
+        if os.environ.get(var):
+            return f"env ({var})"
+    key_file = agent_dir / "api-key"
+    try:
+        if key_file.exists() and key_file.read_text().strip():
+            return "api-key file"
+    except Exception:
+        pass
+    auth_file = agent_dir / "auth.json"
+    try:
+        if auth_file.exists():
+            auth = json.loads(auth_file.read_text())
+            for provider in PROVIDER_ENV:
+                val = auth.get(provider)
+                if isinstance(val, dict):
+                    val = val.get("apiKey") or val.get("key")
+                if isinstance(val, str) and val:
+                    return f"auth.json ({provider})"
+    except Exception:
+        pass
+    return None
+
+
 def _inject_auth_env(agent_dir: Path) -> None:
     """
     Inject API keys from Pi auth.json and the StorageOps api-key file into
@@ -584,9 +617,9 @@ def _final_check(agent_dir: Path, merge: bool) -> None:
         sys.exit(1)
 
     # API key
-    keys = detect_api_keys()
-    if keys:
-        print(f"[ok] API key             detected ({keys[0]})")
+    key_source = _configured_key_source(agent_dir)
+    if key_source:
+        print(f"[ok] API key             configured ({key_source})")
         print()
         print("StorageOps is ready. Start a diagnosis:")
         print()
@@ -705,8 +738,11 @@ def cmd_version():
     httpmon = find_httpmon() or "not found"
     independent = is_installed(AGENT_DIR)
     merged = is_installed(PI_DEFAULT_AGENT)
+    active_agent = PI_DEFAULT_AGENT if (merged and not independent) else AGENT_DIR
+    key_source = _configured_key_source(active_agent) or "not configured"
     print(f"StorageOps v{v}  (pi: {ver})")
     print(f"  httpmon             : {httpmon}")
+    print(f"  api key             : {key_source}")
     print(f"  independent install : {'yes' if independent else 'no'}  ({AGENT_DIR})")
     print(f"  merged install      : {'yes' if merged else 'no'}  ({PI_DEFAULT_AGENT})")
 
