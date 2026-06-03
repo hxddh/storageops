@@ -1,5 +1,24 @@
 # ETag and Checksum Semantics
 
+> **Canonical source.** This file is the single source of truth for ETag formats
+> across providers. Other skills (e.g. `storageops-data-consistency`) link here
+> rather than restating, to avoid drift. Each row notes its verification status.
+
+## Multipart ETag by provider (canonical matrix)
+
+| Provider | Single PUT | Multipart string shape | Underlying multipart computation | Status |
+|---|---|---|---|---|
+| AWS S3 | `<32hex>` (MD5) | `<32hex>-N` (trailing count) | MD5 of concatenated part MD5s, `-N` = part count | Verified |
+| MinIO | `<32hex>` (MD5) | `<32hex>-N` | Same as AWS (unencrypted) | Verified (MinIO `internal/etag`, 2026-06) |
+| Baidu BOS | `<32hex>` (MD5) | `-<32hex>` (**leading** `-`, no count) | MD5 of concatenated part MD5s | Confirmed |
+| Alibaba OSS | `<32hex>` (MD5) | differs from S3; not the object MD5 | **Not** AWS computation; exact algorithm **undocumented** | Differs-verified; algorithm unverified |
+| Tencent COS | `<32hex>` (MD5) | `<32hex>-N` shape; not the object MD5 | Exact computation **not confirmed** against vendor docs | Not object MD5 verified; computation unverified |
+
+Notes: a parser keying on string *shape* sees S3/MinIO/COS/OSS multipart ETags as
+`<32hex>-N` and BOS as `-<32hex>`; the per-provider *computation* difference (above)
+is what breaks naive AWS-style integrity checks and lives here, not in the parser.
+For OSS/COS, do not assume a specific algorithm — verify against a real ETag.
+
 ## ETag Formats
 
 ### Single PUT Upload

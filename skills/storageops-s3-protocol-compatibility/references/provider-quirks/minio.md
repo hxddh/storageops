@@ -6,7 +6,8 @@
   server configuration. MinIO can be configured to return ETags compatible
   with AWS S3.
 - **Multipart Upload:** Returns ETag in AWS-compatible format (MD5 of
-  concatenated part MD5s + `-N` suffix).
+  concatenated part MD5s + `-N` suffix). (Verified — MinIO `internal/etag`
+  implements `MD5(e1‖…‖eN)-N` for unencrypted multipart, 2026-06.)
 - **MinIO is generally the most AWS S3-compatible** among non-AWS providers
   for ETag semantics.
 

@@ -35,6 +35,10 @@ def classify_etag(raw: str) -> Dict[str, Any]:
         info.update(type="weak", normalized=weak_body,
                      note="HTTP weak validator — not for integrity")
     elif (m := RE_MULTIPART.match(no_q) or RE_MULTIPART.match(s)):
+        # Shape-based: S3 / MinIO / OSS / COS all expose the "<hex>-N" multipart
+        # shape. The per-provider computation differs (see the canonical matrix in
+        # s3-protocol-compatibility/references/checksum-etag.md); the string alone
+        # cannot identify the provider, so do not infer AWS semantics from this.
         info.update(type="multipart", md5=m.group(1).lower(),
                      part_count=int(m.group(2)), encryption="none (inferable)")
     elif (m := RE_BOS_MULTIPART.match(no_q) or RE_BOS_MULTIPART.match(s)):
