@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.35  (pi: 0.78.0)
+StorageOps v0.4.36  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -152,6 +152,12 @@ does not replay requests. Its output is a sanitized summary of method, host,
 path template, status, signing shape, S3 error code, and **sanitized response
 headers** (diagnostic metadata passes through; cookie/auth header values are
 masked; redirect targets are stripped of presigned signatures).
+
+The command validator checks the storage client's operation position rather
+than treating every bucket, prefix, or key argument as an operation. This keeps
+read-only metadata requests working even when object names contain words like
+`delete`, `copy`, or `sync`. Curl commands are additionally constrained so the
+URL host must match `filter_host`.
 
 `storageops install` automatically installs a verified `httpmon` helper into
 `~/.storageops/bin/httpmon` when it is not already available. PyPI release

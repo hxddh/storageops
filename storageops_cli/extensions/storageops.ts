@@ -461,23 +461,45 @@ const READ_ONLY_AWS_S3API = new Set([
   "list-objects",
   "list-objects-v2",
   "list-buckets",
+  "list-object-versions",
   "list-multipart-uploads",
   "get-bucket-location",
   "get-bucket-versioning",
   "get-bucket-replication",
   "get-bucket-encryption",
   "get-bucket-policy-status",
+  "get-bucket-policy",
+  "get-bucket-logging",
+  "get-bucket-notification-configuration",
+  "get-bucket-website",
+  "get-bucket-request-payment",
+  "get-bucket-ownership-controls",
+  "get-bucket-object-lock-configuration",
   "get-public-access-block",
   "get-bucket-cors",
   "get-bucket-lifecycle-configuration",
   "get-bucket-tagging",
   "get-bucket-acl",
   "get-object-attributes",
+  "get-object-retention",
+  "get-object-legal-hold",
 ]);
 
 const READ_ONLY_CLIENT_OPS = new Set(["ls", "lsf", "lsd", "stat", "head"]);
+const MUTATING_CLIENT_OPS = new Set([
+  "rm",
+  "rb",
+  "mb",
+  "mv",
+  "cp",
+  "sync",
+  "copy",
+  "delete",
+  "purge",
+  "move",
+]);
 
-const MUTATING_WORDS = [
+const MUTATING_AWS_S3API = new Set([
   "put-object",
   "delete-object",
   "delete-objects",
@@ -492,21 +514,7 @@ const MUTATING_WORDS = [
   "put-bucket-acl",
   "put-bucket-policy",
   "delete-bucket-policy",
-  "rm",
-  "rb",
-  "mb",
-  "mv",
-  "cp",
-  "sync",
-  "copy",
-  "delete",
-  "purge",
-  "move",
-  "POST",
-  "PUT",
-  "DELETE",
-  "PATCH",
-];
+]);
 
 const SIGNED_QUERY_KEYS = [
   "x-amz-signature",
@@ -539,6 +547,61 @@ function hasSignedQueryMaterial(command: string[]): boolean {
   return SIGNED_QUERY_KEYS.some(key => text.includes(key));
 }
 
+function firstKnownClientOp(args: string[]): string {
+  for (const arg of args.slice(1)) {
+    if (READ_ONLY_CLIENT_OPS.has(arg) || MUTATING_CLIENT_OPS.has(arg)) return arg;
+  }
+  return "";
+}
+
+function curlMethod(command: string[], lowered: string[]): string {
+  for (let i = 1; i < lowered.length; i += 1) {
+    const arg = lowered[i];
+    if (arg === "-x" || arg === "--request") {
+      return (lowered[i + 1] || "get").toUpperCase();
+    }
+    if (arg.startsWith("-x") && arg.length > 2) {
+      return arg.slice(2).toUpperCase();
+    }
+    if (arg.startsWith("--request=")) {
+      return arg.slice("--request=".length).toUpperCase();
+    }
+  }
+  const usesHeadFlag = command.includes("-I") || lowered.includes("--head");
+  return usesHeadFlag ? "HEAD" : "GET";
+}
+
+function commandHosts(command: string[]): string[] {
+  const hosts: string[] = [];
+  for (let i = 0; i < command.length; i += 1) {
+    const arg = command[i];
+    let candidate = arg;
+    if (arg === "--url" || arg === "-url") {
+      candidate = command[i + 1] || "";
+    } else if (arg.startsWith("--url=")) {
+      candidate = arg.slice("--url=".length);
+    }
+    if (!/^https?:\/\//i.test(candidate)) continue;
+    try {
+      hosts.push(new URL(candidate).host.toLowerCase());
+    } catch {
+      // Ignore malformed URL-like arguments; the wrapped tool will report them.
+    }
+  }
+  return Array.from(new Set(hosts));
+}
+
+function curlHasBodyUploadFlag(lowered: string[]): boolean {
+  const exact = new Set(["-d", "--data", "--data-raw", "--data-binary", "-f", "--form", "-t", "--upload-file"]);
+  return lowered.some(x => exact.has(x)
+    || x.startsWith("-d")
+    || x.startsWith("--data=")
+    || x.startsWith("--data-raw=")
+    || x.startsWith("--data-binary=")
+    || x.startsWith("--form=")
+    || x.startsWith("--upload-file="));
+}
+
 export function validateTraceCommand(command: string[], filterHost: string, captureBody: boolean): string[] {
   const errors: string[] = [];
   if (!Array.isArray(command) || command.length === 0) {
@@ -559,10 +622,6 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
       errors.push("all command arguments must be non-empty strings");
       break;
     }
-    if (/[;&|`<>]/.test(arg)) {
-      errors.push("shell metacharacters are not allowed; pass an argv array, not a shell command");
-      break;
-    }
   }
   if (hasSignedQueryMaterial(command)) {
     errors.push("presigned URL material is not accepted by capture_http_trace; provide a redacted trace instead");
@@ -570,17 +629,9 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
 
   const exe = path.basename(command[0] || "").toLowerCase();
   const lowered = command.map(x => x.toLowerCase());
-  const text = lowered.join(" ");
   const blockedShells = new Set(["sh", "bash", "zsh", "fish", "pwsh", "powershell", "sudo"]);
   if (blockedShells.has(exe)) {
     errors.push("shells and sudo are not allowed for HTTP trace capture");
-  }
-  for (const word of MUTATING_WORDS) {
-    const pattern = new RegExp(`(^|\\s)${word.toLowerCase()}($|\\s)`, "i");
-    if (pattern.test(text)) {
-      errors.push(`mutating or high-risk operation is not allowed: ${word}`);
-      break;
-    }
   }
 
   if (exe === "aws") {
@@ -588,6 +639,9 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
     const s3 = lowered.indexOf("s3");
     if (s3api >= 0) {
       const op = lowered[s3api + 1] || "";
+      if (MUTATING_AWS_S3API.has(op)) {
+        errors.push(`mutating or high-risk operation is not allowed: ${op}`);
+      }
       if (!READ_ONLY_AWS_S3API.has(op)) {
         errors.push(`aws s3api operation is not in the read-only allowlist: ${op || "(missing)"}`);
       }
@@ -600,19 +654,26 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
       errors.push("aws capture requires an s3 or s3api read-only operation");
     }
   } else if (exe === "curl") {
-    const requestIdx = lowered.findIndex((x, idx) => command[idx] === "-X" || x === "--request");
-    const method = requestIdx >= 0 ? (lowered[requestIdx + 1] || "get").toUpperCase() : "GET";
-    const usesHeadFlag = command.includes("-I") || lowered.includes("--head");
-    if (!usesHeadFlag && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const method = curlMethod(command, lowered);
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
       errors.push(`curl method is not read-only: ${method}`);
     }
-    if (lowered.some(x => ["-d", "--data", "--data-raw", "--data-binary", "-f", "--form", "-t", "--upload-file"].includes(x))) {
+    const hosts = commandHosts(command);
+    if (hosts.length > 0 && filterHost && !hosts.some(host => host === filterHost)) {
+      errors.push("curl URL host must match filter_host");
+    }
+    if (curlHasBodyUploadFlag(lowered)) {
       errors.push("curl body upload flags are not allowed");
     }
   } else if (["rclone", "s5cmd", "mc", "bcecmd", "obsutil", "s3cmd"].includes(exe)) {
-    const op = lowered.find(x => READ_ONLY_CLIENT_OPS.has(x)) || "";
+    const op = firstKnownClientOp(lowered);
+    if (MUTATING_CLIENT_OPS.has(op)) {
+      errors.push(`mutating or high-risk operation is not allowed: ${op}`);
+    }
     if (!op) {
       errors.push(`${exe} capture requires a read-only operation such as ls/stat/head`);
+    } else if (!READ_ONLY_CLIENT_OPS.has(op)) {
+      errors.push(`${exe} operation is not in the read-only allowlist: ${op}`);
     }
   } else {
     errors.push(`unsupported command for safe HTTP trace capture: ${exe || "(missing)"}`);

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-06-04 — v0.4.36: Flexible capture_http_trace validation
+
+- **Less brittle read-only tracing**: `capture_http_trace` now validates by the
+  command's operation position instead of scanning every argv value for words
+  like `delete`, `sync`, or `copy`. Read-only requests for objects or prefixes
+  with those names are no longer rejected before they can emit HTTP evidence.
+- **More complete read-only AWS coverage**: added common metadata/listing
+  operations needed for WORM, event-notification, logging, ownership, policy,
+  and versioning diagnosis (`get-object-retention`, `get-object-legal-hold`,
+  `get-bucket-notification-configuration`, `list-object-versions`, and related
+  bucket metadata calls).
+- **Safer curl parsing**: `curl -XPOST`, `curl --request=POST`, and other
+  method forms are now rejected correctly, and curl URL hosts must match
+  `filter_host`. The tool still rejects body capture, shell/sudo wrappers,
+  mutating operations, raw HAR/record, replay, and presigned URL material by
+  default.
+
 ## 2026-06-03 — v0.4.35: capture_http_trace response headers + behavioral tool tests
 
 - **`capture_http_trace` now returns sanitized response headers.** A real WORM
