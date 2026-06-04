@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-06-04 — v0.4.39: Soft observation for unclassified trace commands
+
+- **Less tool-policy overreach**: `capture_http_trace` no longer rejects custom
+  SDK probes merely because an argument value looks like `delete`, `copy`, or
+  `sync`. Unknown clients now reject explicit HTTP write methods, then use
+  bounded metadata observation plus warnings for suspicious arguments.
+- **Known clients degrade gracefully**: storage clients such as `rclone`, `mc`,
+  and `s5cmd` still reject clear mutating operation positions, but unclassified
+  non-mutating commands fall back to observation instead of requiring an ever
+  growing allowlist.
+- **Agent-readable guardrails**: trace results now include
+  `operation_unclassified=true` when the command is observed without a dedicated
+  operation classification. Body capture, shell/sudo wrappers, presigned URL
+  material, raw HAR/record output, and replay remain unavailable.
+
 ## 2026-06-04 — v0.4.38: Host mismatch as trace warning
 
 - **Less premature rejection**: `capture_http_trace` no longer rejects curl or

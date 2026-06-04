@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.38  (pi: 0.78.0)
+StorageOps v0.4.39  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -163,9 +163,11 @@ run.
 For custom SDK probes or vendor CLIs without a dedicated adapter, the tool uses
 a stricter `unknown_observation` policy instead of rejecting solely by
 executable name. Unknown-client observation is capped at 5 requests and 15
-seconds, requires the same `filter_host`, rejects obvious mutating arguments,
-and reports `method_violation=true` if captured metadata shows a non-read-only
-HTTP method.
+seconds, requires the same `filter_host`, rejects explicit HTTP write methods,
+warns on suspicious arguments that may be operation names, and reports
+`method_violation=true` if captured metadata shows a non-read-only HTTP method.
+Known storage clients with unclassified, non-mutating commands also fall back to
+bounded observation and return `operation_unclassified=true`.
 
 `storageops install` automatically installs a verified `httpmon` helper into
 `~/.storageops/bin/httpmon` when it is not already available. PyPI release

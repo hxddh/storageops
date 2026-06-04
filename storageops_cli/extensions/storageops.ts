@@ -535,6 +535,7 @@ const UNKNOWN_MUTATING_TOKENS = new Set([
   "mv",
   "cp",
 ]);
+const WRITE_HTTP_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 const SIGNED_QUERY_KEYS = [
   "x-amz-signature",
@@ -576,12 +577,13 @@ function firstKnownClientOp(args: string[]): string {
 
 function curlMethod(command: string[], lowered: string[]): string {
   for (let i = 1; i < lowered.length; i += 1) {
+    const rawArg = command[i];
     const arg = lowered[i];
-    if (arg === "-x" || arg === "--request") {
+    if (rawArg === "-X" || arg === "--request") {
       return (lowered[i + 1] || "get").toUpperCase();
     }
-    if (arg.startsWith("-x") && arg.length > 2) {
-      return arg.slice(2).toUpperCase();
+    if (rawArg.startsWith("-X") && rawArg.length > 2) {
+      return rawArg.slice(2).toUpperCase();
     }
     if (arg.startsWith("--request=")) {
       return arg.slice("--request=".length).toUpperCase();
@@ -611,15 +613,23 @@ function commandHosts(command: string[]): string[] {
   return Array.from(new Set(hosts));
 }
 
-function curlHasBodyUploadFlag(lowered: string[]): boolean {
-  const exact = new Set(["-d", "--data", "--data-raw", "--data-binary", "-f", "--form", "-t", "--upload-file"]);
-  return lowered.some(x => exact.has(x)
-    || x.startsWith("-d")
-    || x.startsWith("--data=")
-    || x.startsWith("--data-raw=")
-    || x.startsWith("--data-binary=")
-    || x.startsWith("--form=")
-    || x.startsWith("--upload-file="));
+function curlHasBodyUploadFlag(command: string[], lowered: string[]): boolean {
+  const exactLower = new Set(["--data", "--data-raw", "--data-binary", "--form", "--upload-file"]);
+  return command.some((raw, index) => {
+    const lower = lowered[index];
+    return raw === "-d"
+      || raw.startsWith("-d")
+      || raw === "-F"
+      || raw.startsWith("-F")
+      || raw === "-T"
+      || raw.startsWith("-T")
+      || exactLower.has(lower)
+      || lower.startsWith("--data=")
+      || lower.startsWith("--data-raw=")
+      || lower.startsWith("--data-binary=")
+      || lower.startsWith("--form=")
+      || lower.startsWith("--upload-file=");
+  });
 }
 
 function clientPolicyForCommand(command: string[]): "known_adapter" | "unknown_observation" {
@@ -627,22 +637,67 @@ function clientPolicyForCommand(command: string[]): "known_adapter" | "unknown_o
   return KNOWN_TRACE_CLIENTS.has(exe) ? "known_adapter" : "unknown_observation";
 }
 
-function validateUnknownTraceCommand(command: string[], filterHost: string): string[] {
-  const errors: string[] = [];
-  const lowered = command.map(x => x.toLowerCase());
-  const mutating = lowered.find((arg, index) => index > 0 && UNKNOWN_MUTATING_TOKENS.has(arg));
-  if (mutating) {
-    errors.push(`unknown client observation rejects obvious mutating argument: ${mutating}`);
+function explicitHttpWriteMethod(command: string[], lowered: string[]): string {
+  for (let i = 1; i < lowered.length; i += 1) {
+    const rawArg = command[i];
+    const arg = lowered[i];
+    if (rawArg === "-X" || arg === "--request" || arg === "--method") {
+      const method = (lowered[i + 1] || "").toUpperCase();
+      if (WRITE_HTTP_METHODS.has(method)) return method;
+    }
+    if (rawArg.startsWith("-X") && rawArg.length > 2) {
+      const method = rawArg.slice(2).toUpperCase();
+      if (WRITE_HTTP_METHODS.has(method)) return method;
+    }
+    for (const prefix of ["--request=", "--method="]) {
+      if (arg.startsWith(prefix)) {
+        const method = arg.slice(prefix.length).toUpperCase();
+        if (WRITE_HTTP_METHODS.has(method)) return method;
+      }
+    }
   }
-  return errors;
+  return "";
+}
+
+function suspiciousUnknownToken(command: string[]): string {
+  const lowered = command.map(x => x.toLowerCase());
+  return lowered.find((arg, index) => index > 0 && UNKNOWN_MUTATING_TOKENS.has(arg)) || "";
+}
+
+function validateUnknownTraceCommand(command: string[]): string[] {
+  const lowered = command.map(x => x.toLowerCase());
+  const method = explicitHttpWriteMethod(command, lowered);
+  return method ? [`explicit HTTP write method is not allowed: ${method}`] : [];
+}
+
+function operationUnclassified(command: string[]): boolean {
+  const exe = path.basename(command[0] || "").toLowerCase();
+  const lowered = command.map(x => x.toLowerCase());
+  if (!KNOWN_TRACE_CLIENTS.has(exe)) return true;
+  if (["rclone", "s5cmd", "mc", "bcecmd", "obsutil", "s3cmd"].includes(exe)) {
+    return !firstKnownClientOp(lowered);
+  }
+  return false;
+}
+
+function traceHostMismatch(command: string[], filterHost: string): boolean {
+  const hosts = commandHosts(command);
+  return hosts.length > 0 && Boolean(filterHost) && !hosts.some(host => host === filterHost);
 }
 
 function traceWarningsForCommand(command: string[], filterHost: string): string[] {
-  const hosts = commandHosts(command);
-  if (hosts.length > 0 && filterHost && !hosts.some(host => host === filterHost)) {
-    return ["command URL host differs from filter_host; trace may capture zero requests"];
+  const warnings: string[] = [];
+  if (traceHostMismatch(command, filterHost)) {
+    warnings.push("command URL host differs from filter_host; trace may capture zero requests");
   }
-  return [];
+  const suspicious = suspiciousUnknownToken(command);
+  if (!KNOWN_TRACE_CLIENTS.has(path.basename(command[0] || "").toLowerCase()) && suspicious) {
+    warnings.push(`unknown client argument looks mutating but will be observed in bounded metadata mode: ${suspicious}`);
+  }
+  if (operationUnclassified(command)) {
+    warnings.push("operation is unclassified; using bounded metadata observation");
+  }
+  return warnings;
 }
 
 export function validateTraceCommand(command: string[], filterHost: string, captureBody: boolean): string[] {
@@ -701,7 +756,7 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
     if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
       errors.push(`curl method is not read-only: ${method}`);
     }
-    if (curlHasBodyUploadFlag(lowered)) {
+    if (curlHasBodyUploadFlag(command, lowered)) {
       errors.push("curl body upload flags are not allowed");
     }
   } else if (["rclone", "s5cmd", "mc", "bcecmd", "obsutil", "s3cmd"].includes(exe)) {
@@ -709,13 +764,11 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
     if (MUTATING_CLIENT_OPS.has(op)) {
       errors.push(`mutating or high-risk operation is not allowed: ${op}`);
     }
-    if (!op) {
-      errors.push(`${exe} capture requires a read-only operation such as ls/stat/head`);
-    } else if (!READ_ONLY_CLIENT_OPS.has(op)) {
+    if (op && !READ_ONLY_CLIENT_OPS.has(op)) {
       errors.push(`${exe} operation is not in the read-only allowlist: ${op}`);
     }
   } else {
-    errors.push(...validateUnknownTraceCommand(command, filterHost));
+    errors.push(...validateUnknownTraceCommand(command));
   }
 
   return [...new Set(errors)];
@@ -887,9 +940,11 @@ async function captureHttpTrace(params: {
   const filterHost = normalizeFilterHost(params.filter_host || "");
   const clientPolicy = clientPolicyForCommand(params.command || []);
   const warnings = traceWarningsForCommand(params.command || [], filterHost);
-  const hostMismatch = warnings.length > 0;
-  const requestCap = clientPolicy === "unknown_observation" ? MAX_UNKNOWN_TRACE_REQUESTS : MAX_TRACE_REQUESTS;
-  const secondsCap = clientPolicy === "unknown_observation" ? MAX_UNKNOWN_TRACE_SECONDS : MAX_TRACE_SECONDS;
+  const hostMismatch = traceHostMismatch(params.command || [], filterHost);
+  const opUnclassified = operationUnclassified(params.command || []);
+  const strictObservation = clientPolicy === "unknown_observation" || opUnclassified;
+  const requestCap = strictObservation ? MAX_UNKNOWN_TRACE_REQUESTS : MAX_TRACE_REQUESTS;
+  const secondsCap = strictObservation ? MAX_UNKNOWN_TRACE_SECONDS : MAX_TRACE_SECONDS;
   const maxRequests = Math.min(Math.max(Number(params.max_requests || requestCap), 1), requestCap);
   const maxSeconds = Math.min(Math.max(Number(params.max_seconds || secondsCap), 1), secondsCap);
   const captureBody = Boolean(params.capture_body);
@@ -901,6 +956,7 @@ async function captureHttpTrace(params: {
       client_policy: clientPolicy,
       warnings,
       host_mismatch: hostMismatch,
+      operation_unclassified: opUnclassified,
       errors: validationErrors,
       limits: { max_requests: maxRequests, max_seconds: maxSeconds, capture_body: false },
     };
@@ -936,6 +992,7 @@ async function captureHttpTrace(params: {
         client_policy: clientPolicy,
         warnings,
         host_mismatch: hostMismatch,
+        operation_unclassified: opUnclassified,
         filter_host: filterHost,
         exit_code: exitCode,
         killed_for_limit: killedForLimit,

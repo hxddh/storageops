@@ -101,8 +101,12 @@ test("validateTraceCommand rejects curl method variants without blocking host mi
   assert.ok(validateTraceCommand(["curl", "-X", "PUT", "https://s3.example.com"], "s3.example.com", false).length > 0);
   assert.deepEqual(validateTraceCommand(["curl", "https://other.example.com"], "s3.example.com", false), []);
   assert.deepEqual(validateTraceCommand(["curl", "--url", "https://other.example.com"], "s3.example.com", false), []);
+  assert.deepEqual(validateTraceCommand(["curl", "-f", "https://s3.example.com"], "s3.example.com", false), []);
+  assert.deepEqual(validateTraceCommand(["curl", "-x", "http://127.0.0.1:8080", "https://s3.example.com"], "s3.example.com", false), []);
   assert.ok(validateTraceCommand(["curl", "-dhello=world", "https://s3.example.com"], "s3.example.com", false).length > 0);
   assert.ok(validateTraceCommand(["curl", "--data=hello=world", "https://s3.example.com"], "s3.example.com", false).length > 0);
+  assert.ok(validateTraceCommand(["curl", "-F", "file=@a.txt", "https://s3.example.com"], "s3.example.com", false).length > 0);
+  assert.ok(validateTraceCommand(["curl", "-T", "a.txt", "https://s3.example.com"], "s3.example.com", false).length > 0);
 });
 
 test("validateTraceCommand allows tightly bounded unknown client observation", () => {
@@ -110,8 +114,17 @@ test("validateTraceCommand allows tightly bounded unknown client observation", (
   assert.deepEqual(validateTraceCommand(["node", "probe.js", "--endpoint", "https://s3.example.com"], "s3.example.com", false), []);
   assert.deepEqual(validateTraceCommand(["ossutil", "stat", "oss://bucket/key"], "oss.example.com", false), []);
   assert.deepEqual(validateTraceCommand(["coscli", "ls", "cos://bucket/prefix"], "cos.example.com", false), []);
-  assert.ok(validateTraceCommand(["python", "check_s3.py", "delete"], "s3.example.com", false).length > 0);
+  assert.deepEqual(validateTraceCommand(["python", "check_s3.py", "--key", "delete"], "s3.example.com", false), []);
   assert.deepEqual(validateTraceCommand(["node", "probe.js", "https://other.example.com"], "s3.example.com", false), []);
+  assert.ok(validateTraceCommand(["python", "check_s3.py", "--method", "DELETE"], "s3.example.com", false).length > 0);
+  assert.ok(validateTraceCommand(["node", "probe.js", "-XPOST"], "s3.example.com", false).length > 0);
+  assert.deepEqual(validateTraceCommand(["node", "probe.js", "-x", "http://127.0.0.1:8080"], "s3.example.com", false), []);
+});
+
+test("validateTraceCommand downgrades unclassified known client commands to observation", () => {
+  assert.deepEqual(validateTraceCommand(["rclone", "about", "remote:"], "s3.example.com", false), []);
+  assert.deepEqual(validateTraceCommand(["mc", "du", "alias/bucket"], "s3.example.com", false), []);
+  assert.ok(validateTraceCommand(["rclone", "sync", "remote:a", "remote:b"], "s3.example.com", false).length > 0);
 });
 
 test("sanitizeResponseHeaders passes metadata, masks cookies, redacts presigned in location", () => {
