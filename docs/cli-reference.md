@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.37  (pi: 0.78.0)
+StorageOps v0.4.38  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -156,8 +156,9 @@ masked; redirect targets are stripped of presigned signatures).
 The command validator checks the storage client's operation position rather
 than treating every bucket, prefix, or key argument as an operation. This keeps
 read-only metadata requests working even when object names contain words like
-`delete`, `copy`, or `sync`. Curl commands are additionally constrained so the
-URL host must match `filter_host`.
+`delete`, `copy`, or `sync`. If a command URL host differs from `filter_host`,
+the tool warns that the trace may capture zero requests instead of rejecting the
+run.
 
 For custom SDK probes or vendor CLIs without a dedicated adapter, the tool uses
 a stricter `unknown_observation` policy instead of rejecting solely by

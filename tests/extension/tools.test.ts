@@ -95,12 +95,12 @@ test("validateTraceCommand allows common read-only storage diagnostics", () => {
   );
 });
 
-test("validateTraceCommand rejects curl method variants and host mismatch", () => {
+test("validateTraceCommand rejects curl method variants without blocking host mismatch", () => {
   assert.ok(validateTraceCommand(["curl", "-XPOST", "https://s3.example.com"], "s3.example.com", false).length > 0);
   assert.ok(validateTraceCommand(["curl", "--request=POST", "https://s3.example.com"], "s3.example.com", false).length > 0);
   assert.ok(validateTraceCommand(["curl", "-X", "PUT", "https://s3.example.com"], "s3.example.com", false).length > 0);
-  assert.ok(validateTraceCommand(["curl", "https://other.example.com"], "s3.example.com", false).includes("curl URL host must match filter_host"));
-  assert.ok(validateTraceCommand(["curl", "--url", "https://other.example.com"], "s3.example.com", false).includes("curl URL host must match filter_host"));
+  assert.deepEqual(validateTraceCommand(["curl", "https://other.example.com"], "s3.example.com", false), []);
+  assert.deepEqual(validateTraceCommand(["curl", "--url", "https://other.example.com"], "s3.example.com", false), []);
   assert.ok(validateTraceCommand(["curl", "-dhello=world", "https://s3.example.com"], "s3.example.com", false).length > 0);
   assert.ok(validateTraceCommand(["curl", "--data=hello=world", "https://s3.example.com"], "s3.example.com", false).length > 0);
 });
@@ -111,7 +111,7 @@ test("validateTraceCommand allows tightly bounded unknown client observation", (
   assert.deepEqual(validateTraceCommand(["ossutil", "stat", "oss://bucket/key"], "oss.example.com", false), []);
   assert.deepEqual(validateTraceCommand(["coscli", "ls", "cos://bucket/prefix"], "cos.example.com", false), []);
   assert.ok(validateTraceCommand(["python", "check_s3.py", "delete"], "s3.example.com", false).length > 0);
-  assert.ok(validateTraceCommand(["node", "probe.js", "https://other.example.com"], "s3.example.com", false).includes("command URL host must match filter_host"));
+  assert.deepEqual(validateTraceCommand(["node", "probe.js", "https://other.example.com"], "s3.example.com", false), []);
 });
 
 test("sanitizeResponseHeaders passes metadata, masks cookies, redacts presigned in location", () => {

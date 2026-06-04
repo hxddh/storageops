@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-04 — v0.4.38: Host mismatch as trace warning
+
+- **Less premature rejection**: `capture_http_trace` no longer rejects curl or
+  unknown-client observation solely because a command URL host differs from
+  `filter_host`. Real object-storage paths often involve global endpoints,
+  region endpoints, CNAMEs, CDN fronts, gateways, or SDK endpoint indirection.
+- **Still visible to the agent**: host mismatch now returns
+  `host_mismatch=true` plus a warning that the trace may capture zero requests,
+  so the agent can adjust `filter_host` instead of losing the chance to observe
+  the run.
+- **Safety boundaries unchanged**: shell/sudo wrappers, presigned URL material,
+  body capture, HAR/record/replay, obvious mutating unknown-client arguments,
+  and curl non-read-only methods/body upload flags are still rejected.
+
 ## 2026-06-04 — v0.4.37: Unknown-client HTTP trace observation
 
 - **Unknown clients are no longer rejected solely by executable name.**
