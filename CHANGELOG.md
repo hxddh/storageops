@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-06-04 — v0.4.40: Evidence-first diagnosis discipline
+
+- **Shared evidence-first contract**: `docs/skill-quality-guide.md` adds an
+  "Evidence-First Discipline" section binding every skill to three rules —
+  evidence overrides priors, confidence is bounded by what was examined, and
+  falsify before concluding. This targets the systemic failure mode where a
+  diagnosis pattern-matches an error string instead of inspecting the decisive
+  artifact in front of it.
+- **Confidence hard caps**: `storageops-triage/references/confidence-rubric.md`
+  adds caps that override the scoring table and adjustment factors — an
+  uninspected decisive artifact caps confidence at 0.50, resemblance/memory is
+  not evidence, and a diagnosis with no named falsifier cannot be presented as
+  High. A worked "resemblance trap" example seeds the discipline.
+- **Flagship adversarial golden case**: `resemblance-gzip-baddigest` reproduces a
+  real misdiagnosis class — a `BadDigest` that looks like data corruption but is
+  actually a client computing `x-amz-content-sha256` over uncompressed bytes
+  while sending a gzip-compressed body. A diagnosis that reads only the error
+  string HARD_FAILs; one that inspects the script passes. Measured by the
+  existing eval/CI, no new subsystem.
+
 ## 2026-06-04 — v0.4.39: Soft observation for unclassified trace commands
 
 - **Less tool-policy overreach**: `capture_http_trace` no longer rejects custom

@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.39  (pi: 0.78.0)
+StorageOps v0.4.40  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)

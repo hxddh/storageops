@@ -28,6 +28,31 @@ Every `skills/storageops-*/SKILL.md` should contain:
 - Add compact golden cases for behavior changes.
 - Keep evaluation deterministic; do not depend on LLM judgment for pass/fail gates.
 
+## Evidence-First Discipline
+
+A diagnosis is only as good as the evidence actually examined. Pattern
+recognition proposes; evidence decides. Three rules bind every skill, regardless
+of domain:
+
+1. **Evidence overrides priors.** Memory recalls, reference notes, and
+   error-string resemblance are hypotheses, not conclusions. When a primary
+   artifact is available — the failing command, the script that built the
+   request, the config in play, the full error body — read it before naming a
+   root cause. A remembered "this looks like X" never substitutes for inspecting
+   the artifact in front of you.
+2. **Confidence is bounded by what you examined.** If a decisive artifact is
+   available but not yet inspected, the diagnosis stays a *leading hypothesis*
+   (confidence ≤ 0.5), however familiar the error looks. The hard caps live in
+   `storageops-triage/references/confidence-rubric.md`.
+3. **Falsify before concluding.** Fill the `What Would Falsify This` field and
+   check the cheapest falsifier available. A diagnosis that no available evidence
+   could disprove is not yet a diagnosis.
+
+Errors that *resemble* a known signature are exactly where unverified priors
+mislead — e.g. a digest/checksum error that looks like data corruption but is
+actually a client-side encoding bug. Inspect the mechanism, not just the
+surface symptom.
+
 ## Validation
 
 Run:
