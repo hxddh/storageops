@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-06-04 — v0.4.47: Routing & scan correctness, measured by the corpus
+
+- **Golden corpus now gates routing**: a new deterministic test feeds every
+  golden-case input through `detect_domain` and asserts the expected skill is
+  recalled (top-2, with one documented multi-signal case at top-3). Previously
+  the `routing-*` cases were never executed against the routing engine. Baseline
+  measured: recall@any 34/34, @top-2 33/34.
+- **Protocol error-code recall**: `detect_domain` now routes
+  `RequestTimeTooSkewed`, `RequestExpired`, `NotImplemented`,
+  `MissingContentLength`, `EntityTooLarge`, `EntityTooSmall`, and
+  `PreconditionFailed` to s3-protocol-compatibility (previously unmatched).
+- **`RequestExpired` no longer leaks to lifecycle**: the lifecycle `expir`
+  signature is word-bounded (`\bexpir(...)\b`), so the protocol error code stops
+  scoring lifecycle while real "expiration"/"expired" language still routes.
+- **scan_secrets closes a SigV4 leak**: the `Signature=<hex>` in an
+  `Authorization: AWS4-HMAC-SHA256` header is now redacted, while the credential
+  scope (date/region/service) and payload hashes stay visible as diagnostic
+  evidence.
+- **`etag_parser` accepts BOS ETags**: a BOS multipart ETag (`-<32hex>`, leading
+  dash) can now be passed as a positional argument instead of being rejected by
+  argument parsing as an unknown option.
+
 ## 2026-06-04 — v0.4.46: Close the over-broad routing-signature class
 
 - **Fix the class, not the case**: after fixing `bos:` (v0.4.44) and `obs:`

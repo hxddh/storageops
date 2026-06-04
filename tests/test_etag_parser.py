@@ -20,6 +20,19 @@ def test_classify_plain_md5():
     assert info["type"] == "md5"
 
 
+def test_normalize_argv_allows_bos_leading_dash_etag():
+    parser = load_parser()
+    # A BOS multipart ETag begins with '-'; it must be parseable as a positional
+    # rather than rejected by argparse as an unknown option.
+    bos = "-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+    assert parser._normalize_etag_argv([bos]) == ["--", bos]
+    assert parser._normalize_etag_argv(["--pretty", bos]) == ["--pretty", "--", bos]
+    # A normal S3 ETag (no leading dash) is untouched.
+    assert parser._normalize_etag_argv(["d41d8cd98f00b204e9800998ecf8427e-3"]) == ["d41d8cd98f00b204e9800998ecf8427e-3"]
+    # An already-present "--" is respected as-is.
+    assert parser._normalize_etag_argv(["--", bos]) == ["--", bos]
+
+
 def test_classify_s3_multipart_extracts_part_count():
     parser = load_parser()
     info = parser.classify_etag('"d41d8cd98f00b204e9800998ecf8427e-3"')

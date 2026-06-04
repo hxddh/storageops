@@ -50,12 +50,12 @@ release workflow for a specific commit:
    ```bash
    git checkout main
    git pull --ff-only origin main
-   git tag v0.4.46
-   git push origin v0.4.46
+   git tag v0.4.47
+   git push origin v0.4.47
    ```
 
 When using the tag path, the tag version must match `pyproject.toml`. For
-example, tag `v0.4.46` requires `version = "0.4.46"`.
+example, tag `v0.4.47` requires `version = "0.4.47"`.
 
 ## What The Workflow Checks
 
@@ -74,7 +74,7 @@ example, tag `v0.4.46` requires `version = "0.4.46"`.
   the version is not already present.
 
 The generated helper assets live under `storageops_cli/_vendor/httpmon/*.gz`
-during packaging and are ignored by Git. v0.4.46 packages the Linux amd64 helper
+during packaging and are ignored by Git. v0.4.47 packages the Linux amd64 helper
 used by common cloud VMs; other platforms use the bounded download fallback.
 Generated assets are included in the release artifacts but not committed to the
 source repository.

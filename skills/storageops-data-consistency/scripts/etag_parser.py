@@ -116,6 +116,22 @@ def parse_etags(raw: str, metadata: Optional[Dict[str, str]] = None,
         summary += f' | {len(findings)} finding(s)'
     return {"ok": ok, "summary": summary, "details": details, "findings": findings}
 
+def _normalize_etag_argv(argv: List[str]) -> List[str]:
+    """Allow BOS leading-dash ETags (``-<32hex>``) as positional arguments.
+
+    A BOS multipart ETag begins with ``-``, which argparse would otherwise treat
+    as an unknown option. Insert ``--`` before the first such token so it is
+    parsed positionally (stdin/--file paths are unaffected).
+    """
+    bos_like = re.compile(r'^"?-[0-9a-fA-F]{32}"?$')
+    if "--" in argv:
+        return argv
+    for i, tok in enumerate(argv):
+        if bos_like.match(tok):
+            return argv[:i] + ["--"] + argv[i:]
+    return argv
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Parse and classify cloud-storage ETags")
     ap.add_argument("--file", "-f", help="File with one ETag per line")
@@ -123,7 +139,7 @@ def main() -> None:
     ap.add_argument("--header", help="JSON file with response headers for encryption inference")
     ap.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
     ap.add_argument("etag", nargs="*", help="ETag string(s) directly on command line")
-    args = ap.parse_args()
+    args = ap.parse_args(_normalize_etag_argv(sys.argv[1:]))
 
     raw = "\n".join(
         [load_input(None, True) if args.stdin else ""] +

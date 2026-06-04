@@ -44,6 +44,10 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/(?:ak[\s]*=|access_key[\s]*=)[\s]*['"]?([a-f0-9]{32})['"]?/gi, "BAIDU_ACCESS_KEY"],
   // Generic Authorization: Bearer / Basic tokens
   [/Authorization[\s]*:[\s]*(?:Bearer|Basic|AWS4-HMAC-SHA256)[\s]+([^\s]{20,})/gi, "AUTHORIZATION_HEADER"],
+  // SigV4 Authorization headers carry the HMAC after the credential scope, e.g.
+  // "Credential=.../s3/aws4_request, Signature=<hex>". Redact the signature value
+  // while leaving the credential scope (date/region/service) — useful evidence — visible.
+  [/\bSignature=([0-9a-fA-F]{16,})/g, "SIGV4_SIGNATURE"],
   // Private keys (PEM) — incl. plain PKCS8 "PRIVATE KEY" used by GCP service-account keys
   [/-----BEGIN (?:(?:RSA|EC|DSA|OPENSSH|ENCRYPTED) )?PRIVATE KEY-----/g, "PRIVATE_KEY"],
   // rclone config passwords
@@ -147,6 +151,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
   ],
   "storageops-s3-protocol-compatibility": [
     [/SignatureDoesNotMatch|AuthorizationHeaderMalformed|InvalidArgument/i, "signature_or_protocol_error"],
+    [/RequestTimeTooSkewed|RequestExpired|NotImplemented|MissingContentLength|EntityTooLarge|EntityTooSmall|PreconditionFailed/i, "protocol_error_code"],
     [/\bBadDigest(?:SHA256|MD5)?\b/i, "payload_digest"],
     [/CanonicalRequest|StringToSign|AWS4-HMAC-SHA256|SigV4|SigV2/i, "signature_debug"],
     [/CORS|preflight|Access-Control-Allow-Origin|Access-Control-Allow-Methods/i, "cors"],
@@ -191,7 +196,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/lifecycle/i, "lifecycle"],
     [/Standard_IA|Glacier|Deep_Archive/i, "storage_class"],
     [/cost|费用|计费|账单/i, "cost"],
-    [/transition|expir/i, "transition"],
+    [/transition|\bexpir(?:e|es|ed|ation|ing)?\b/i, "transition"],
     [/objects.*small|small.*objects/i, "small_objects"],
   ],
   "storageops-mount-filesystem-workspace": [
