@@ -630,15 +630,19 @@ function clientPolicyForCommand(command: string[]): "known_adapter" | "unknown_o
 function validateUnknownTraceCommand(command: string[], filterHost: string): string[] {
   const errors: string[] = [];
   const lowered = command.map(x => x.toLowerCase());
-  const hosts = commandHosts(command);
-  if (hosts.length > 0 && filterHost && !hosts.some(host => host === filterHost)) {
-    errors.push("command URL host must match filter_host");
-  }
   const mutating = lowered.find((arg, index) => index > 0 && UNKNOWN_MUTATING_TOKENS.has(arg));
   if (mutating) {
     errors.push(`unknown client observation rejects obvious mutating argument: ${mutating}`);
   }
   return errors;
+}
+
+function traceWarningsForCommand(command: string[], filterHost: string): string[] {
+  const hosts = commandHosts(command);
+  if (hosts.length > 0 && filterHost && !hosts.some(host => host === filterHost)) {
+    return ["command URL host differs from filter_host; trace may capture zero requests"];
+  }
+  return [];
 }
 
 export function validateTraceCommand(command: string[], filterHost: string, captureBody: boolean): string[] {
@@ -696,10 +700,6 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
     const method = curlMethod(command, lowered);
     if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
       errors.push(`curl method is not read-only: ${method}`);
-    }
-    const hosts = commandHosts(command);
-    if (hosts.length > 0 && filterHost && !hosts.some(host => host === filterHost)) {
-      errors.push("curl URL host must match filter_host");
     }
     if (curlHasBodyUploadFlag(lowered)) {
       errors.push("curl body upload flags are not allowed");
@@ -886,6 +886,8 @@ async function captureHttpTrace(params: {
 }) {
   const filterHost = normalizeFilterHost(params.filter_host || "");
   const clientPolicy = clientPolicyForCommand(params.command || []);
+  const warnings = traceWarningsForCommand(params.command || [], filterHost);
+  const hostMismatch = warnings.length > 0;
   const requestCap = clientPolicy === "unknown_observation" ? MAX_UNKNOWN_TRACE_REQUESTS : MAX_TRACE_REQUESTS;
   const secondsCap = clientPolicy === "unknown_observation" ? MAX_UNKNOWN_TRACE_SECONDS : MAX_TRACE_SECONDS;
   const maxRequests = Math.min(Math.max(Number(params.max_requests || requestCap), 1), requestCap);
@@ -897,6 +899,8 @@ async function captureHttpTrace(params: {
       status: "rejected",
       reason: "unsafe_or_unsupported_command",
       client_policy: clientPolicy,
+      warnings,
+      host_mismatch: hostMismatch,
       errors: validationErrors,
       limits: { max_requests: maxRequests, max_seconds: maxSeconds, capture_body: false },
     };
@@ -930,6 +934,8 @@ async function captureHttpTrace(params: {
         status: spawnError ? "error" : "completed",
         command_name: path.basename(params.command[0]),
         client_policy: clientPolicy,
+        warnings,
+        host_mismatch: hostMismatch,
         filter_host: filterHost,
         exit_code: exitCode,
         killed_for_limit: killedForLimit,

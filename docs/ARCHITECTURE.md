@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.37 is a Pi Coding Agent extension and skill pack.
+StorageOps v0.4.38 is a Pi Coding Agent extension and skill pack.
 
 ## Components
 
@@ -47,7 +47,9 @@ files, and no replay. Its validator is operation-position based for supported
 storage clients, so read-only requests are not rejected merely because an object
 key or prefix contains a word such as `delete`, `copy`, or `sync`. Unknown
 clients use a stricter observation policy with smaller request/time caps rather
-than a separate tool or adapter layer.
+than a separate tool or adapter layer. Host mismatch is surfaced as a warning
+rather than a hard rejection, because endpoint aliases and redirects are common
+in object-storage diagnosis.
 
 `storageops install` automatically prepares a verified `httpmon` helper in
 `~/.storageops/bin/httpmon`. Release wheels carry the gzip-compressed Linux

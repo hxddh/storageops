@@ -72,6 +72,8 @@ def test_capture_http_trace_is_registered_as_bounded_safe_tool():
     assert "shells and sudo are not allowed" in extension
     assert "MAX_TRACE_REQUESTS = 20" in extension
     assert "MAX_TRACE_SECONDS = 30" in extension
+    assert "traceWarningsForCommand" in extension
+    assert "trace may capture zero requests" in extension
 
 
 def test_capture_http_trace_does_not_expose_raw_httpmon_artifacts():
