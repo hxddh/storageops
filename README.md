@@ -92,10 +92,17 @@ misrouted to `DEEPSEEK_API_KEY`.)
 
 You can also pass Pi-native options through `storageops`, for example `--provider`, `--model`, `--api-key`, `--print`, `--resume`, or `@file` inputs.
 
+For a guided local setup without editing JSON:
+
+```bash
+storageops configure --provider deepseek --model deepseek-v4-pro --api-key
+storageops doctor
+```
+
 DeepSeek smoke test:
 
 ```bash
-storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
+storageops smoke --provider deepseek --model deepseek-v4-pro
 ```
 
 `deepseek-v4-pro` and `deepseek-v4-flash` are known-good DeepSeek choices with

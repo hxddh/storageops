@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.42  (pi: 0.78.0)
+StorageOps v0.4.43  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -52,6 +52,38 @@ The `api key` line reports where a key is configured — environment variable,
 the `api-key` file, or `auth.json` — i.e. the same sources the launcher reads,
 so it stays accurate when the key is set via file rather than environment. It
 reports presence, not validity.
+
+## `storageops doctor`
+
+```bash
+storageops doctor
+```
+
+Prints a concise readiness report: package/PyPI version, Node, Pi, install mode,
+skill count, `httpmon`, API key source, default provider/model, and common key
+source conflicts. It does not call the model or object storage.
+
+## `storageops configure`
+
+```bash
+storageops configure --provider deepseek --model deepseek-v4-pro
+storageops configure --api-key
+storageops configure --show
+```
+
+Writes local Pi settings under `~/.storageops/agent/` by default. `--api-key`
+stores a model-provider key in `api-key` with `chmod 600`; if `--provider` is
+also provided, the key is stored with a `provider:` prefix. Use `--merge` only
+when intentionally configuring the existing `~/.pi/agent/` setup.
+
+## `storageops smoke`
+
+```bash
+storageops smoke --provider deepseek --model deepseek-v4-pro
+```
+
+Runs one explicit `pi --print hello` model call to prove the configured model key
+works. It never touches object storage and is not run by `install` or `doctor`.
 
 ## `storageops --help`
 

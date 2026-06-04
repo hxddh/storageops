@@ -26,6 +26,7 @@ import urllib.request
 import hashlib
 import platform
 import gzip
+import getpass
 from datetime import datetime, timezone
 from pathlib import Path
 from importlib import resources
@@ -415,6 +416,57 @@ def _configured_key_source(agent_dir: Path) -> str | None:
     return None
 
 
+def _active_agent_dir() -> Path:
+    """Return the StorageOps agent dir currently most likely to be used."""
+    independent = is_installed(AGENT_DIR)
+    merged = is_installed(PI_DEFAULT_AGENT)
+    return PI_DEFAULT_AGENT if (merged and not independent) else AGENT_DIR
+
+
+def _read_json_file(path: Path) -> dict:
+    """Read a JSON object from path; return {} for missing or invalid files."""
+    try:
+        if path.exists():
+            value = json.loads(path.read_text())
+            if isinstance(value, dict):
+                return value
+    except Exception:
+        pass
+    return {}
+
+
+def _agent_settings(agent_dir: Path) -> dict:
+    """Read settings.json for the selected agent directory."""
+    return _read_json_file(agent_dir / "settings.json")
+
+
+def _default_model_label(agent_dir: Path) -> str:
+    """Return configured default provider/model, or a compact missing label."""
+    settings = _agent_settings(agent_dir)
+    provider = settings.get("defaultProvider") or "not set"
+    model = settings.get("defaultModel") or "not set"
+    return f"{provider}/{model}"
+
+
+def _install_marker() -> dict:
+    """Return the install provenance marker, if present."""
+    return _read_json_file(ROOT / "install.json")
+
+
+def _key_conflict(agent_dir: Path) -> str | None:
+    """Detect common key-source confusion without exposing key values."""
+    env_keys = [var for var in dict.fromkeys([*REQUIRED_API_KEYS, *PROVIDER_ENV.values()]) if os.environ.get(var)]
+    key_file = agent_dir / "api-key"
+    has_file = False
+    try:
+        has_file = key_file.exists() and bool(key_file.read_text().strip())
+    except Exception:
+        has_file = False
+    if env_keys and has_file:
+        return f"environment key overrides api-key file ({', '.join(env_keys[:3])})"
+    return None
+
+
 def _inject_auth_env(agent_dir: Path) -> None:
     """
     Inject API keys from Pi auth.json and the StorageOps api-key file into
@@ -634,6 +686,30 @@ def _write_settings(dst_agent: Path, settings: dict) -> None:
     print(f"  [ok] settings.json  -> {dst}")
 
 
+def _write_config_settings(agent_dir: Path, provider: str | None, model: str | None) -> None:
+    """Update defaultProvider/defaultModel without disturbing other Pi settings."""
+    settings = _agent_settings(agent_dir) or dict(SETTINGS)
+    for key, value in SETTINGS.items():
+        settings.setdefault(key, value)
+    if provider:
+        settings["defaultProvider"] = provider
+    if model:
+        settings["defaultModel"] = model
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    (agent_dir / "settings.json").write_text(json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
+
+
+def _write_api_key(agent_dir: Path, key_value: str) -> None:
+    """Write the local model-provider key with restrictive permissions."""
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    key_file = agent_dir / "api-key"
+    key_file.write_text(key_value.strip() + "\n")
+    try:
+        key_file.chmod(0o600)
+    except Exception:
+        pass
+
+
 def _final_check(agent_dir: Path, merge: bool) -> None:
     """
     Verify each component after install and print a clear status summary.
@@ -781,20 +857,204 @@ def cmd_version():
         v = version("storageops")
     except Exception:
         v = "unknown"
-    ok, ver = check_pi_version(find_pi())
+    pi_path = find_pi()
+    ok, ver = check_pi_version(pi_path)
     httpmon = find_httpmon() or "not found"
     independent = is_installed(AGENT_DIR)
     merged = is_installed(PI_DEFAULT_AGENT)
-    active_agent = PI_DEFAULT_AGENT if (merged and not independent) else AGENT_DIR
+    active_agent = _active_agent_dir()
     key_source = _configured_key_source(active_agent) or "not configured"
     nv = _node_version()
     node_str = ("v" + ".".join(str(p) for p in nv)) if nv else "not found"
+    latest = _latest_pypi_version()
+    marker = _install_marker()
+    deployed = marker.get("package_version") or "unknown"
+    package_path = marker.get("package_path") or str(Path(__file__).resolve().parent)
     print(f"StorageOps v{v}  (pi: {ver})")
     print(f"  node                : {node_str}")
+    print(f"  package path        : {package_path}")
+    print(f"  deployed version    : {deployed}")
+    print(f"  latest PyPI         : {latest or 'unknown'}")
+    print(f"  default model       : {_default_model_label(active_agent)}")
     print(f"  httpmon             : {httpmon}")
     print(f"  api key             : {key_source}")
     print(f"  independent install : {'yes' if independent else 'no'}  ({AGENT_DIR})")
     print(f"  merged install      : {'yes' if merged else 'no'}  ({PI_DEFAULT_AGENT})")
+
+
+def _doctor_row(name: str, status: str, detail: str) -> None:
+    print(f"{name:<14} {status:<5} {detail}")
+
+
+def cmd_doctor() -> int:
+    """Print a concise readiness report."""
+    local_version = _package_version()
+    latest = _latest_pypi_version()
+    pi_path = find_pi()
+    pi_ok, pi_ver = check_pi_version(pi_path)
+    nv = _node_version()
+    node_label = ".".join(str(p) for p in nv) if nv else "not found"
+    node_ok = bool(nv and nv >= MIN_NODE_VERSION)
+    independent = is_installed(AGENT_DIR)
+    merged = is_installed(PI_DEFAULT_AGENT)
+    active_agent = _active_agent_dir()
+    skills_dir = _skills_dir_for_agent(active_agent)
+    skill_count = 0
+    if skills_dir.is_dir():
+        skill_count = sum(1 for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("storageops-"))
+    marker = _install_marker()
+    key_source = _configured_key_source(active_agent)
+    conflict = _key_conflict(active_agent)
+
+    print("StorageOps doctor")
+    _doctor_row("Package", "ok", f"{local_version}" + (f" (latest {latest})" if latest else ""))
+    if latest and _is_newer_version(latest, local_version):
+        _doctor_row("PyPI", "warn", f"newer version available: {latest}")
+    else:
+        _doctor_row("PyPI", "ok", latest or "version check unavailable")
+    _doctor_row("Node", "ok" if node_ok else "warn", node_label)
+    _doctor_row("Pi", "ok" if pi_ok else "warn", f"{pi_ver} ({pi_path})")
+    install_detail = "independent" if independent else "merged" if merged else "not installed"
+    _doctor_row("Install", "ok" if (independent or merged) else "warn", f"{install_detail} ({active_agent})")
+    _doctor_row("Skills", "ok" if skill_count >= 16 else "warn", f"{skill_count} packs ({skills_dir})")
+    _doctor_row("httpmon", "ok" if find_httpmon() else "warn", find_httpmon() or "not found")
+    _doctor_row("API key", "ok" if key_source else "warn", key_source or "not configured")
+    if conflict:
+        _doctor_row("Key conflict", "warn", conflict)
+    _doctor_row("Default model", "ok", _default_model_label(active_agent))
+    if marker:
+        _doctor_row("Deployed", "ok", f"v{marker.get('package_version', 'unknown')} from {marker.get('package_path', 'unknown')}")
+
+    if not (independent or merged):
+        print("Next: storageops install")
+    elif not key_source:
+        print(f"Next: storageops configure --provider deepseek --model deepseek-v4-pro --api-key")
+    elif not pi_ok or not node_ok:
+        print("Next: fix Node/Pi, then run storageops install --force")
+    else:
+        print("Ready: storageops --print 'hello'")
+    return 0
+
+
+def _option_value(args: list[str], name: str) -> str | None:
+    """Return an option value for --name VALUE or --name=VALUE."""
+    prefix = name + "="
+    for i, arg in enumerate(args):
+        if arg == name:
+            if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                return ""
+            return args[i + 1]
+        if arg.startswith(prefix):
+            return arg[len(prefix):]
+    return None
+
+
+def _has_flag(args: list[str], name: str) -> bool:
+    return name in args or any(arg.startswith(name + "=") for arg in args)
+
+
+def cmd_configure(args: list[str]) -> int:
+    """Configure default provider/model and optional local api-key."""
+    if "--help" in args or "-h" in args:
+        print("Usage: storageops configure [--provider NAME] [--model ID] [--api-key [KEY]] [--show] [--merge]")
+        return 0
+
+    merge = "--merge" in args or "-m" in args
+    agent_dir = PI_DEFAULT_AGENT if merge else AGENT_DIR
+    if _has_flag(args, "--show"):
+        print(f"Config dir     : {agent_dir}")
+        print(f"default model  : {_default_model_label(agent_dir)}")
+        print(f"api key        : {_configured_key_source(agent_dir) or 'not configured'}")
+        return 0
+
+    provider = _option_value(args, "--provider")
+    model = _option_value(args, "--model")
+    if provider == "" or model == "":
+        print("[error] --provider and --model require values")
+        return 2
+
+    key_value = None
+    if _has_flag(args, "--api-key"):
+        value = _option_value(args, "--api-key")
+        if value is None or value == "":
+            try:
+                value = getpass.getpass("Model API key (input hidden): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                print("[error] API key input cancelled")
+                return 2
+        if not value:
+            print("[error] empty API key")
+            return 2
+        key_value = value
+
+    if not provider and not model and key_value is None:
+        print("Nothing to configure. Try: storageops configure --provider deepseek --model deepseek-v4-pro")
+        return 0
+
+    if provider or model:
+        _write_config_settings(agent_dir, provider, model)
+        print(f"[ok] settings.json -> {agent_dir / 'settings.json'}")
+    if key_value is not None:
+        if provider and ":" not in key_value:
+            key_value = f"{provider}:{key_value}"
+        _write_api_key(agent_dir, key_value)
+        print(f"[ok] api-key       -> {agent_dir / 'api-key'}")
+
+    print("Check: storageops doctor")
+    return 0
+
+
+def cmd_smoke(args: list[str]) -> int:
+    """Run an explicit minimal model smoke test through Pi."""
+    if "--help" in args or "-h" in args:
+        print("Usage: storageops smoke [--provider NAME] [--model ID] [--prompt TEXT] [--timeout SECONDS]")
+        return 0
+    if not (is_installed(AGENT_DIR) or is_installed(PI_DEFAULT_AGENT)):
+        print("[error] StorageOps is not installed. Run: storageops install")
+        return 1
+
+    agent_dir = _active_agent_dir()
+    _inject_auth_env(agent_dir)
+    if not _configured_key_source(agent_dir):
+        print("[error] API key is not configured. Run: storageops configure --api-key")
+        return 1
+
+    prompt = _option_value(args, "--prompt") or "hello"
+    provider = _option_value(args, "--provider")
+    model = _option_value(args, "--model")
+    timeout_raw = _option_value(args, "--timeout") or "60"
+    try:
+        timeout = max(5, int(timeout_raw))
+    except ValueError:
+        print("[error] --timeout must be an integer number of seconds")
+        return 2
+
+    cmd = [find_pi()]
+    if provider:
+        cmd += ["--provider", provider]
+    if model:
+        cmd += ["--model", model]
+    cmd += ["--print", prompt]
+
+    _prepend_storageops_bin_to_path()
+    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent_dir)}
+    print(f"[info] running smoke via {cmd[0]} (prompt: {prompt!r})")
+    try:
+        result = subprocess.run(cmd, env=env, text=True, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        print(f"[error] smoke timed out after {timeout}s")
+        return 1
+    output = (result.stdout or result.stderr or "").strip()
+    if result.returncode == 0:
+        print("[ok] model smoke succeeded")
+        if output:
+            print(output[:1000])
+        return 0
+    print("[error] model smoke failed")
+    if output:
+        print(output[:1000])
+    return result.returncode or 1
 
 
 def cmd_help():
@@ -815,6 +1075,9 @@ def cmd_help():
     print()
     print("  Other:")
     print("    storageops --version               version and install status")
+    print("    storageops doctor                  readiness checks")
+    print("    storageops configure --show        show model/key config")
+    print("    storageops smoke                   explicit model smoke test")
     print()
     print("  Configure an API key (pick one):")
     print("    export ANTHROPIC_API_KEY=sk-...     environment variable")
@@ -831,6 +1094,15 @@ def main():
         merge = "--merge" in args or "-m" in args
         cmd_install(force=force, merge=merge)
         return
+
+    if len(args) >= 1 and args[0] == "doctor":
+        sys.exit(cmd_doctor())
+
+    if len(args) >= 1 and args[0] == "configure":
+        sys.exit(cmd_configure(args[1:]))
+
+    if len(args) >= 1 and args[0] == "smoke":
+        sys.exit(cmd_smoke(args[1:]))
 
     if len(args) >= 1 and args[0] in ("--version", "-V"):
         cmd_version()

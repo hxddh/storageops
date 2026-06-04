@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-06-04 — v0.4.43: First-run readiness commands
+
+- **`storageops doctor`**: added a concise readiness report covering package/PyPI
+  version, Node, Pi, install mode, skill count, `httpmon`, API key source,
+  default provider/model, and common key-source conflicts.
+- **`storageops configure`**: added a small configuration command for default
+  provider/model and local `api-key` setup without hand-editing JSON.
+- **`storageops smoke`**: added an explicit, opt-in model smoke test. It performs
+  one minimal Pi model call and never touches object storage.
+- **Better `--version` signal**: now includes package path, deployed version,
+  latest PyPI, and default provider/model for easier support screenshots.
+
 ## 2026-06-04 — v0.4.42: User documentation accuracy pass
 
 - **Corrected user-facing facts**: README now reflects the current 34 golden
