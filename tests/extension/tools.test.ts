@@ -65,6 +65,46 @@ test("validateTraceCommand allows read-only and blocks unsafe commands", () => {
   assert.ok(validateTraceCommand(["curl", "https://x?X-Amz-Signature=abc"], "x", false).length > 0);
 });
 
+test("validateTraceCommand allows common read-only storage diagnostics", () => {
+  for (const op of [
+    "get-bucket-policy",
+    "get-bucket-logging",
+    "get-bucket-notification-configuration",
+    "get-bucket-object-lock-configuration",
+    "get-object-retention",
+    "get-object-legal-hold",
+    "list-object-versions",
+  ]) {
+    assert.deepEqual(validateTraceCommand(["aws", "s3api", op, "--bucket", "b"], "s3.example.com", false), []);
+  }
+
+  assert.deepEqual(
+    validateTraceCommand(["aws", "s3api", "head-object", "--bucket", "b", "--key", "delete"], "s3.example.com", false),
+    [],
+    "object keys named like mutating verbs are not operations",
+  );
+  assert.deepEqual(
+    validateTraceCommand(["rclone", "ls", "remote:sync/"], "s3.example.com", false),
+    [],
+    "paths named like mutating verbs are not operations",
+  );
+  assert.deepEqual(
+    validateTraceCommand(["aws", "s3api", "head-object", "--bucket", "b", "--key", "logs/a&b.txt"], "s3.example.com", false),
+    [],
+    "argv parameters can contain shell metacharacters because no shell is used",
+  );
+});
+
+test("validateTraceCommand rejects curl method variants and host mismatch", () => {
+  assert.ok(validateTraceCommand(["curl", "-XPOST", "https://s3.example.com"], "s3.example.com", false).length > 0);
+  assert.ok(validateTraceCommand(["curl", "--request=POST", "https://s3.example.com"], "s3.example.com", false).length > 0);
+  assert.ok(validateTraceCommand(["curl", "-X", "PUT", "https://s3.example.com"], "s3.example.com", false).length > 0);
+  assert.ok(validateTraceCommand(["curl", "https://other.example.com"], "s3.example.com", false).includes("curl URL host must match filter_host"));
+  assert.ok(validateTraceCommand(["curl", "--url", "https://other.example.com"], "s3.example.com", false).includes("curl URL host must match filter_host"));
+  assert.ok(validateTraceCommand(["curl", "-dhello=world", "https://s3.example.com"], "s3.example.com", false).length > 0);
+  assert.ok(validateTraceCommand(["curl", "--data=hello=world", "https://s3.example.com"], "s3.example.com", false).length > 0);
+});
+
 test("sanitizeResponseHeaders passes metadata, masks cookies, redacts presigned in location", () => {
   const out = sanitizeResponseHeaders({
     "ETag": '"d41d8cd98f00b204e9800998ecf8427e"',
