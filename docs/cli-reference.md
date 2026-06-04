@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.34  (pi: 0.78.0)
+StorageOps v0.4.35  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -149,7 +149,9 @@ matches, caps result count at 10, and redacts returned snippets.
 requires a `filter_host`, rejects shell commands, rejects mutating object-storage
 operations, keeps `capture_body=false`, does not write HAR or record files, and
 does not replay requests. Its output is a sanitized summary of method, host,
-path template, status, signing shape, and S3 error code.
+path template, status, signing shape, S3 error code, and **sanitized response
+headers** (diagnostic metadata passes through; cookie/auth header values are
+masked; redirect targets are stripped of presigned signatures).
 
 `storageops install` automatically installs a verified `httpmon` helper into
 `~/.storageops/bin/httpmon` when it is not already available. PyPI release
