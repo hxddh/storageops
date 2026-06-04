@@ -75,6 +75,32 @@ test("detectDomain does not misroute on bare-substring noise (over-broad signatu
   assert.ok(hasSub("the TLS certificate expired", "storageops-network-endpoint-access", "tls"), "real TLS cert still routes");
 });
 
+test("detectDomain recalls protocol error codes and stops RequestExpired leaking to lifecycle", () => {
+  const top = (t: string) => detectDomain(t)[0]?.recommended_skill;
+  for (const code of ["RequestTimeTooSkewed", "EntityTooLarge", "EntityTooSmall", "NotImplemented", "MissingContentLength", "PreconditionFailed"]) {
+    assert.equal(top(`S3 error: ${code}`), "storageops-s3-protocol-compatibility", `${code} should route to protocol`);
+  }
+  // RequestExpired must route to protocol, not lifecycle ("expir" was over-broad).
+  const r = detectDomain("the presigned PUT failed with RequestExpired");
+  assert.equal(r[0]?.recommended_skill, "storageops-s3-protocol-compatibility");
+  assert.equal(r.some(x => x.recommended_skill === "storageops-lifecycle-cost"), false, "RequestExpired must not score lifecycle");
+  // Real lifecycle expiration language still routes to lifecycle.
+  assert.ok(detectDomain("objects expire after the lifecycle expiration rule").some(x => x.recommended_skill === "storageops-lifecycle-cost"));
+});
+
+test("redactText redacts the SigV4 Authorization signature but keeps credential scope and digests", () => {
+  const r = redactText(
+    "Authorization: AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20260604/us-east-1/s3/aws4_request, " +
+      "Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n" +
+      "x-amz-content-sha256: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f00112",
+  );
+  assert.ok(!/Signature=deadbeef/.test(r.redacted), "SigV4 signature value is redacted");
+  // Credential scope (region/service/date) stays visible — it is diagnostic evidence.
+  assert.ok(r.redacted.includes("us-east-1") && r.redacted.includes("aws4_request"), "credential scope preserved");
+  // The payload hash must NOT be over-redacted (write-side diagnosis depends on it).
+  assert.ok(r.redacted.includes("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f00112"), "content-sha256 preserved");
+});
+
 test("searchTokens emits CJK bigrams", () => {
   const toks = searchTokens("费用归因分析");
   assert.ok(toks.includes("费用") && toks.includes("归因"));
