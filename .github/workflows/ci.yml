@@ -201,3 +201,21 @@ jobs:
           # missing required evidence, or forbidden/unsafe output).
           python skills/storageops-eval-golden-cases/scripts/eval_runner.py \
             --case "$CASE" --output /tmp/diag.md
+
+  # Behavioral unit tests for the 4 extension tools. Runs the real functions via
+  # node:test. The extension's only runtime import is `typebox` (used solely
+  # inside the default export, which these tests do not call), so a one-line local
+  # stub satisfies the import without any external dependency.
+  tool-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Behavioral tests for extension tools
+        run: |
+          mkdir -p node_modules/typebox
+          printf '{"name":"typebox","version":"0.0.0","type":"module","exports":"./index.js"}' > node_modules/typebox/package.json
+          printf 'export const Type = {};\n' > node_modules/typebox/index.js
+          node --experimental-strip-types --test tests/extension/*.test.ts

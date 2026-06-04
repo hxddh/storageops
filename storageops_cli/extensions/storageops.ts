@@ -96,7 +96,7 @@ function lineAndColumn(text: string, index: number): { line: number; column: num
   return { line, column: index - lastNewline };
 }
 
-function redactText(text: string): { findings: SecretFinding[]; redacted: string; truncated: boolean } {
+export function redactText(text: string): { findings: SecretFinding[]; redacted: string; truncated: boolean } {
   const scanText = text.slice(0, MAX_SECRET_SCAN_CHARS);
   const findings: SecretFinding[] = [];
   const ranges: Array<[number, number]> = [];
@@ -254,7 +254,7 @@ const DOMAIN_NEXT_ACTION: Record<string, string> = {
   "storageops-access-log-analysis": "Summarize request IDs, status spikes, top requesters, user agents, and time windows.",
 };
 
-function detectDomain(text: string): DomainDetection[] {
+export function detectDomain(text: string): DomainDetection[] {
   const scores: Record<string, { score: number; subdomains: Set<string>; signals: string[] }> = {};
   const evidence = text.slice(0, 100_000);
 
@@ -295,7 +295,7 @@ type MemoryResult = {
   score: number;
 };
 
-function searchTokens(query: string): string[] {
+export function searchTokens(query: string): string[] {
   const ascii = query.toLowerCase().match(/[a-z0-9_\-:.]{3,}/g) || [];
   // CJK queries carry no ASCII word tokens, so the old tokenizer returned [] and
   // recall was empty for Chinese. Emit overlapping bigrams (and single chars for
@@ -324,7 +324,7 @@ const MAX_SESSION_FILES = 200;
 // (e.g. sessions/<scope>/<id>.jsonl), so a flat top-level scan misses them.
 // Walk the sessions tree with bounded depth/count and index by .jsonl files;
 // .meta.json is optional sibling enrichment, not required for recall.
-function collectSessionJsonl(root: string): string[] {
+export function collectSessionJsonl(root: string): string[] {
   const found: string[] = [];
   const walk = (dir: string, depth: number): void => {
     if (depth > MAX_SESSION_SCAN_DEPTH || found.length >= MAX_SESSION_FILES) return;
@@ -366,7 +366,7 @@ function readSessionMeta(jsonlPath: string): { sessionId: string; summary: strin
   return { sessionId, summary: "", updated: "" };
 }
 
-function searchMemory(query: string, limit: number = 5): MemoryResult[] {
+export function searchMemory(query: string, limit: number = 5): MemoryResult[] {
   const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
   const primarySessionsDir = path.join(agentDir, "sessions");
   const fallbackSessionsDir = path.join(os.homedir(), ".pi", "agent", "sessions");
@@ -539,7 +539,7 @@ function hasSignedQueryMaterial(command: string[]): boolean {
   return SIGNED_QUERY_KEYS.some(key => text.includes(key));
 }
 
-function validateTraceCommand(command: string[], filterHost: string, captureBody: boolean): string[] {
+export function validateTraceCommand(command: string[], filterHost: string, captureBody: boolean): string[] {
   const errors: string[] = [];
   if (!Array.isArray(command) || command.length === 0) {
     errors.push("command must be a non-empty argv array");
@@ -706,7 +706,41 @@ function extractS3ErrorCode(body: string | undefined): string | undefined {
     || /"code"\s*:\s*"([^"]{1,80})"/i.exec(text)?.[1];
 }
 
-function summarizeTraceRequest(req: TraceRequest, resp?: TraceResponse) {
+const SENSITIVE_RESPONSE_HEADERS = new Set([
+  "set-cookie",
+  "www-authenticate",
+  "proxy-authenticate",
+  "authorization",
+]);
+const REDIRECT_HEADERS = new Set(["location", "content-location"]);
+const MAX_RESPONSE_HEADERS = 32;
+const MAX_HEADER_VALUE_CHARS = 256;
+
+// Surface response metadata (the diagnostic payload) with targeted sanitization:
+// known credential-bearing headers (cookies/auth challenges) keep their name but
+// have the value masked; redirect targets are redacted of presigned material
+// (which can embed a replayable signature); all other headers pass through so
+// metadata like ETag, retention-date, SSE, and checksums is not over-redacted.
+export function sanitizeResponseHeaders(
+  headers: Record<string, string> | undefined,
+): Array<{ name: string; value: string }> {
+  if (!headers) return [];
+  const out: Array<{ name: string; value: string }> = [];
+  for (const [rawName, rawValue] of Object.entries(headers)) {
+    if (out.length >= MAX_RESPONSE_HEADERS) break;
+    const name = rawName.toLowerCase();
+    let value = String(rawValue ?? "");
+    if (SENSITIVE_RESPONSE_HEADERS.has(name)) {
+      value = "[REDACTED]";
+    } else if (REDIRECT_HEADERS.has(name)) {
+      value = redactText(value).redacted;
+    }
+    out.push({ name, value: value.slice(0, MAX_HEADER_VALUE_CHARS) });
+  }
+  return out;
+}
+
+export function summarizeTraceRequest(req: TraceRequest, resp?: TraceResponse) {
   const auth = parseAuthShape(req.headers);
   const query = queryKeySummary(req.url);
   let host = req.host || "";
@@ -730,6 +764,7 @@ function summarizeTraceRequest(req: TraceRequest, resp?: TraceResponse) {
     credential_scope_service: auth.credential_scope_service,
     has_presigned_query: query.has_presigned_query,
     query_keys: query.query_keys,
+    response_headers: sanitizeResponseHeaders(resp?.headers),
   };
 }
 
@@ -798,6 +833,7 @@ async function captureHttpTrace(params: {
         redaction: {
           authorization_redacted: summaries.some((r: any) => r.auth_header_present),
           presigned_query_redacted: summaries.some((r: any) => r.has_presigned_query),
+          response_headers_sanitized: true,
           body_captured: false,
           raw_trace_saved: false,
           har_saved: false,

@@ -32,3 +32,6 @@ credentials.env
 ### Claude Code session metadata
 .claude/
 .CLAUDE_SESSION_METADATA*
+
+# Node (CI-time typebox stub for extension tests)
+node_modules/

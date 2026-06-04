@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-03 — v0.4.35: capture_http_trace response headers + behavioral tool tests
+
+- **`capture_http_trace` now returns sanitized response headers.** A real WORM
+  diagnosis showed the decisive evidence (`x-bce-object-rentention-date`) lived in
+  a response header the tool dropped, forcing an unsafe raw-`curl` fallback. The
+  tool now surfaces response metadata with **targeted** sanitization: cookie/auth
+  header values are masked (name kept), redirect targets (`location`) are stripped
+  of presigned signatures, and all other headers (ETag, retention, SSE, checksums)
+  pass through unmodified — no blanket redaction that would corrupt the evidence.
+  Request headers remain shape-only; no body/HAR/replay.
+- **Behavioral unit tests for the 4 tools.** The TypeScript tool layer previously
+  had only static-assertion coverage (which is why the v0.4.29 recall bug shipped).
+  Added `node:test` tests that exercise the real `redactText`, `detectDomain`,
+  `searchTokens`, `searchMemory`, `validateTraceCommand`, and
+  `sanitizeResponseHeaders`, run in a new `tool-tests` CI job (the extension's
+  `typebox` import is satisfied by a one-line CI-time stub; no new dependency, no
+  installer change, single-file extension preserved).
+
 ## 2026-06-03 — v0.4.34: Node pre-flight + documentation cleanup
 
 - **Node pre-flight check**: `storageops install` now verifies Node before
