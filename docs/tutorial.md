@@ -48,7 +48,24 @@ python3 skills/storageops-network-endpoint-access/scripts/endpoint_reachability_
 
 StorageOps should distinguish DNS, TCP, TLS, and application-layer failures.
 
-## 4. Access Log Investigation
+## 4. BadDigest On Upload
+
+```bash
+storageops --print @server-error.xml @upload-debug.txt 'why does this PUT return BadDigest?'
+```
+
+Do not re-send the write just to trace it. Provide the server error body and the
+client's debug dump; if the issue may be a gzip/payload-hash mismatch, use:
+
+```bash
+python3 skills/storageops-s3-protocol-compatibility/scripts/check_payload_hash.py \
+  --raw-file out.json --declared-sha256 <hex> --content-encoding gzip --json
+```
+
+StorageOps should diagnose from the failed request evidence and keep live HTTP
+trace use read-only.
+
+## 5. Access Log Investigation
 
 ```bash
 storageops --print @access-log-sample.txt 'identify who caused this 503 spike'
@@ -56,7 +73,7 @@ storageops --print @access-log-sample.txt 'identify who caused this 503 spike'
 
 StorageOps should route to access-log analysis, aggregate by requester and operation, then escalate to performance only after attribution.
 
-## 5. Generate a Report
+## 6. Generate a Report
 
 ```bash
 storageops --print @diagnosis-notes.md 'turn this into a customer-facing report'

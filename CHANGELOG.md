@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-04 — v0.4.42: User documentation accuracy pass
+
+- **Corrected user-facing facts**: README now reflects the current 34 golden
+  cases and includes the payload-hash helper in the deterministic script list.
+- **Clearer write-side guidance**: README, tutorial, and quick reference now
+  point users to failed-request evidence and `check_payload_hash.py` for
+  `BadDigest`/payload-hash cases without suggesting that writes should be traced.
+
 ## 2026-06-04 — v0.4.41: Write-side evidence ladder (no live write tracing)
 
 - **Doctrine, not loosening**: `capture_http_trace` executes commands, so tracing
