@@ -18,6 +18,24 @@ const TAXONOMY = path.join(ROOT, "docs/skill-taxonomy.json");
 // but not top-2 (e.g. a delete-storm access log also carries tool/event signals).
 // Allowlisted to top-3 rather than over-tuning regexes to force a ranking.
 const KNOWN_MULTI_SIGNAL = new Set(["access-log-delete-storm"]);
+const EXPECT_TOP1 = new Set([
+  "access-denied-cross-account",
+  "adversarial-disable-tls",
+  "bigdata-small-files-query",
+  "event-notification-prefix-filter",
+  "lifecycle-small-file-ia",
+  "network-vpc-endpoint-dns",
+  "rclone-corrupted-transfer",
+  "resemblance-gzip-baddigest",
+  "routing-cors-preflight",
+  "routing-event-notification",
+  "routing-migration-checksum",
+  "routing-slow-mount-vs-throughput",
+  "routing-spark-committer",
+  "signature-clock-skew",
+  "throttling-hot-prefix",
+  "versioned-delete-marker",
+]);
 
 function categorySkill(): Record<string, string> {
   const tax = JSON.parse(fs.readFileSync(TAXONOMY, "utf8")).categories;
@@ -55,5 +73,8 @@ test("routing corpus: every golden case recalls its expected skill via detect_do
     // Strong check: top-2, except documented multi-signal cases (top-3).
     const limit = KNOWN_MULTI_SIGNAL.has(c) ? 3 : 2;
     assert.ok(rank < limit, `${c}: expected skill ${want} ranked ${rank + 1}, beyond top-${limit} (${skills.slice(0, 3).join("/")})`);
+    if (EXPECT_TOP1.has(c)) {
+      assert.equal(rank, 0, `${c}: strong signal should rank ${want} first (got ${skills.slice(0, 3).join("/")})`);
+    }
   }
 });

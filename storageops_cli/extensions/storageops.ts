@@ -200,14 +200,14 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/objects.*small|small.*objects/i, "small_objects"],
   ],
   "storageops-mount-filesystem-workspace": [
-    [/mount|FUSE|s3fs|goofys/i, "mount"],
-    [/fuse|FUSE/i, "fuse"],
-    [/filesystem/i, "filesystem"],
+    [/\bmount(?:ed|ing)?\b|\bFUSE\b|\bs3fs\b|\bgoofys\b/i, "mount"],
+    [/\bFUSE\b/i, "fuse"],
+    [/\bfilesystem\b/i, "filesystem"],
   ],
   "storageops-migration-sync": [
     [/migrat|搬迁|迁移/i, "migration"],
-    [/sync|cp\s+-r/i, "sync"],
-    [/transfer/i, "transfer"],
+    [/\b(?:rclone|s5cmd|obsutil|bcecmd|ossutil|coscli)\s+sync\b|\baws\s+s3\s+sync\b|\bmc\s+mirror\b|\bsync\b.*\b(?:s3|oss|cos|obs|bos|bucket|object|prefix|remote:|provider|checksum|verify|verification)\b|\b(?:s3|oss|cos|obs|bos|bucket|object|prefix|remote:|provider)\b.*\bsync\b|cp\s+-r/i, "sync"],
+    [/\btransfer(?:s|red|ring)?\b.*\b(?:s3|oss|cos|obs|bos|bucket|object|prefix|provider|cross-region|multipart)\b|\b(?:s3|oss|cos|obs|bos|bucket|object|prefix|provider|cross-region|multipart)\b.*\btransfer(?:s|red|ring)?\b/i, "transfer"],
   ],
   "storageops-data-consistency": [
     [/consistenc|一致性/i, "consistency"],

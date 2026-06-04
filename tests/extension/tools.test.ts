@@ -101,6 +101,27 @@ test("redactText redacts the SigV4 Authorization signature but keeps credential 
   assert.ok(r.redacted.includes("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f00112"), "content-sha256 preserved");
 });
 
+test("redactText preserves diagnostic metadata while redacting only credential material", () => {
+  const payloadHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const r = redactText(
+    "CanonicalRequest=GET\\n/my-bucket/key\\nhost:s3.example.com\\nx-amz-content-sha256:" + payloadHash + "\\n" +
+      "x-amz-request-id: REQ1234567890\\n" +
+      'ETag: "d41d8cd98f00b204e9800998ecf8427e"\\n' +
+      "Authorization: AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20260604/us-east-1/s3/aws4_request, " +
+      "SignedHeaders=host;x-amz-content-sha256, Signature=abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd\\n" +
+      "https://s3.example.com/my-bucket/key?X-Amz-Signature=1234567890abcdef1234567890abcdef",
+  );
+
+  assert.ok(!r.redacted.includes("AKIAIOSFODNN7EXAMPLE"), "access key id redacted");
+  assert.ok(!r.redacted.includes("Signature=abcdefabcdef"), "authorization signature redacted");
+  assert.ok(!r.redacted.includes("X-Amz-Signature=1234567890abcdef"), "presigned signature redacted");
+  assert.ok(r.redacted.includes("CanonicalRequest=GET"), "canonical request label preserved");
+  assert.ok(r.redacted.includes("host:s3.example.com"), "canonical host preserved");
+  assert.ok(r.redacted.includes(payloadHash), "payload hash preserved");
+  assert.ok(r.redacted.includes("REQ1234567890"), "request id preserved");
+  assert.ok(r.redacted.includes("d41d8cd98f00b204e9800998ecf8427e"), "ETag preserved");
+});
+
 test("searchTokens emits CJK bigrams", () => {
   const toks = searchTokens("费用归因分析");
   assert.ok(toks.includes("费用") && toks.includes("归因"));
