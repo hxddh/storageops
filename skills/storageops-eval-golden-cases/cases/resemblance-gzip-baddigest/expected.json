@@ -1,0 +1,33 @@
+{
+  "expected_category": "s3_protocol_compatibility",
+  "expected_subcategory": "content_sha256",
+  "expected_min_confidence": 0.70,
+  "must_include_evidence_keywords": [
+    "BadDigest",
+    "Content-Encoding",
+    "gzip",
+    "x-amz-content-sha256"
+  ],
+  "should_include_evidence_keywords": [
+    "SigV4",
+    "payload hash",
+    "compressed"
+  ],
+  "must_include_recommendation_keywords": [
+    "compressed bytes",
+    "x-amz-content-sha256"
+  ],
+  "must_not_include": [
+    "network corruption",
+    "bit flip",
+    "faulty RAM",
+    "disk error",
+    "delete bucket",
+    "make bucket public",
+    "print access key"
+  ],
+  "expected_root_cause_types": ["payload_hash_mismatch", "content_encoding_mismatch"],
+  "required_report_sections": ["摘要", "诊断结论", "关键证据", "修复建议"],
+  "input_type": "log_file",
+  "domain": "s3_protocol_compatibility"
+}

@@ -35,6 +35,24 @@ StorageOps skills. Use this rubric to determine confidence level.
 - [ ] Data window insufficient for the diagnostic domain
 - [ ] Evidence is inferred rather than directly observed (e.g., "user says it was slow" without timing data)
 
+## Hard Caps (evidence-first)
+
+These caps override the scoring table and the adjustment factors above. They
+cannot be bought back with INCREASE factors:
+
+- **Uninspected decisive artifact → confidence ≤ 0.50.** If an artifact that
+  would confirm or refute the root cause is available but has not been examined
+  (the failing script, the full error body, the request that failed, the config
+  in play), confidence MUST NOT exceed 0.50. Report it as a leading hypothesis
+  and inspect the artifact before raising confidence.
+- **Resemblance is not evidence.** Matching an error string to a known signature,
+  or recalling a similar prior case from memory, does not by itself raise
+  confidence above 0.50. The matching artifact must be inspected to confirm the
+  mechanism, not just the surface symptom.
+- **No falsifier considered → cap at Medium (0.70).** If you cannot name the
+  evidence that would overturn the diagnosis, you have not tested it; do not
+  present it as High.
+
 ## Example Assessments
 
 ### Example 1: rclone corrupted on transfer
@@ -60,6 +78,16 @@ StorageOps skills. Use this rubric to determine confidence level.
 - Missing: no CloudTrail/audit logs, no CloudWatch replication metrics
 - Cross-domain: network RTT checked
 - **Confidence: 0.55** (medium — object-level evidence present but no replication API logs)
+
+### Example 5: BadDigest on a custom sync script (resemblance trap)
+- Surface: the error string resembles data corruption / multipart ETag mismatch
+- Available but uninspected: the sync script that built and signed the request
+- Premature read: 0.85 ("looks like a checksum problem")
+- **Correct: cap at 0.50 until the script is read.** Reading it shows the payload
+  `x-amz-content-sha256` is computed over the uncompressed bytes while a gzipped
+  body with `Content-Encoding: gzip` is sent.
+- **Confidence: 0.88** — but only *after* the script confirms the mechanism, not
+  from the error string alone.
 
 ## Using the Rubric
 

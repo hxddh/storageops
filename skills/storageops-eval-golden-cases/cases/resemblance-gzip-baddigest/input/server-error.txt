@@ -1,0 +1,36 @@
+# Upload fails for every object since the pipeline switched to gzip storage.
+# The same script worked before gzip was added. The files are NOT corrupted on
+# disk: sha256 of out.json is stable across runs, and re-running produces the
+# exact same server error every time (deterministic, not transient).
+
+$ BUCKET=prod-logs python bos_sync.py
+status 400
+
+# Captured response (sanitized):
+HTTP/1.1 400 Bad Request
+x-amz-request-id: 9F2A...REDACTED
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>BadDigest</Code>
+  <Message>The SHA256 you specified did not match what we received.</Message>
+  <ExpectedDigest>a1b2c3...(value the client sent in x-amz-content-sha256)</ExpectedDigest>
+  <CalculatedDigest>7e9d44...(what the server computed over the received body)</CalculatedDigest>
+  <RequestId>9F2A...REDACTED</RequestId>
+</Error>
+
+# Request line + headers that were sent (sanitized):
+PUT /prod-logs/logs/2026-06-04.json.gz HTTP/1.1
+Host: s3.example-cloud.com
+Content-Encoding: gzip
+Content-Type: application/octet-stream
+x-amz-content-sha256: a1b2c3...   <- equals sha256(uncompressed out.json)
+# Authorization header uses AWS4-HMAC-SHA256 (Credential + Signature redacted)
+
+# Operator notes:
+# - "BadDigest" sounds like a corrupted upload, but the digest is the SigV4
+#   payload hash (x-amz-content-sha256), not a storage-level integrity error.
+# - The body on the wire is gzip-compressed (Content-Encoding: gzip).
+# - The same provider returns BadDigestSHA256 / x-bce-content-sha256 for the
+#   equivalent BOS-flavored request.
