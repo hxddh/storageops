@@ -105,6 +105,15 @@ test("validateTraceCommand rejects curl method variants and host mismatch", () =
   assert.ok(validateTraceCommand(["curl", "--data=hello=world", "https://s3.example.com"], "s3.example.com", false).length > 0);
 });
 
+test("validateTraceCommand allows tightly bounded unknown client observation", () => {
+  assert.deepEqual(validateTraceCommand(["python", "check_s3.py", "--bucket", "b"], "s3.example.com", false), []);
+  assert.deepEqual(validateTraceCommand(["node", "probe.js", "--endpoint", "https://s3.example.com"], "s3.example.com", false), []);
+  assert.deepEqual(validateTraceCommand(["ossutil", "stat", "oss://bucket/key"], "oss.example.com", false), []);
+  assert.deepEqual(validateTraceCommand(["coscli", "ls", "cos://bucket/prefix"], "cos.example.com", false), []);
+  assert.ok(validateTraceCommand(["python", "check_s3.py", "delete"], "s3.example.com", false).length > 0);
+  assert.ok(validateTraceCommand(["node", "probe.js", "https://other.example.com"], "s3.example.com", false).includes("command URL host must match filter_host"));
+});
+
 test("sanitizeResponseHeaders passes metadata, masks cookies, redacts presigned in location", () => {
   const out = sanitizeResponseHeaders({
     "ETag": '"d41d8cd98f00b204e9800998ecf8427e"',

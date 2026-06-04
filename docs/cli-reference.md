@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.36  (pi: 0.78.0)
+StorageOps v0.4.37  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -158,6 +158,13 @@ than treating every bucket, prefix, or key argument as an operation. This keeps
 read-only metadata requests working even when object names contain words like
 `delete`, `copy`, or `sync`. Curl commands are additionally constrained so the
 URL host must match `filter_host`.
+
+For custom SDK probes or vendor CLIs without a dedicated adapter, the tool uses
+a stricter `unknown_observation` policy instead of rejecting solely by
+executable name. Unknown-client observation is capped at 5 requests and 15
+seconds, requires the same `filter_host`, rejects obvious mutating arguments,
+and reports `method_violation=true` if captured metadata shows a non-read-only
+HTTP method.
 
 `storageops install` automatically installs a verified `httpmon` helper into
 `~/.storageops/bin/httpmon` when it is not already available. PyPI release
