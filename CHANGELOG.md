@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-06-05 — v0.4.48: Routing and secret-scan regression hardening
+
+- **Negative routing corpus**: added deterministic false-positive cases for
+  bare-substring traps such as ordinary `sync`, ticket `transfer`, `mountain`,
+  `version`, `event`, `uncertain`, `jobs:`, `blobs:`, and `archive`.
+- **Strong-signal ranking contract**: golden routing tests now require selected
+  high-confidence cases to rank their expected skill first, while preserving the
+  documented top-2/top-3 allowance for genuinely multi-signal cases.
+- **Narrower ambiguous signatures**: migration `sync`/`transfer` now require
+  storage or migration context, and mount detection no longer matches ordinary
+  words such as `mountain`.
+- **Secret-scan evidence contract**: tests now lock in that credential material
+  is redacted while canonical request labels, hosts, payload hashes, request IDs,
+  and ETags remain available for diagnosis.
+
 ## 2026-06-04 — v0.4.47: Routing & scan correctness, measured by the corpus
 
 - **Golden corpus now gates routing**: a new deterministic test feeds every
