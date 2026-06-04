@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-06-04 — v0.4.41: Write-side evidence ladder (no live write tracing)
+
+- **Doctrine, not loosening**: `capture_http_trace` executes commands, so tracing
+  a write performs a real mutation — its read-only posture is unchanged. Instead,
+  write-side failures (failing PUT/copy, `BadDigest`, `SignatureDoesNotMatch`) are
+  diagnosed from the request's evidence: read the server error body, read the
+  client's own debug dump (`aws --debug` / `rclone -vv --dump headers` / boto3
+  `set_stream_logger`), then recompute offline. Documented once in
+  `storageops-s3-protocol-compatibility/references/checksum-etag.md` and pointed
+  to from the protocol/cli-sdk skills and the shared quality guide (no duplicated
+  per-tool flag tables — the per-tool references already carry them).
+- **`BadDigest` is not corruption**: new reference section and decision-tree
+  branch identify `x-amz-content-sha256` mismatch as a SigV4 payload-hash bug
+  (commonly: hash computed over uncompressed bytes while a gzip body is sent).
+  The misleading "bit flip" nudge is corrected to distinguish deterministic
+  request-construction failures from intermittent transport corruption.
+- **Optional offline falsifier**: `scripts/check_payload_hash.py` confirms or
+  refutes the payload-hash-over-wrong-bytes mechanism offline (no creds, no
+  network, no signing). Positioned as an optional confirmation step, not a gate.
+- **Rejection becomes a redirect**: a rejected write trace now returns a
+  `guidance` field pointing at the evidence ladder (pay-per-use; no permanent
+  context cost). Read-only trace autonomy is explicitly unchanged.
+
 ## 2026-06-04 — v0.4.40: Evidence-first diagnosis discipline
 
 - **Shared evidence-first contract**: `docs/skill-quality-guide.md` adds an

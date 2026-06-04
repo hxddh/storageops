@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.40  (pi: 0.78.0)
+StorageOps v0.4.41  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -159,6 +159,12 @@ read-only metadata requests working even when object names contain words like
 `delete`, `copy`, or `sync`. If a command URL host differs from `filter_host`,
 the tool warns that the trace may capture zero requests instead of rejecting the
 run.
+
+The tool executes the wrapped command, so it is read-only by design: mutating
+operations are rejected rather than traced. A rejected write trace returns a
+`guidance` field pointing to the write-side evidence ladder (read the server
+error body and the client's own debug dump, then recompute offline) so a failing
+PUT/copy stays diagnosable without performing the write.
 
 For custom SDK probes or vendor CLIs without a dedicated adapter, the tool uses
 a stricter `unknown_observation` policy instead of rejecting solely by

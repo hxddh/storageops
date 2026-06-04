@@ -17,6 +17,22 @@ Parse a `SignatureDoesNotMatch` XML response or client debug log and extract:
 
 The parser is offline-only. It does not compute signatures, derive signing keys, or contact cloud endpoints.
 
+## `check_payload_hash.py`
+
+Optional offline falsifier for `BadDigest` / `BadDigestSHA256`. Given the
+original (pre-encoding) object bytes and the declared `x-amz-content-sha256`,
+report whether the declared hash was computed over the raw bytes while an encoded
+body (e.g. gzip) was sent — the most common BadDigest cause.
+
+```bash
+./check_payload_hash.py --raw-file out.json \
+  --declared-sha256 <x-amz-content-sha256 value> --content-encoding gzip --json
+# Provide --sent-file <body.gz> for a byte-exact match when the sent body is captured.
+```
+
+Offline-only: computes SHA-256 of local files, never signs, never contacts an
+endpoint. It confirms or refutes the mechanism; it does not route.
+
 ## Planned Scripts
 
 ### `validate_multipart_lifecycle.py`

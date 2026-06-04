@@ -53,6 +53,10 @@ mislead — e.g. a digest/checksum error that looks like data corruption but is
 actually a client-side encoding bug. Inspect the mechanism, not just the
 surface symptom.
 
+Side-effecting requests (writes) are diagnosed from the failed request's
+artifact — the server error body, the client's own debug dump, offline
+recompute — never by re-issuing the write. Live tracing stays read-only.
+
 ## Validation
 
 Run:

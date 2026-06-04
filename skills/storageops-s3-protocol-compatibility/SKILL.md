@@ -50,6 +50,8 @@ Protocol error →
   ├─ InvalidArgument? → Parameter error
   │   ├─ Header value? → Check value format, encoding, valid range
   │   └─ Query parameter? → Check parameter name and value encoding
+  ├─ BadDigest / x-amz-content-sha256 mismatch? → Payload-hash path (not corruption)
+  │   └─ Body encoded (gzip) but hash over raw bytes? → hash the sent bytes; see references/checksum-etag.md
   └─ 400 Bad Request (no code)? → Debug-level header inspection needed
 ```
 
@@ -62,6 +64,12 @@ If the user can run a minimal read-only command and header/status evidence would
 change the diagnosis, use `capture_http_trace` with a required `filter_host`.
 Only wrap read-only commands such as `aws s3api head-object` or `aws s3 ls`.
 Do not request body capture, HAR/record output, replay, or mutating operations.
+
+For **write-side** failures (PUT/copy/upload, including `BadDigest` and
+`SignatureDoesNotMatch`), do not trace the write — re-sending a write performs a
+real mutation. Get the request from the server error body and the client's own
+debug dump, then recompute offline. See `references/checksum-etag.md`
+(*Write-side request evidence*). Read-only trace use is unchanged.
 
 ### Step 2: Compare Against AWS S3 Baseline
 AWS S3 is the reference implementation. Check `references/aws-s3-baseline.md` for expected behavior of the failing operation.
@@ -132,9 +140,10 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 ## References
 - `references/sigv4.md` — SigV2 vs SigV4 deep dive, StringToSign format | **Read when:** user reports SignatureDoesNotMatch or signature-related errors
 - `scripts/parse_sigv4_error.py` — Offline parser for SignatureDoesNotMatch XML/debug traces | **Read when:** user provides saved SigV4 error XML or client debug logs
+- `scripts/check_payload_hash.py` — Optional offline falsifier for BadDigest/x-amz-content-sha256 mismatch | **Read when:** a PUT/copy returns BadDigest and you can sample the uploaded bytes
 - `references/aws-s3-baseline.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
 - `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** user mentions a non-AWS provider (BOS/OSS/COS/GCS)
-- `references/checksum-etag.md` — Checksum, ETag, and multipart verification semantics | **Read when:** user reports checksum mismatch, MD5 mismatch, or ETag surprises
+- `references/checksum-etag.md` — Checksum/ETag semantics, BadDigest payload-hash class, and write-side request evidence | **Read when:** user reports checksum/MD5 mismatch, ETag surprises, BadDigest, or a failing PUT/copy
 - `references/multipart-upload.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
 - `references/cors.md` — S3 CORS behavior and browser preflight failures | **Read when:** user reports browser CORS, preflight, or missing Access-Control headers
 - `references/list-objects.md` — Request/response XML schemas and provider differences | **Read when:** user reports MalformedXML or XML parsing errors

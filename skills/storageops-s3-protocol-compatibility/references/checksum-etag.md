@@ -52,6 +52,57 @@ For OSS/COS, do not assume a specific algorithm — verify against a real ETag.
 - **SHA256:** `x-amz-checksum-sha256`
 - Most S3-compatible providers do NOT support these yet.
 
+## BadDigest / x-amz-content-sha256 (payload hash, not storage corruption)
+
+`BadDigest` / `BadDigestSHA256` means the SigV4 **payload hash** the client
+declared in `x-amz-content-sha256` (BOS: `x-bce-content-sha256`) does not equal
+the SHA-256 the server computed over the body it **received**. The response body
+carries both: `ExpectedDigest` (client) vs `CalculatedDigest` (server).
+
+This resembles data corruption but usually is **not**. It is deterministic
+(re-running gives the identical error) and is almost always a client
+request-construction bug:
+
+- **Hash over the wrong bytes (most common).** The client compresses the body
+  (`Content-Encoding: gzip`) but computes `x-amz-content-sha256` over the
+  *uncompressed* bytes. The body on the wire is compressed; the server hashes the
+  compressed bytes → mismatch.
+- A proxy/middleware re-encodes the body after signing.
+- The hash is computed over a different revision of the object than the one sent.
+
+**Read-only falsifier (optional, offline):**
+
+```bash
+scripts/check_payload_hash.py --raw-file out.json \
+  --declared-sha256 <x-amz-content-sha256 value> --content-encoding gzip
+# verdict: payload_hash_over_pre_encoding  → fix the hashed bytes, not the storage
+```
+
+**Fix:** compute `x-amz-content-sha256` over the bytes actually transmitted (the
+compressed body), or let the SDK compute the payload hash after compression.
+
+## Write-side request evidence (don't re-send the write)
+
+For a failing PUT/copy/upload, you do **not** need to re-issue the write to see
+why it failed — the request construction is the evidence, and re-sending a write
+performs a real mutation. Get the evidence in this order:
+
+1. **Read the server error body** — `SignatureDoesNotMatch` returns the server's
+   `CanonicalRequest`/`StringToSign`; `BadDigest` returns `Expected`/`Calculated`
+   digest; `RequestTimeTooSkewed` returns `ServerTime`.
+2. **Read the client's own request dump** — each tool already emits it:
+   `aws --debug`, boto3 `set_stream_logger('botocore', DEBUG)`,
+   `rclone -vv --dump headers`, `mc --debug`, `s3cmd --debug`, `curl -v`. See the
+   per-tool references under `storageops-cli-sdk-diagnosis/references/`.
+3. **Recompute offline** — `scripts/check_payload_hash.py` for the digest class.
+4. **Only if still ambiguous, and only on the user's host:** observe with
+   `capture_http_trace` on a **read-only** request through the same path (e.g. a
+   HEAD/GET) to see header/proxy behavior. The trace tool never sends the write.
+
+> Note: `capture_http_trace` executes commands and only guarantees no side
+> effects for proven read-only ones; this ladder keeps writes diagnosable without
+> performing them. The agent's read-only trace use is unaffected.
+
 ## rclone Size Diff / Corrupted on Transfer
 
 These errors typically indicate:
@@ -67,9 +118,11 @@ These errors typically indicate:
    - Encoding transformation by middleware/proxy.
 
 3. **Corrupted on transfer:** Content-MD5 validation failed.
-   - Bit flip during transmission.
-   - Client-side memory corruption.
-   - Proxy transformation.
+   - First rule out request-construction: a **deterministic** failure (identical
+     on every retry), especially `BadDigest`/`x-amz-content-sha256`, is a payload
+     hash over the wrong bytes — see the BadDigest section above — not corruption.
+   - Genuine transport corruption is typically **intermittent**: bit flip during
+     transmission, client-side memory corruption, or proxy transformation.
 
 ## ETag with SSE
 

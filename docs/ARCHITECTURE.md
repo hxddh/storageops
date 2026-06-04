@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.40 is a Pi Coding Agent extension and skill pack.
+StorageOps v0.4.41 is a Pi Coding Agent extension and skill pack.
 
 ## Components
 
@@ -50,6 +50,14 @@ bounded metadata observation with smaller request/time caps instead of being
 rejected merely because StorageOps lacks a dedicated adapter. Host mismatch is
 surfaced as a warning rather than a hard rejection, because endpoint aliases and
 redirects are common in object-storage diagnosis.
+
+The tool *executes* the wrapped command, so it only guarantees no side effects
+for commands it can prove read-only; that is why mutating operations are not
+traced. Write-side failures (a failing PUT/copy, e.g. `BadDigest` or
+`SignatureDoesNotMatch`) are diagnosed from the request's evidence — the server
+error body, the client's own debug dump, and offline recompute — never by
+re-issuing the write. A rejected write trace returns `guidance` pointing at that
+evidence ladder. Read-only trace use is unchanged.
 
 `storageops install` automatically prepares a verified `httpmon` helper in
 `~/.storageops/bin/httpmon`. Release wheels carry the gzip-compressed Linux
