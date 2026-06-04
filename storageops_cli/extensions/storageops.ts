@@ -176,7 +176,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/s5cmd/i, "s5cmd"],
     [/awscli|botocore|boto3/i, "aws_cli"],
     [/\bbcecmd\b|\bgo-bcecli\b/i, "bcecmd"],
-    [/obsutil|obs:/i, "obsutil"],
+    [/\bobsutil\b|\bobs:\/\//i, "obsutil"],
     [/corrupted\s*on\s*transfer|multipart.*etag/i, "corruption"],
     [/损坏|校验失败|传输失败/i, "corruption_cjk"],
   ],
