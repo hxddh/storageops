@@ -33,6 +33,23 @@ test("detectDomain routes 429 to performance and Chinese access-denied to securi
   assert.equal(sec[0].recommended_skill, "storageops-security-iam-policy");
 });
 
+test("detectDomain routes BOS BadDigest payload-hash cases to protocol without substring pollution", () => {
+  const results = detectDomain(
+    "archive object upload failed through the bcebos backend: BadDigestSHA256, " +
+      "x-bce-content-sha256 mismatch on bos:/bucket/key.",
+  );
+
+  assert.equal(results[0].recommended_skill, "storageops-s3-protocol-compatibility");
+  assert.ok(results[0].subdomains.includes("payload_digest"));
+  assert.ok(results[0].subdomains.includes("protocol_header"));
+  assert.equal(results.some(r => r.recommended_skill === "storageops-bigdata-pipeline"), false);
+});
+
+test("detectDomain does not classify BOS URI or bcebos backend as bcecmd", () => {
+  const results = detectDomain("bcebos backend reports BadDigestSHA256 for bos:/bucket/key");
+  assert.equal(results.some(r => r.recommended_skill === "storageops-cli-sdk-diagnosis"), false);
+});
+
 test("searchTokens emits CJK bigrams", () => {
   const toks = searchTokens("费用归因分析");
   assert.ok(toks.includes("费用") && toks.includes("归因"));
