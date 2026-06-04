@@ -50,6 +50,16 @@ test("detectDomain does not classify BOS URI or bcebos backend as bcecmd", () =>
   assert.equal(results.some(r => r.recommended_skill === "storageops-cli-sdk-diagnosis"), false);
 });
 
+test("detectDomain does not misroute substrings like jobs:/blobs: to obsutil", () => {
+  const noise = detectDomain("scheduler listing jobs: 5 failed; blobs: pending cleanup");
+  const obsHit = noise.find(r => r.recommended_skill === "storageops-cli-sdk-diagnosis");
+  assert.ok(!obsHit || !obsHit.subdomains.includes("obsutil"), "jobs:/blobs: must not match obsutil");
+  // A real Huawei OBS URI still routes to the cli-sdk obsutil subdomain.
+  const real = detectDomain("obsutil cp obs://bucket/key failed");
+  assert.equal(real[0].recommended_skill, "storageops-cli-sdk-diagnosis");
+  assert.ok(real[0].subdomains.includes("obsutil"));
+});
+
 test("searchTokens emits CJK bigrams", () => {
   const toks = searchTokens("费用归因分析");
   assert.ok(toks.includes("费用") && toks.includes("归因"));

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-06-04 — v0.4.45: Routing precision & readiness consolidation
+
+- **`obs:` no longer over-matches**: `detect_domain`'s obsutil signature is now
+  `\bobsutil\b|\bobs:\/\/` so ordinary words like `jobs:`/`blobs:` no longer
+  misroute to the CLI/SDK obsutil subdomain, while real `obs://` URIs still
+  route. This finishes the word-boundary pass started for `bcecmd` in v0.4.44.
+- **`configure` schema pinned**: confirmed against Pi 0.78 `core/settings-manager`
+  that Pi reads `defaultProvider`/`defaultModel` from `{agentDir}/settings.json`
+  (its `globalSettingsPath`) — the exact file/keys `storageops configure` writes.
+  Documented the invariant in code so future Pi drift is caught.
+- **Readiness consolidation (no behavior drift)**: `--version` and `doctor` now
+  share one `_runtime_status()` collector, and `doctor`'s skill check compares
+  deployed packs against the count actually bundled in the wheel instead of a
+  hardcoded threshold.
+
 ## 2026-06-04 — v0.4.44: BOS BadDigest routing fix
 
 - **Protocol routing recall**: `detect_domain` now recognizes `BadDigest`,

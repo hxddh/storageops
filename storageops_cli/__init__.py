@@ -363,6 +363,26 @@ def _skills_dir_for_agent(agent_dir: Path) -> Path:
     return agent_dir.parent / "skills"
 
 
+def _count_storageops_skills(skills_dir: Path) -> int:
+    """Count deployed storageops-* skill packs in a skills directory."""
+    if not skills_dir.is_dir():
+        return 0
+    return sum(1 for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("storageops-"))
+
+
+def _expected_skill_count() -> int:
+    """How many skill packs the installed package ships (source of truth).
+
+    Avoids a hardcoded threshold: readiness compares deployed skills against the
+    packs actually bundled with this wheel, so the check stays correct as the
+    skill set grows or shrinks.
+    """
+    try:
+        return _count_storageops_skills(_package_data_dir() / "skills")
+    except Exception:
+        return 0
+
+
 def is_installed(agent_dir: Path | None = None) -> bool:
     """Return True if StorageOps files are deployed under agent_dir."""
     ad = agent_dir or AGENT_DIR
@@ -687,7 +707,14 @@ def _write_settings(dst_agent: Path, settings: dict) -> None:
 
 
 def _write_config_settings(agent_dir: Path, provider: str | None, model: str | None) -> None:
-    """Update defaultProvider/defaultModel without disturbing other Pi settings."""
+    """Update defaultProvider/defaultModel without disturbing other Pi settings.
+
+    Schema invariant (verified against Pi 0.78 ``core/settings-manager``):
+    Pi's ``globalSettingsPath`` is ``{agentDir}/settings.json`` — the exact file
+    written here — and it reads defaults via ``getDefaultProvider()`` /
+    ``getDefaultModel()`` from the keys ``defaultProvider`` / ``defaultModel``.
+    Keep these key names aligned with Pi if its settings schema changes.
+    """
     settings = _agent_settings(agent_dir) or dict(SETTINGS)
     for key, value in SETTINGS.items():
         settings.setdefault(key, value)
@@ -850,36 +877,55 @@ def cmd_install(force: bool = False, merge: bool = False):
     _final_check(target_agent, merge)
 
 
+def _runtime_status() -> dict:
+    """Collect the shared install/runtime status used by version and doctor.
+
+    Single source for both commands so their reports cannot drift apart.
+    """
+    nv = _node_version()
+    pi_path = find_pi()
+    pi_ok, pi_ver = check_pi_version(pi_path)
+    active_agent = _active_agent_dir()
+    skills_dir = _skills_dir_for_agent(active_agent)
+    marker = _install_marker()
+    return {
+        "version": _package_version(),
+        "latest": _latest_pypi_version(),
+        "pi_path": pi_path,
+        "pi_ok": pi_ok,
+        "pi_ver": pi_ver,
+        "node_triple": nv,
+        "node_ok": bool(nv and nv >= MIN_NODE_VERSION),
+        "independent": is_installed(AGENT_DIR),
+        "merged": is_installed(PI_DEFAULT_AGENT),
+        "active_agent": active_agent,
+        "skills_dir": skills_dir,
+        "skill_count": _count_storageops_skills(skills_dir),
+        "expected_skills": _expected_skill_count(),
+        "httpmon": find_httpmon(),
+        "key_source": _configured_key_source(active_agent),
+        "conflict": _key_conflict(active_agent),
+        "default_model": _default_model_label(active_agent),
+        "marker": marker,
+        "package_path": marker.get("package_path") or str(Path(__file__).resolve().parent),
+    }
+
+
 def cmd_version():
     """Print version and install status."""
-    try:
-        from importlib.metadata import version
-        v = version("storageops")
-    except Exception:
-        v = "unknown"
-    pi_path = find_pi()
-    ok, ver = check_pi_version(pi_path)
-    httpmon = find_httpmon() or "not found"
-    independent = is_installed(AGENT_DIR)
-    merged = is_installed(PI_DEFAULT_AGENT)
-    active_agent = _active_agent_dir()
-    key_source = _configured_key_source(active_agent) or "not configured"
-    nv = _node_version()
+    s = _runtime_status()
+    nv = s["node_triple"]
     node_str = ("v" + ".".join(str(p) for p in nv)) if nv else "not found"
-    latest = _latest_pypi_version()
-    marker = _install_marker()
-    deployed = marker.get("package_version") or "unknown"
-    package_path = marker.get("package_path") or str(Path(__file__).resolve().parent)
-    print(f"StorageOps v{v}  (pi: {ver})")
+    print(f"StorageOps v{s['version']}  (pi: {s['pi_ver']})")
     print(f"  node                : {node_str}")
-    print(f"  package path        : {package_path}")
-    print(f"  deployed version    : {deployed}")
-    print(f"  latest PyPI         : {latest or 'unknown'}")
-    print(f"  default model       : {_default_model_label(active_agent)}")
-    print(f"  httpmon             : {httpmon}")
-    print(f"  api key             : {key_source}")
-    print(f"  independent install : {'yes' if independent else 'no'}  ({AGENT_DIR})")
-    print(f"  merged install      : {'yes' if merged else 'no'}  ({PI_DEFAULT_AGENT})")
+    print(f"  package path        : {s['package_path']}")
+    print(f"  deployed version    : {s['marker'].get('package_version') or 'unknown'}")
+    print(f"  latest PyPI         : {s['latest'] or 'unknown'}")
+    print(f"  default model       : {s['default_model']}")
+    print(f"  httpmon             : {s['httpmon'] or 'not found'}")
+    print(f"  api key             : {s['key_source'] or 'not configured'}")
+    print(f"  independent install : {'yes' if s['independent'] else 'no'}  ({AGENT_DIR})")
+    print(f"  merged install      : {'yes' if s['merged'] else 'no'}  ({PI_DEFAULT_AGENT})")
 
 
 def _doctor_row(name: str, status: str, detail: str) -> None:
@@ -888,23 +934,13 @@ def _doctor_row(name: str, status: str, detail: str) -> None:
 
 def cmd_doctor() -> int:
     """Print a concise readiness report."""
-    local_version = _package_version()
-    latest = _latest_pypi_version()
-    pi_path = find_pi()
-    pi_ok, pi_ver = check_pi_version(pi_path)
-    nv = _node_version()
+    s = _runtime_status()
+    nv = s["node_triple"]
     node_label = ".".join(str(p) for p in nv) if nv else "not found"
-    node_ok = bool(nv and nv >= MIN_NODE_VERSION)
-    independent = is_installed(AGENT_DIR)
-    merged = is_installed(PI_DEFAULT_AGENT)
-    active_agent = _active_agent_dir()
-    skills_dir = _skills_dir_for_agent(active_agent)
-    skill_count = 0
-    if skills_dir.is_dir():
-        skill_count = sum(1 for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("storageops-"))
-    marker = _install_marker()
-    key_source = _configured_key_source(active_agent)
-    conflict = _key_conflict(active_agent)
+    latest, local_version = s["latest"], s["version"]
+    independent, merged = s["independent"], s["merged"]
+    skill_count, expected_skills = s["skill_count"], s["expected_skills"]
+    key_source, marker = s["key_source"], s["marker"]
 
     print("StorageOps doctor")
     _doctor_row("Package", "ok", f"{local_version}" + (f" (latest {latest})" if latest else ""))
@@ -912,24 +948,26 @@ def cmd_doctor() -> int:
         _doctor_row("PyPI", "warn", f"newer version available: {latest}")
     else:
         _doctor_row("PyPI", "ok", latest or "version check unavailable")
-    _doctor_row("Node", "ok" if node_ok else "warn", node_label)
-    _doctor_row("Pi", "ok" if pi_ok else "warn", f"{pi_ver} ({pi_path})")
+    _doctor_row("Node", "ok" if s["node_ok"] else "warn", node_label)
+    _doctor_row("Pi", "ok" if s["pi_ok"] else "warn", f"{s['pi_ver']} ({s['pi_path']})")
     install_detail = "independent" if independent else "merged" if merged else "not installed"
-    _doctor_row("Install", "ok" if (independent or merged) else "warn", f"{install_detail} ({active_agent})")
-    _doctor_row("Skills", "ok" if skill_count >= 16 else "warn", f"{skill_count} packs ({skills_dir})")
-    _doctor_row("httpmon", "ok" if find_httpmon() else "warn", find_httpmon() or "not found")
+    _doctor_row("Install", "ok" if (independent or merged) else "warn", f"{install_detail} ({s['active_agent']})")
+    skills_ok = skill_count >= expected_skills if expected_skills else skill_count > 0
+    skills_detail = f"{skill_count} packs" + (f" of {expected_skills}" if expected_skills else "") + f" ({s['skills_dir']})"
+    _doctor_row("Skills", "ok" if skills_ok else "warn", skills_detail)
+    _doctor_row("httpmon", "ok" if s["httpmon"] else "warn", s["httpmon"] or "not found")
     _doctor_row("API key", "ok" if key_source else "warn", key_source or "not configured")
-    if conflict:
-        _doctor_row("Key conflict", "warn", conflict)
-    _doctor_row("Default model", "ok", _default_model_label(active_agent))
+    if s["conflict"]:
+        _doctor_row("Key conflict", "warn", s["conflict"])
+    _doctor_row("Default model", "ok", s["default_model"])
     if marker:
         _doctor_row("Deployed", "ok", f"v{marker.get('package_version', 'unknown')} from {marker.get('package_path', 'unknown')}")
 
     if not (independent or merged):
         print("Next: storageops install")
     elif not key_source:
-        print(f"Next: storageops configure --provider deepseek --model deepseek-v4-pro --api-key")
-    elif not pi_ok or not node_ok:
+        print("Next: storageops configure --provider deepseek --model deepseek-v4-pro --api-key")
+    elif not s["pi_ok"] or not s["node_ok"]:
         print("Next: fix Node/Pi, then run storageops install --force")
     else:
         print("Ready: storageops --print 'hello'")
