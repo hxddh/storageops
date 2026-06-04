@@ -26,12 +26,15 @@ export DEEPSEEK_API_KEY=sk-...
 # or:
 echo sk-... > ~/.storageops/agent/api-key
 chmod 600 ~/.storageops/agent/api-key
+# or:
+storageops configure --provider deepseek --model deepseek-v4-pro --api-key
 ```
 
 ## Diagnose
 
 ```bash
-storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
+storageops doctor
+storageops smoke --provider deepseek --model deepseek-v4-pro
 storageops --print 's5cmd sync reports 429 SlowDown'
 storageops --print @awscli-debug.log 'why is this SignatureDoesNotMatch?'
 storageops

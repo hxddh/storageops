@@ -144,6 +144,12 @@ printf '%s\n' 'sk-...' > ~/.storageops/agent/api-key
 chmod 600 ~/.storageops/agent/api-key
 ```
 
+Equivalent guided command:
+
+```bash
+storageops configure --provider deepseek --model deepseek-v4-pro --api-key
+```
+
 Do not paste real object-storage AK/SK credentials here. StorageOps needs a model
 provider key for Pi, not cloud account credentials.
 
@@ -191,7 +197,8 @@ deepseek-v4-flash
 Use an explicit model first:
 
 ```bash
-storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
+storageops doctor
+storageops smoke --provider deepseek --model deepseek-v4-pro
 ```
 
 Then test the default:

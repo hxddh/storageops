@@ -83,6 +83,13 @@ chmod 600 ~/.storageops/agent/api-key
 StorageOps reads this local key file and exposes the key to Pi for the selected
 agent directory. You normally do not need to pass `--api-key` on each command.
 
+Guided option:
+
+```bash
+storageops configure --provider deepseek --model deepseek-v4-pro --api-key
+storageops doctor
+```
+
 A bare key defaults to DeepSeek → Anthropic → OpenAI. For any other provider,
 prefix the key so it is routed correctly (otherwise a non-DeepSeek key is
 misrouted to `DEEPSEEK_API_KEY`):
@@ -97,7 +104,7 @@ echo gemini:AIza... > ~/.storageops/agent/api-key
 DeepSeek smoke test:
 
 ```bash
-storageops --provider deepseek --model deepseek-v4-pro --print 'hello'
+storageops smoke --provider deepseek --model deepseek-v4-pro
 ```
 
 `deepseek-v4-pro` and `deepseek-v4-flash` are known-good DeepSeek model choices
@@ -158,6 +165,12 @@ make validate
 ## Troubleshooting
 
 If `storageops` says it is not installed, run `storageops install`.
+
+For a compact readiness report, run:
+
+```bash
+storageops doctor
+```
 
 If Pi cannot find skills, check:
 
