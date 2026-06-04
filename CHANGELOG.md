@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-04 — v0.4.46: Close the over-broad routing-signature class
+
+- **Fix the class, not the case**: after fixing `bos:` (v0.4.44) and `obs:`
+  (v0.4.45) one at a time, `detect_domain` still carried bare-substring
+  signatures that misrouted ordinary text at medium confidence. Tightened the
+  clear offenders:
+  - `version` → `\bversioning\b|version id` (so "rclone version 1.65" no longer
+    routes to replication-versioning),
+  - `event` → `event notification|bucket event|SQS|Lambda` (so "in the event of"
+    no longer routes to event-notification),
+  - `cert` → `\bcert(?:ificate)?\b` (so "uncertain" no longer routes to TLS).
+  Genuinely ambiguous migration words (`transfer`/`sync`) are intentionally left
+  for multi-signal disambiguation rather than over-tightened.
+- **Regression guard**: a new `detect_domain` test feeds benign/cross-domain
+  noise and asserts it does not produce these misroutes, while confirming real
+  versioning/event/TLS evidence still routes correctly — so the next
+  bare-substring signature is caught automatically.
+
 ## 2026-06-04 — v0.4.45: Routing precision & readiness consolidation
 
 - **`obs:` no longer over-matches**: `detect_domain`'s obsutil signature is now

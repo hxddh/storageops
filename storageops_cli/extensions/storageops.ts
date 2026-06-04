@@ -166,7 +166,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
   "storageops-network-endpoint-access": [
     [/DNS|Name\s*or\s*service\s*not\s*known|NXDOMAIN/i, "dns"],
     [/Could\s*not\s*connect|Connection\s*refused|connect\s*ETIMEDOUT/i, "connectivity"],
-    [/TLS|SSL|Certificate|cert/i, "tls"],
+    [/TLS|SSL|\bcert(?:ificate)?\b/i, "tls"],
     [/连接(?:失败|超时|被拒)|证书|解析失败|无法访问/i, "network_cjk"],
     [/VPC|endpoint|ENDPOINT/i, "endpoint"],
     [/host\s*unreachable|no\s*route/i, "route"],
@@ -183,7 +183,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
   "storageops-replication-versioning": [
     [/replicat/i, "replication"],
     [/CRR|SRR/i, "replication_type"],
-    [/version/i, "versioning"],
+    [/\bversioning\b|version\s*id/i, "versioning"],
     [/DeleteMarker/i, "delete_marker"],
     [/sync\s*(?:lag|delay)/i, "sync_lag"],
   ],
@@ -218,7 +218,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
   ],
   "storageops-event-notification": [
     [/notification|通知/i, "notification"],
-    [/event/i, "event"],
+    [/event\s*notifications?|bucket\s*events?|\bSQS\b|\bLambda\b/i, "event"],
     [/prefix filter|suffix filter|ObjectCreated|ObjectRemoved/i, "event_filter"],
   ],
   "storageops-access-log-analysis": [

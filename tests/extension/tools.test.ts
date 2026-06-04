@@ -60,6 +60,21 @@ test("detectDomain does not misroute substrings like jobs:/blobs: to obsutil", (
   assert.ok(real[0].subdomains.includes("obsutil"));
 });
 
+test("detectDomain does not misroute on bare-substring noise (over-broad signature guard)", () => {
+  const hasSub = (text: string, skill: string, sub: string) =>
+    detectDomain(text).some(r => r.recommended_skill === skill && r.subdomains.includes(sub));
+
+  // Benign/cross-domain text must NOT trip these formerly over-broad signatures.
+  assert.equal(hasSub("rclone version 1.65 finished the copy", "storageops-replication-versioning", "versioning"), false, "'version' must not match versioning");
+  assert.equal(hasSub("retry the upload in the event of a timeout", "storageops-event-notification", "event"), false, "'event' must not match notification");
+  assert.equal(hasSub("results are uncertain, please re-check", "storageops-network-endpoint-access", "tls"), false, "'uncertain' must not match cert");
+
+  // Legitimate routing must still work after tightening.
+  assert.ok(hasSub("S3 Versioning is suspended; a DeleteMarker was created", "storageops-replication-versioning", "versioning"), "real versioning still routes");
+  assert.ok(hasSub("configure bucket event notification routing to SQS", "storageops-event-notification", "event"), "real event notification still routes");
+  assert.ok(hasSub("the TLS certificate expired", "storageops-network-endpoint-access", "tls"), "real TLS cert still routes");
+});
+
 test("searchTokens emits CJK bigrams", () => {
   const toks = searchTokens("费用归因分析");
   assert.ok(toks.includes("费用") && toks.includes("归因"));
