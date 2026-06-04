@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-04 — v0.4.44: BOS BadDigest routing fix
+
+- **Protocol routing recall**: `detect_domain` now recognizes `BadDigest`,
+  `BadDigestSHA256`, `BadDigestMD5`, and BOS `x-bce-content-sha256` evidence as
+  S3/BOS protocol compatibility signals.
+- **Less false routing**: Big-data engine signatures now use word boundaries, so
+  ordinary words such as `archive` no longer trigger the `Hive` route.
+- **BOS client precision**: `bos:` URIs and `bcebos` backend mentions no longer
+  masquerade as `bcecmd`; only explicit `bcecmd`/`go-bcecli` evidence selects
+  the bcecmd client subdomain.
+
 ## 2026-06-04 — v0.4.43: First-run readiness commands
 
 - **`storageops doctor`**: added a concise readiness report covering package/PyPI
