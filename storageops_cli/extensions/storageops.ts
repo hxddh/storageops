@@ -453,6 +453,8 @@ type TraceResponse = {
 
 const MAX_TRACE_REQUESTS = 20;
 const MAX_TRACE_SECONDS = 30;
+const MAX_UNKNOWN_TRACE_REQUESTS = 5;
+const MAX_UNKNOWN_TRACE_SECONDS = 15;
 const MAX_TRACE_COMMAND_ARGS = 40;
 
 const READ_ONLY_AWS_S3API = new Set([
@@ -514,6 +516,24 @@ const MUTATING_AWS_S3API = new Set([
   "put-bucket-acl",
   "put-bucket-policy",
   "delete-bucket-policy",
+]);
+
+const KNOWN_TRACE_CLIENTS = new Set(["aws", "curl", "rclone", "s5cmd", "mc", "bcecmd", "obsutil", "s3cmd"]);
+const UNKNOWN_MUTATING_TOKENS = new Set([
+  "post",
+  "put",
+  "delete",
+  "remove",
+  "upload",
+  "copy",
+  "sync",
+  "move",
+  "create",
+  "update",
+  "patch",
+  "rm",
+  "mv",
+  "cp",
 ]);
 
 const SIGNED_QUERY_KEYS = [
@@ -602,6 +622,25 @@ function curlHasBodyUploadFlag(lowered: string[]): boolean {
     || x.startsWith("--upload-file="));
 }
 
+function clientPolicyForCommand(command: string[]): "known_adapter" | "unknown_observation" {
+  const exe = path.basename(command[0] || "").toLowerCase();
+  return KNOWN_TRACE_CLIENTS.has(exe) ? "known_adapter" : "unknown_observation";
+}
+
+function validateUnknownTraceCommand(command: string[], filterHost: string): string[] {
+  const errors: string[] = [];
+  const lowered = command.map(x => x.toLowerCase());
+  const hosts = commandHosts(command);
+  if (hosts.length > 0 && filterHost && !hosts.some(host => host === filterHost)) {
+    errors.push("command URL host must match filter_host");
+  }
+  const mutating = lowered.find((arg, index) => index > 0 && UNKNOWN_MUTATING_TOKENS.has(arg));
+  if (mutating) {
+    errors.push(`unknown client observation rejects obvious mutating argument: ${mutating}`);
+  }
+  return errors;
+}
+
 export function validateTraceCommand(command: string[], filterHost: string, captureBody: boolean): string[] {
   const errors: string[] = [];
   if (!Array.isArray(command) || command.length === 0) {
@@ -676,7 +715,7 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
       errors.push(`${exe} operation is not in the read-only allowlist: ${op}`);
     }
   } else {
-    errors.push(`unsupported command for safe HTTP trace capture: ${exe || "(missing)"}`);
+    errors.push(...validateUnknownTraceCommand(command, filterHost));
   }
 
   return [...new Set(errors)];
@@ -813,6 +852,7 @@ export function summarizeTraceRequest(req: TraceRequest, resp?: TraceResponse) {
   return {
     id: req.id,
     method: req.method,
+    method_violation: !["GET", "HEAD", "OPTIONS"].includes(String(req.method || "").toUpperCase()),
     host,
     path_template: safePathTemplate(req.url),
     status: resp?.status,
@@ -845,14 +885,18 @@ async function captureHttpTrace(params: {
   capture_body?: boolean;
 }) {
   const filterHost = normalizeFilterHost(params.filter_host || "");
-  const maxRequests = Math.min(Math.max(Number(params.max_requests || MAX_TRACE_REQUESTS), 1), MAX_TRACE_REQUESTS);
-  const maxSeconds = Math.min(Math.max(Number(params.max_seconds || MAX_TRACE_SECONDS), 1), MAX_TRACE_SECONDS);
+  const clientPolicy = clientPolicyForCommand(params.command || []);
+  const requestCap = clientPolicy === "unknown_observation" ? MAX_UNKNOWN_TRACE_REQUESTS : MAX_TRACE_REQUESTS;
+  const secondsCap = clientPolicy === "unknown_observation" ? MAX_UNKNOWN_TRACE_SECONDS : MAX_TRACE_SECONDS;
+  const maxRequests = Math.min(Math.max(Number(params.max_requests || requestCap), 1), requestCap);
+  const maxSeconds = Math.min(Math.max(Number(params.max_seconds || secondsCap), 1), secondsCap);
   const captureBody = Boolean(params.capture_body);
   const validationErrors = validateTraceCommand(params.command, filterHost, captureBody);
   if (validationErrors.length > 0) {
     return {
       status: "rejected",
       reason: "unsafe_or_unsupported_command",
+      client_policy: clientPolicy,
       errors: validationErrors,
       limits: { max_requests: maxRequests, max_seconds: maxSeconds, capture_body: false },
     };
@@ -885,11 +929,13 @@ async function captureHttpTrace(params: {
       resolve({
         status: spawnError ? "error" : "completed",
         command_name: path.basename(params.command[0]),
+        client_policy: clientPolicy,
         filter_host: filterHost,
         exit_code: exitCode,
         killed_for_limit: killedForLimit,
         requests: summaries,
         request_count: summaries.length,
+        method_violation: summaries.some((r: any) => r.method_violation),
         stderr_summary: redactedStderr.slice(0, 500),
         redaction: {
           authorization_redacted: summaries.some((r: any) => r.auth_header_present),

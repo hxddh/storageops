@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-06-04 — v0.4.37: Unknown-client HTTP trace observation
+
+- **Unknown clients are no longer rejected solely by executable name.**
+  `capture_http_trace` now allows tightly bounded observation for custom SDK
+  probes and vendor CLIs that StorageOps does not have a dedicated adapter for,
+  such as small `python`/`node` diagnostics or tools like `ossutil`/`coscli`.
+- **Safety stays narrow**: unknown-client observation still requires
+  `filter_host`, rejects shell/sudo wrappers, rejects presigned URL material,
+  rejects obvious mutating arguments (`put`, `delete`, `upload`, `sync`, etc.),
+  enforces URL host matching when URLs are present, keeps `capture_body=false`,
+  and is capped at 5 requests / 15 seconds.
+- **Trace output now labels the policy** with
+  `client_policy=known_adapter|unknown_observation` and marks
+  `method_violation=true` if captured metadata shows a non-read-only HTTP
+  method.
+
 ## 2026-06-04 — v0.4.36: Flexible capture_http_trace validation
 
 - **Less brittle read-only tracing**: `capture_http_trace` now validates by the
