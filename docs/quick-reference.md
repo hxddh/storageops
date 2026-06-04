@@ -67,7 +67,7 @@ redeployed.
 | Vague object-storage issue | `storageops-triage` |
 | 403, AccessDenied, KMS deny | `storageops-security-iam-policy` |
 | 429, SlowDown, throughput | `storageops-performance-diagnosis` |
-| SignatureDoesNotMatch, CORS, malformed XML | `storageops-s3-protocol-compatibility` |
+| SignatureDoesNotMatch, BadDigest, CORS, malformed XML | `storageops-s3-protocol-compatibility` |
 | rclone, s5cmd, awscli, boto3 | `storageops-cli-sdk-diagnosis` |
 | DNS, TCP, TLS, VPC endpoint | `storageops-network-endpoint-access` |
 | lifecycle or storage cost | `storageops-lifecycle-cost` |
@@ -87,6 +87,8 @@ diagnoses, one `<case-name>.md` per case; the repo's bundled examples live in
 
 ```bash
 python3 skills/storageops-s3-protocol-compatibility/scripts/parse_sigv4_error.py error.xml --json
+python3 skills/storageops-s3-protocol-compatibility/scripts/check_payload_hash.py \
+  --raw-file out.json --declared-sha256 <hex> --content-encoding gzip --json
 python3 skills/storageops-network-endpoint-access/scripts/endpoint_reachability_test.py https://s3.example.com
 python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
   --cases skills/storageops-eval-golden-cases/cases \
