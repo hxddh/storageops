@@ -68,6 +68,13 @@ redirect behavior, use `capture_http_trace` around one minimal read-only command
 for that client. Keep `capture_body=false`, provide `filter_host`, and never wrap
 copy/sync/upload/delete commands.
 
+For a failing **write** (PUT/copy/upload — e.g. `BadDigest` or
+`SignatureDoesNotMatch`), do not trace the write. Get its request from the server
+error body and the client's own debug dump (`--debug`/`-vv --dump headers`/
+`set_stream_logger`), then recompute offline — see
+`storageops-s3-protocol-compatibility/references/checksum-etag.md`
+(*Write-side request evidence*).
+
 ### Step 3: Check Configuration
 Common misconfigurations: wrong endpoint URL, wrong region, wrong signature version (v2 vs v4), proxy settings interfering, clock skew (>5 min causes signature failure).
 

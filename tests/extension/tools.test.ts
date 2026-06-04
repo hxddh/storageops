@@ -10,6 +10,7 @@ import {
   searchTokens,
   searchMemory,
   validateTraceCommand,
+  traceRejectionGuidance,
   sanitizeResponseHeaders,
 } from "../../storageops_cli/extensions/storageops.ts";
 
@@ -125,6 +126,17 @@ test("validateTraceCommand downgrades unclassified known client commands to obse
   assert.deepEqual(validateTraceCommand(["rclone", "about", "remote:"], "s3.example.com", false), []);
   assert.deepEqual(validateTraceCommand(["mc", "du", "alias/bucket"], "s3.example.com", false), []);
   assert.ok(validateTraceCommand(["rclone", "sync", "remote:a", "remote:b"], "s3.example.com", false).length > 0);
+});
+
+test("traceRejectionGuidance redirects write rejections and stays silent for read-only", () => {
+  const writeErrors = validateTraceCommand(["aws", "s3api", "put-object", "--bucket", "b"], "s3.example.com", false);
+  const guidance = traceRejectionGuidance(writeErrors);
+  assert.ok(guidance.includes("checksum-etag.md"), "points at the write-side evidence ladder");
+  assert.ok(guidance.includes("read-only"), "tells the agent live trace stays read-only");
+  // A non-write rejection (e.g. presigned material) gets no write redirect.
+  const presignedErrors = validateTraceCommand(["curl", "https://x?X-Amz-Signature=abc"], "x", false);
+  assert.equal(traceRejectionGuidance(presignedErrors), "");
+  assert.equal(traceRejectionGuidance([]), "");
 });
 
 test("sanitizeResponseHeaders passes metadata, masks cookies, redacts presigned in location", () => {

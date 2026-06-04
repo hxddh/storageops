@@ -774,6 +774,33 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
   return [...new Set(errors)];
 }
 
+const WRITE_REJECTION_MARKERS = [
+  "mutating",
+  "read-only allowlist",
+  "write method",
+  "method is not read-only",
+];
+
+// When a trace is rejected because the command writes (or is not provably
+// read-only), point the agent at the evidence ladder instead of leaving a dead
+// end. capture_http_trace executes commands, so tracing a write would perform a
+// real request; the request shape is recoverable without re-sending the write.
+export function traceRejectionGuidance(errors: string[]): string {
+  const isWriteRejection = (errors || []).some(err =>
+    WRITE_REJECTION_MARKERS.some(marker => err.toLowerCase().includes(marker)),
+  );
+  if (!isWriteRejection) return "";
+  return (
+    "This command writes or is not provably read-only, and capture_http_trace " +
+    "executes commands — tracing it would perform a real request. To diagnose a " +
+    "failing write, read the server error body and the client's own debug dump " +
+    "(aws --debug / rclone -vv --dump headers / boto3 set_stream_logger), then " +
+    "recompute offline. See storageops-s3-protocol-compatibility/references/" +
+    "checksum-etag.md (Write-side request evidence). Re-run capture_http_trace " +
+    "only on a read-only command."
+  );
+}
+
 function getHeader(headers: Record<string, string> | undefined, name: string): string {
   if (!headers) return "";
   const target = name.toLowerCase();
@@ -958,6 +985,7 @@ async function captureHttpTrace(params: {
       host_mismatch: hostMismatch,
       operation_unclassified: opUnclassified,
       errors: validationErrors,
+      guidance: traceRejectionGuidance(validationErrors) || undefined,
       limits: { max_requests: maxRequests, max_seconds: maxSeconds, capture_body: false },
     };
   }
