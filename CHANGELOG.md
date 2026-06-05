@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-05 — v0.4.51: Scriptable, machine-readable readiness
+
+- **`storageops doctor --json`**: emits the same readiness report as a
+  machine-readable, **redacted** object — it reports the API key *source*, never
+  the key value — including `ready` and `next_action`. This collapses what would
+  otherwise be a separate "support bundle" command into one flag (no new command,
+  no telemetry).
+- **`doctor` now has a meaningful exit code**: non-zero when not ready (not
+  installed, no API key, or Pi/Node below the minimum), zero when ready — so it
+  can gate a script: `storageops doctor && storageops ...`.
+- Both modes reuse the existing `_runtime_status()` collector; no new command,
+  dependency, or subsystem.
+
 ## 2026-06-05 — v0.4.50: Mount analyzer, packaging guard, docs-consistency gate
 
 - **mount/workspace analyzer**: new offline helper
