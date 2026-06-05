@@ -1,4 +1,4 @@
-# StorageOps Skill Registry v0.4.48
+# StorageOps Skill Registry v0.4.49
 
 # Machine-readable metadata for all StorageOps skills.
 # Skills are auto-discovered by Pi from the skills/ directory.
@@ -133,7 +133,7 @@ skills:
 
   - name: storageops-mount-filesystem-workspace
     path: skills/storageops-mount-filesystem-workspace/SKILL.md
-    maturity: mature
+    maturity: beta
     mode: light_heavy
     trigger_keywords:
       - "mount"
@@ -172,7 +172,7 @@ skills:
 
   - name: storageops-bigdata-pipeline
     path: skills/storageops-bigdata-pipeline/SKILL.md
-    maturity: alpha
+    maturity: mature
     mode: light_heavy
     trigger_keywords:
       - "Spark"

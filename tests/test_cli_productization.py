@@ -55,6 +55,7 @@ def test_doctor_reports_key_conflict(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(storageops_cli, "PI_DEFAULT_AGENT", tmp_path / ".pi" / "agent")
     monkeypatch.setattr(storageops_cli, "_package_version", lambda: "0.4.43")
     monkeypatch.setattr(storageops_cli, "_latest_pypi_version", lambda: "0.4.43")
+    monkeypatch.setattr(storageops_cli, "_latest_pi_version", lambda: "0.78.0")
     monkeypatch.setattr(storageops_cli, "find_pi", lambda: "/tmp/pi")
     monkeypatch.setattr(storageops_cli, "check_pi_version", lambda _exe: (True, "pi 0.78.0"))
     monkeypatch.setattr(storageops_cli, "_node_version", lambda: (22, 19, 0))
@@ -67,6 +68,35 @@ def test_doctor_reports_key_conflict(tmp_path, monkeypatch, capsys):
     assert "StorageOps doctor" in output
     assert "Key conflict" in output
     assert "Default model" in output
+
+
+def test_latest_pi_version_is_silent_when_skipped(monkeypatch):
+    monkeypatch.setenv("STORAGEOPS_SKIP_VERSION_CHECK", "1")
+    # Must not hit the network and must never raise.
+    assert storageops_cli._latest_pi_version() is None
+
+
+def test_doctor_hints_when_newer_pi_available(tmp_path, monkeypatch, capsys):
+    root = tmp_path / ".storageops"
+    agent_dir = _installed_agent(root)
+    _clear_provider_env(monkeypatch)
+
+    monkeypatch.setattr(storageops_cli, "ROOT", root)
+    monkeypatch.setattr(storageops_cli, "AGENT_DIR", agent_dir)
+    monkeypatch.setattr(storageops_cli, "BIN_DIR", root / "bin")
+    monkeypatch.setattr(storageops_cli, "PI_DEFAULT_AGENT", tmp_path / ".pi" / "agent")
+    monkeypatch.setattr(storageops_cli, "_package_version", lambda: "0.4.49")
+    monkeypatch.setattr(storageops_cli, "_latest_pypi_version", lambda: "0.4.49")
+    monkeypatch.setattr(storageops_cli, "find_pi", lambda: "/tmp/pi")
+    monkeypatch.setattr(storageops_cli, "check_pi_version", lambda _exe: (True, "0.78.0"))
+    monkeypatch.setattr(storageops_cli, "_latest_pi_version", lambda: "0.78.1")
+    monkeypatch.setattr(storageops_cli, "_node_version", lambda: (22, 19, 0))
+    monkeypatch.setattr(storageops_cli, "find_httpmon", lambda: str(root / "bin" / "httpmon"))
+
+    assert storageops_cli.cmd_doctor() == 0
+    output = capsys.readouterr().out
+    assert "newer Pi 0.78.1" in output
+    assert "npm install -g @earendil-works/pi-coding-agent" in output
 
 
 def test_smoke_runs_pi_with_selected_agent_and_model(tmp_path, monkeypatch, capsys):

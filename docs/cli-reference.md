@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.48  (pi: 0.78.0)
+StorageOps v0.4.49  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -61,7 +61,9 @@ storageops doctor
 
 Prints a concise readiness report: package/PyPI version, Node, Pi, install mode,
 skill count, `httpmon`, API key source, default provider/model, and common key
-source conflicts. It does not call the model or object storage.
+source conflicts. It does not call the model or object storage. When a newer Pi
+is published on npm, the `Pi` line notes it with the upgrade command — StorageOps
+never auto-upgrades an already-installed Pi.
 
 ## `storageops configure`
 

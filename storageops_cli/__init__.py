@@ -44,6 +44,8 @@ MIN_PI_VERSION = "0.78.0"
 MIN_NODE_VERSION = (22, 19, 0)
 REQUIRED_API_KEYS = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"]
 PYPI_JSON_URL = "https://pypi.org/pypi/storageops/json"
+PI_NPM_PACKAGE = "@earendil-works/pi-coding-agent"
+PI_NPM_URL = "https://registry.npmjs.org/@earendil-works%2Fpi-coding-agent/latest"
 HTTPMON_VERSION = "v1.0.2"
 HTTPMON_BASE_URL = f"https://github.com/hxddh/https-traffic-inspector/releases/download/{HTTPMON_VERSION}"
 HTTPMON_ASSETS = {
@@ -592,6 +594,31 @@ def _latest_pypi_version(timeout: float = 2.0) -> str | None:
         return None
 
 
+def _latest_pi_version(timeout: float = 2.0) -> str | None:
+    """Return the latest Pi (npm) version when reachable; never raise.
+
+    StorageOps never auto-upgrades an already-installed Pi, so this is used only
+    to *surface* staleness in `doctor`/`--version`.
+    """
+    if os.environ.get("STORAGEOPS_SKIP_VERSION_CHECK"):
+        return None
+    try:
+        req = urllib.request.Request(
+            PI_NPM_URL,
+            headers={
+                "Accept": "application/json",
+                "Cache-Control": "no-cache",
+                "User-Agent": f"storageops/{_package_version()}",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        version = payload.get("version")
+        return version if isinstance(version, str) and version else None
+    except Exception:
+        return None
+
+
 def _print_package_status(data: Path, target_agent: Path) -> None:
     """Print the exact local package that will provide deployed files."""
     local_version = _package_version()
@@ -894,6 +921,7 @@ def _runtime_status() -> dict:
         "pi_path": pi_path,
         "pi_ok": pi_ok,
         "pi_ver": pi_ver,
+        "pi_latest": _latest_pi_version(),
         "node_triple": nv,
         "node_ok": bool(nv and nv >= MIN_NODE_VERSION),
         "independent": is_installed(AGENT_DIR),
@@ -949,7 +977,12 @@ def cmd_doctor() -> int:
     else:
         _doctor_row("PyPI", "ok", latest or "version check unavailable")
     _doctor_row("Node", "ok" if s["node_ok"] else "warn", node_label)
-    _doctor_row("Pi", "ok" if s["pi_ok"] else "warn", f"{s['pi_ver']} ({s['pi_path']})")
+    pi_detail = f"{s['pi_ver']} ({s['pi_path']})"
+    pi_latest = s["pi_latest"]
+    if s["pi_ok"] and pi_latest and _is_newer_version(pi_latest, s["pi_ver"]):
+        # StorageOps never auto-upgrades Pi; surface the newer version as a hint.
+        pi_detail += f"  -- newer Pi {pi_latest} available: npm install -g {PI_NPM_PACKAGE}"
+    _doctor_row("Pi", "ok" if s["pi_ok"] else "warn", pi_detail)
     install_detail = "independent" if independent else "merged" if merged else "not installed"
     _doctor_row("Install", "ok" if (independent or merged) else "warn", f"{install_detail} ({s['active_agent']})")
     skills_ok = skill_count >= expected_skills if expected_skills else skill_count > 0
