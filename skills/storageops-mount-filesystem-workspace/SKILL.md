@@ -7,7 +7,7 @@ description: >
   cache consistency, and workspace/IDE performance on mounted storage. Use when
   user reports slow `ls`, `git` failures, file corruption, or high latency on
   mounted object storage.
-maturity: mature
+maturity: beta
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:

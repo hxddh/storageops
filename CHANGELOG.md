@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-06-05 — v0.4.49: Big-data committer depth + Pi version operability
+
+- **bigdata committer analyzer**: new offline helper
+  `storageops-bigdata-pipeline/scripts/analyze_committer.py` parses a
+  spark-defaults.conf / Hadoop `*-site.xml` / driver log and reports the
+  committer type and object-storage risk — FileOutputCommitter v1/v2
+  (rename-based, unsafe) vs S3A `magic`/`staging`/`directory`/`partitioned`
+  (rename-free). Operationalizes the skill's "identify the committer first" step.
+- **bigdata raised `alpha` → `mature`**: it now ships a deterministic helper plus
+  a new golden case (`committer-v1-nonatomic`, with a passing baseline) covering
+  the non-atomic v1 rename-storm class.
+- **Pi version operability**: `doctor` now surfaces when a newer Pi is published
+  on npm (`Pi  0.78.0 ... newer Pi 0.78.1 available: npm install -g
+  @earendil-works/pi-coding-agent`). Best-effort and silent on failure;
+  StorageOps still never auto-upgrades an already-installed Pi.
+- **Maturity honesty**: `mount-filesystem-workspace` corrected `mature` → `beta`
+  (it has no deterministic helper, which the ladder defines `mature` as having).
+
 ## 2026-06-05 — v0.4.48: Routing and secret-scan regression hardening
 
 - **Negative routing corpus**: added deterministic false-positive cases for

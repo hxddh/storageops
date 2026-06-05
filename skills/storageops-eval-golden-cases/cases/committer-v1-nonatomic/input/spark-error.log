@@ -1,0 +1,13 @@
+# Spark job writing to s3a://warehouse/sales/ intermittently fails on commit,
+# and on retries leaves duplicate part files. The job uses dynamic partition
+# overwrite. Reduced/redacted driver log.
+
+24/06/05 02:11:07 INFO FileOutputCommitter: File Output Committer Algorithm version is 1
+24/06/05 02:11:07 INFO FileOutputCommitter: Saving output of task 'attempt_..._m_000017_0' to s3a://warehouse/sales/_temporary/0/_temporary/attempt_..._m_000017_0
+24/06/05 02:18:42 WARN TaskSetManager: Lost task 17.0 (speculative execution also launched attempt 17.1)
+24/06/05 02:19:55 INFO FileOutputCommitter: Committing job by renaming _temporary output to the final s3a://warehouse/sales/ paths
+24/06/05 02:21:30 ERROR FileFormatWriter: Job aborted.
+org.apache.hadoop.fs.FileAlreadyExistsException: s3a://warehouse/sales/dt=2024-06-04/part-00017-....snappy.parquet already exists
+        at org.apache.hadoop.fs.s3a.S3AFileSystem.rename(...)
+        at org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter.mergePaths(...)
+# Re-run produced duplicate part-00017 objects under the same partition prefix.

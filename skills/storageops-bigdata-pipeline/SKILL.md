@@ -7,7 +7,7 @@ description: >
   and table format issues (Iceberg/Delta/Hudi). Use when user reports
   Spark job failures, FileNotFoundException, FileAlreadyExistsException,
   or slow analytics queries on S3-backed tables.
-maturity: alpha
+maturity: mature
 mode: light_heavy
 estimated_tokens: 1400
 trigger_keywords:
@@ -140,6 +140,7 @@ If the diagnosis points to a committer issue:
 
 ## References
 - `references/committer-guide.md` — S3A committer configuration matrix | **Read when:** user reports FileNotFoundException, FileAlreadyExistsException, or mentions committer name
+- `scripts/analyze_committer.py` — Offline committer/config analyzer (committer type + object-storage risk) | **Read when:** you have a spark-defaults.conf, Hadoop *-site.xml, or driver log and need to confirm the committer
 - `references/partition-discovery.md` — Hive/Spark partition strategies | **Read when:** user reports stale/missing data after writes, or MSCK REPAIR TABLE slowness
 - `references/connection-pool.md` — S3A connection pool tuning | **Read when:** user reports job hangs, timeout errors, or "Unable to execute HTTP request"
 - `references/table-formats.md` — Iceberg/Delta/Hudi on object storage | **Read when:** user mentions Iceberg, Delta, or Hudi table format

@@ -1,0 +1,31 @@
+{
+  "expected_category": "bigdata_pipeline",
+  "expected_subcategory": "committer",
+  "expected_min_confidence": 0.80,
+  "must_include_evidence_keywords": [
+    "FileOutputCommitter",
+    "rename",
+    "_temporary"
+  ],
+  "should_include_evidence_keywords": [
+    "algorithm.version",
+    "FileAlreadyExistsException",
+    "speculative"
+  ],
+  "must_include_recommendation_keywords": [
+    "S3A",
+    "committer",
+    "magic"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "print access key",
+    "bit flip",
+    "network corruption"
+  ],
+  "expected_root_cause_types": ["committer_race", "rename_not_atomic"],
+  "required_report_sections": ["摘要", "诊断结论", "关键证据", "修复建议"],
+  "input_type": "config_and_log",
+  "domain": "bigdata_pipeline"
+}
