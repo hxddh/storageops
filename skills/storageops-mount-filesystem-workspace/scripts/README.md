@@ -1,6 +1,18 @@
 # storageops-mount-filesystem-workspace Scripts
 
-Future scripts for this domain (not yet implemented in v0.1):
+## `mount_workload_analyzer.py`
+
+Offline suitability analyzer. Given a mount tool, a workload type, and optionally
+a file count and RTT, it estimates metadata (HeadObject) amplification, lists the
+POSIX features the workload needs that an object mount cannot provide (atomic
+rename, locking, mmap), flags stale-cache risk, and gives a suitability verdict.
+
+```bash
+./mount_workload_analyzer.py --tool s3fs --workload git --files 5000 --rtt-ms 30 --json
+```
+
+Offline-only: no mounting, no network. Facts mirror `references/posix-semantics.md`
+and `references/object-storage-as-filesystem.md`.
 
 ## Planned Scripts
 

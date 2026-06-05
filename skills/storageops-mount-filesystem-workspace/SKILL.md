@@ -7,7 +7,7 @@ description: >
   cache consistency, and workspace/IDE performance on mounted storage. Use when
   user reports slow `ls`, `git` failures, file corruption, or high latency on
   mounted object storage.
-maturity: beta
+maturity: mature
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:
@@ -131,6 +131,7 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 **Recommendation**: Build locally, sync output to mount. Or reduce to `make -j1`. For production: JuiceFS with full POSIX emulation.
 
 ## References
+- `scripts/mount_workload_analyzer.py` — Offline mount/workspace suitability analyzer (metadata amplification, POSIX gaps, verdict) | **Read when:** deciding whether a workload (git/npm/build/ide/database) belongs on an object-storage mount, or explaining why a mount is slow/unsafe
 - `references/fuse.md` — FUSE mount tuning, rclone VFS cache modes, and s3fs options by workload | **Read when:** user uses any FUSE-based mount tool (rclone mount, s3fs, goofys) and needs cache/option tuning or reports performance/corruption issues
 - `references/posix-semantics.md` — POSIX vs object storage behavior matrix | **Read when:** user reports git, npm, compilers, or other POSIX-dependent tools failing on mount
 - `references/object-storage-as-filesystem.md` — Quantifying and reducing stat/HEAD amplification | **Read when:** user reports slow `ls`, `git status`, or file managers on mount

@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-06-05 — v0.4.50: Mount analyzer, packaging guard, docs-consistency gate
+
+- **mount/workspace analyzer**: new offline helper
+  `storageops-mount-filesystem-workspace/scripts/mount_workload_analyzer.py`
+  estimates metadata (HeadObject) amplification, lists the POSIX features a
+  workload needs that an object mount cannot provide (atomic rename, locking,
+  mmap), flags stale-cache risk, and gives a suitability verdict. Facts mirror
+  the skill's POSIX/amplification references.
+- **mount/workspace raised `beta` → `mature`**: it now ships a deterministic
+  helper, and the existing `workspace-mount-slow-git` golden case gains a passing
+  baseline (eval coverage 14 → 15) that cites the analyzer.
+- **Packaging guard**: the CI `install-smoke` job now asserts that every
+  diagnostic skill pack actually deploys (`>= 15` `storageops-*` under the
+  installed skills dir), closing the residual gap between "wheel built" and
+  "wheel installs a complete product".
+- **Docs-consistency gate**: new `scripts/version_reference_check.py` (wired into
+  `make validate`) fails when the version drifts across pyproject, registry,
+  ARCHITECTURE, cli-reference, or CHANGELOG. README's golden-case count is no
+  longer hardcoded, removing a recurring drift source.
+
 ## 2026-06-05 — v0.4.49: Big-data committer depth + Pi version operability
 
 - **bigdata committer analyzer**: new offline helper

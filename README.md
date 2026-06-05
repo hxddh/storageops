@@ -12,8 +12,8 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
   - `detect_domain` ranks likely diagnostic domains and recommends the next skill.
   - `search_memory` searches prior Pi sessions with scored, redacted snippets.
   - `capture_http_trace` wraps one bounded read-only command through httpmon and returns a sanitized HTTP summary.
-- Deterministic helper scripts for access logs, policy analysis, throttling, ETags, payload hashes, small-object cost, migration estimates, SigV4 parsing, endpoint reachability, and golden-case eval.
-- A regression suite with 34 compact golden cases and size gates to keep the repository lean.
+- Deterministic helper scripts for access logs, policy analysis, throttling, ETags, payload hashes, small-object cost, migration estimates, SigV4 parsing, Spark committer config, mount workload suitability, endpoint reachability, and golden-case eval.
+- A regression suite of compact golden cases and size gates to keep the repository lean.
 
 ## Quick Start
 
