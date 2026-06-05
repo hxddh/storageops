@@ -63,7 +63,7 @@
       "domains": ["mount", "filesystem"],
       "aliases": ["fuse_mount", "workspace_mount", "metadata_amplification"],
       "signatures": ["mount", "FUSE", "s3fs", "goofys", "filesystem", "workspace"],
-      "baseline": false
+      "baseline": true
     },
     "network_endpoint_access": {
       "skill": "storageops-network-endpoint-access",

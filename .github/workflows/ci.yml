@@ -145,6 +145,8 @@ jobs:
           storageops --version | grep -Eq "pi: [0-9]+\."
           # No key in CI, so honest reporting must say "not configured".
           storageops --version | grep -Eq "api key .*: not configured"
+          # Packaging guard: every diagnostic skill pack must actually deploy.
+          test "$(ls "$HOME/.storageops/skills" | grep -c '^storageops-')" -ge 15
           echo "install-smoke OK"
 
   # End-to-end diagnosis smoke: proves the product's actual job (a correct
