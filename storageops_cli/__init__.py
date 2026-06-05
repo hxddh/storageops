@@ -960,9 +960,50 @@ def _doctor_row(name: str, status: str, detail: str) -> None:
     print(f"{name:<14} {status:<5} {detail}")
 
 
-def cmd_doctor() -> int:
-    """Print a concise readiness report."""
+def _doctor_readiness(s: dict) -> tuple[bool, str]:
+    """Return (ready, next_action) from the shared runtime status."""
+    if not (s["independent"] or s["merged"]):
+        return False, "storageops install"
+    if not s["key_source"]:
+        return False, "storageops configure --provider deepseek --model deepseek-v4-pro --api-key"
+    if not s["pi_ok"] or not s["node_ok"]:
+        return False, "fix Node/Pi, then run storageops install --force"
+    return True, "storageops --print 'hello'"
+
+
+def _doctor_report(s: dict, ready: bool, next_action: str) -> dict:
+    """Machine-readable, redacted readiness report (never the raw key value)."""
+    nv = s["node_triple"]
+    return {
+        "storageops_version": s["version"],
+        "storageops_latest": s["latest"],
+        "pi_version": s["pi_ver"],
+        "pi_latest": s["pi_latest"],
+        "pi_ok": s["pi_ok"],
+        "node_version": ".".join(str(p) for p in nv) if nv else None,
+        "node_ok": s["node_ok"],
+        "install_mode": "independent" if s["independent"] else "merged" if s["merged"] else "not_installed",
+        "agent_dir": str(s["active_agent"]),
+        "skill_count": s["skill_count"],
+        "expected_skills": s["expected_skills"],
+        "httpmon": s["httpmon"] or None,
+        "api_key_source": s["key_source"],
+        "api_key_conflict": s["conflict"],
+        "default_model": s["default_model"],
+        "ready": ready,
+        "next_action": next_action,
+    }
+
+
+def cmd_doctor(as_json: bool = False) -> int:
+    """Print a concise readiness report; exit non-zero when not ready."""
     s = _runtime_status()
+    ready, next_action = _doctor_readiness(s)
+
+    if as_json:
+        print(json.dumps(_doctor_report(s, ready, next_action), indent=2, ensure_ascii=False))
+        return 0 if ready else 1
+
     nv = s["node_triple"]
     node_label = ".".join(str(p) for p in nv) if nv else "not found"
     latest, local_version = s["latest"], s["version"]
@@ -996,15 +1037,8 @@ def cmd_doctor() -> int:
     if marker:
         _doctor_row("Deployed", "ok", f"v{marker.get('package_version', 'unknown')} from {marker.get('package_path', 'unknown')}")
 
-    if not (independent or merged):
-        print("Next: storageops install")
-    elif not key_source:
-        print("Next: storageops configure --provider deepseek --model deepseek-v4-pro --api-key")
-    elif not s["pi_ok"] or not s["node_ok"]:
-        print("Next: fix Node/Pi, then run storageops install --force")
-    else:
-        print("Ready: storageops --print 'hello'")
-    return 0
+    print(("Ready: " if ready else "Next: ") + next_action)
+    return 0 if ready else 1
 
 
 def _option_value(args: list[str], name: str) -> str | None:
@@ -1167,7 +1201,7 @@ def main():
         return
 
     if len(args) >= 1 and args[0] == "doctor":
-        sys.exit(cmd_doctor())
+        sys.exit(cmd_doctor(as_json=_has_flag(args[1:], "--json")))
 
     if len(args) >= 1 and args[0] == "configure":
         sys.exit(cmd_configure(args[1:]))

@@ -92,11 +92,59 @@ def test_doctor_hints_when_newer_pi_available(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(storageops_cli, "_latest_pi_version", lambda: "0.78.1")
     monkeypatch.setattr(storageops_cli, "_node_version", lambda: (22, 19, 0))
     monkeypatch.setattr(storageops_cli, "find_httpmon", lambda: str(root / "bin" / "httpmon"))
+    monkeypatch.setattr(storageops_cli, "_configured_key_source", lambda _a: "api-key file")
 
-    assert storageops_cli.cmd_doctor() == 0
+    assert storageops_cli.cmd_doctor() == 0  # ready (key configured)
     output = capsys.readouterr().out
     assert "newer Pi 0.78.1" in output
     assert "npm install -g @earendil-works/pi-coding-agent" in output
+
+
+def _ready_doctor_env(tmp_path, monkeypatch, *, key_source="api-key file"):
+    """Monkeypatch a fully-ready doctor environment; return the root path."""
+    root = tmp_path / ".storageops"
+    agent_dir = _installed_agent(root)
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setattr(storageops_cli, "ROOT", root)
+    monkeypatch.setattr(storageops_cli, "AGENT_DIR", agent_dir)
+    monkeypatch.setattr(storageops_cli, "BIN_DIR", root / "bin")
+    monkeypatch.setattr(storageops_cli, "PI_DEFAULT_AGENT", tmp_path / ".pi" / "agent")
+    monkeypatch.setattr(storageops_cli, "_package_version", lambda: "0.4.51")
+    monkeypatch.setattr(storageops_cli, "_latest_pypi_version", lambda: "0.4.51")
+    monkeypatch.setattr(storageops_cli, "find_pi", lambda: "/tmp/pi")
+    monkeypatch.setattr(storageops_cli, "check_pi_version", lambda _exe: (True, "0.78.0"))
+    monkeypatch.setattr(storageops_cli, "_latest_pi_version", lambda: "0.78.0")
+    monkeypatch.setattr(storageops_cli, "_node_version", lambda: (22, 19, 0))
+    monkeypatch.setattr(storageops_cli, "find_httpmon", lambda: str(root / "bin" / "httpmon"))
+    monkeypatch.setattr(storageops_cli, "_configured_key_source", lambda _a: key_source)
+    return root
+
+
+def test_doctor_json_is_redacted_and_actionable(tmp_path, monkeypatch, capsys):
+    import json as _json
+    _ready_doctor_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(storageops_cli, "_configured_key_source", lambda _a: "environment variable: DEEPSEEK_API_KEY")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-supersecretvalue-should-not-leak")
+
+    rc = storageops_cli.cmd_doctor(as_json=True)
+    out = capsys.readouterr().out
+    report = _json.loads(out)
+
+    assert rc == 0 and report["ready"] is True
+    assert report["next_action"] == "storageops --print 'hello'"
+    assert report["install_mode"] == "independent"
+    assert report["api_key_source"] == "environment variable: DEEPSEEK_API_KEY"
+    # The raw key value must never appear in the machine-readable report.
+    assert "sk-supersecretvalue-should-not-leak" not in out
+
+
+def test_doctor_exit_code_reflects_not_ready(tmp_path, monkeypatch, capsys):
+    # Installed but no API key configured -> not ready -> exit 1.
+    _ready_doctor_env(tmp_path, monkeypatch, key_source=None)
+    rc = storageops_cli.cmd_doctor()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "Next: storageops configure" in out
 
 
 def test_smoke_runs_pi_with_selected_agent_and_model(tmp_path, monkeypatch, capsys):

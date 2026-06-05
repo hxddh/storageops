@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.50  (pi: 0.78.0)
+StorageOps v0.4.51  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -57,6 +57,7 @@ reports presence, not validity.
 
 ```bash
 storageops doctor
+storageops doctor --json
 ```
 
 Prints a concise readiness report: package/PyPI version, Node, Pi, install mode,
@@ -64,6 +65,14 @@ skill count, `httpmon`, API key source, default provider/model, and common key
 source conflicts. It does not call the model or object storage. When a newer Pi
 is published on npm, the `Pi` line notes it with the upgrade command — StorageOps
 never auto-upgrades an already-installed Pi.
+
+`doctor` **exits non-zero when not ready** (not installed, no API key, or Pi/Node
+below the minimum), so it can gate a script: `storageops doctor && storageops ...`.
+
+`doctor --json` prints the same readiness as a machine-readable, **redacted**
+object (it reports the API key *source*, never the key value) including `ready`
+and `next_action`. Use it for support reports and automation instead of a
+separate bundle command.
 
 ## `storageops configure`
 
