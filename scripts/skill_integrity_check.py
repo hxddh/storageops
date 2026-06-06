@@ -158,6 +158,17 @@ def validate_skills(errors: list[str]) -> dict[str, dict[str, Any]]:
         for link in links:
             if not (skill_dir / link).exists():
                 fail(errors, f"{skill_file}: broken bundled-resource link `{link}`")
+
+        # Every deterministic helper must be wired into the skill: a helper the
+        # SKILL.md never names is one the agent will never run. This prevents
+        # "built a helper, forgot to tell the agent to use it" regressions.
+        for helper in sorted((skill_dir / "scripts").glob("*.py")):
+            if helper.name not in text:
+                fail(
+                    errors,
+                    f"{skill_file}: helper scripts/{helper.name} is not referenced in SKILL.md "
+                    f"(the agent will never run it); wire it into the workflow",
+                )
     return metas
 
 

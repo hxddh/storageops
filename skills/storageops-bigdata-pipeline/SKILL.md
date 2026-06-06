@@ -60,6 +60,11 @@ Spark/Hive job failure →
 ### Step 1: Identify Stack and Committer
 Extract from config: engine (Spark/Hive/Flink), committer type (`mapreduce.fileoutputcommitter.algorithm.version`, `fs.s3a.committer.name`), and table format (Iceberg/Delta/Hudi/plain).
 
+When a `spark-defaults.conf`, Hadoop `*-site.xml`, or driver log is available, run
+`python3 scripts/analyze_committer.py --conf <file> --json` (or `--xml`/`--stdin`)
+to get the committer type and object-storage risk deterministically, then reason
+over its verdict instead of inferring the committer by eye.
+
 ### Step 2: Committer Protocol Diagnosis
 - **FileOutputCommitter V1** (default): Known to cause `FileNotFoundException` and task duplication on S3. The `_temporary` → final rename is NOT atomic on object storage. **Recommend**: switch to S3A committer (`fs.s3a.committer.name=magic`).
 - **S3A Committers** (magic/staging/partitioned): See `references/committer-guide.md` for configuration matrix.

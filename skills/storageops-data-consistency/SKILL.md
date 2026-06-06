@@ -65,6 +65,10 @@ Get timestamps: upload start, upload completion (CompleteMultipartUpload), first
 - **CDN cache**: CloudFront, CDN vendor, browser cache
 
 ### Step 3: Check ETag Format
+Run `python3 scripts/etag_parser.py <etag> [<etag2> ...] --pretty` (or `--stdin`)
+to classify each ETag deterministically — single-part MD5 vs multipart, AWS
+trailing `-N` vs BOS leading-dash, and SSE/KMS hints — then reason over the
+result instead of eyeballing the string.
 - Single-part upload ETag = MD5 of file content
 - Multipart upload ETag = MD5 of (concatenated binary MD5s of parts) + `-N` (part count suffix on AWS)
 - **BOS uses different ETag format** for multipart — may cause checksum mismatch on cross-provider copy
@@ -141,6 +145,7 @@ If the root cause is still unclear after Step 5:
 **Recommendation**: CloudFront invalidation: `aws cloudfront create-invalidation --distribution-id <ID> --paths /path/to/image.jpg`. Long-term: use versioned filenames or shorter Cache-Control.
 
 ## References
+- `scripts/etag_parser.py` — Offline ETag classifier (single-part/multipart, AWS vs BOS shape, SSE hints) | **Read when:** you have one or more ETags and need to confirm the upload type or a cross-provider format mismatch
 - `references/cache-layers.md` — Complete cache layer inventory across SDK, mount, CDN | **Read when:** user reports stale reads, outdated data, or mount filesystem inconsistencies
 - `references/etag-format.md` — ETag formats by upload type and provider | **Read when:** user mentions ETag mismatch, checksum errors, or cross-provider copy with corrupted files
 - `references/multipart-consistency.md` — Multipart upload lifecycle and consistency | **Read when:** user reports objects not appearing after large upload, or incomplete multipart uploads consuming storage
