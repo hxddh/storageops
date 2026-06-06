@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.54  (pi: 0.78.0)
+StorageOps v0.4.55  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -185,8 +185,13 @@ StorageOps registers a small Pi tool surface:
 The inline tools are intentionally small. `scan_secrets` returns line/column,
 type, length, fingerprint, bounded redacted text, and no raw secret preview.
 `detect_domain` returns ranked domains, matched signals, a recommended skill,
-and an ambiguity flag. `search_memory` tokenizes the query, scores summary/JSONL
-matches, caps result count at 10, and redacts returned snippets.
+an ambiguity flag, and a best-effort storage **provider**
+(aws/bos/oss/cos/gcs/azure/obs/minio) detected from the endpoint host, vendor
+header prefixes, or CLI — with a pointer to that provider's quirks reference — so
+provider-specific behavior is applied even when the user never names the
+provider. The provider is a hint to verify, not a fact. `search_memory` tokenizes
+the query, scores summary/JSONL matches, caps result count at 10, and redacts
+returned snippets.
 
 `capture_http_trace` is intentionally not a general httpmon interface. It
 requires a `filter_host`, rejects shell commands, rejects mutating object-storage

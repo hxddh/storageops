@@ -129,4 +129,4 @@ If the notification chain appears correct but events are still missing, ask the 
 - `references/lambda-integration.md` — Lambda resource policy, concurrency, DLQ | **Read when:** target is Lambda, or user reports Lambda not being invoked
 - `references/sqs-integration.md` — SQS queue policy, message attributes | **Read when:** target is SQS, queue is empty despite notifications configured
 - `references/sns-integration.md` — SNS topic policy, subscription filters | **Read when:** target is SNS, or fan-out pattern is needed
-- `references/provider-compatibility.md` — Non-AWS event notification (BOS/OSS/COS event triggers) | **Read when:** user mentions non-AWS providers and event notification
+- `references/provider-compatibility.md` — Non-AWS event notification (BOS/OSS/COS event triggers) | **Read when:** the provider is non-AWS — named or reported by `detect_domain` — and event notification is involved

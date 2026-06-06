@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-06-06 — v0.4.55: Deterministic provider detection (cross-cutting)
+
+- **Agent is now provider-aware deterministically**: `detect_domain` gains a
+  best-effort `provider` (aws/bos/oss/cos/gcs/azure/obs/minio) inferred from the
+  endpoint host, vendor header prefixes (`x-bce-`/`x-oss-`/`x-cos-`/`x-goog-`/…),
+  vendor CLIs, and URI schemes — even when the user never names the provider.
+  Returns `provider_quirks_ref` pointing at that provider's quirks. This attacks
+  the #1 object-storage misdiagnosis class: applying AWS assumptions to a non-AWS
+  provider. Conservative — returns `unknown` without a clear signal; `x-amz-*`
+  is shared by all S3-compatible providers and is *not* treated as an AWS signal.
+- **Wired into routing**: triage Step 2 and the provider-quirks "Read when:" gates
+  in protocol/bigdata/replication/event now fire when the provider is *detected*
+  (endpoint/headers/CLI), not only when the user types its name.
+- Framed as **evidence to verify** (endpoints can be proxied/CNAME'd), preserving
+  agent judgment. No new tool/command/dependency — one pure `detectProvider()`
+  folded into the existing `detect_domain` output.
+
 ## 2026-06-06 — v0.4.54: Keep the mount analyzer advisory, not authoritative
 
 - **Preserve agent judgment**: the mount workflow previously said "base the

@@ -244,6 +244,65 @@ type DomainDetection = {
   next_action: string;
 };
 
+// ── Provider Detection ──────────────────────────────────────────────────────
+// Object-storage misdiagnosis is dominated by applying AWS assumptions to a
+// non-AWS provider. Identify the provider deterministically from endpoint hosts,
+// vendor header prefixes, vendor CLIs, and URI schemes — so provider-specific
+// quirks get applied even when the user never names the provider. Conservative:
+// returns "unknown" unless a clear signal is present. Note: x-amz-* headers are
+// shared by all S3-compatible providers, so they are NOT an AWS signal.
+
+type ProviderDetection = {
+  provider: string;
+  confidence: "high" | "medium" | "low";
+  signals: string[];
+  quirks_ref: string | null;
+};
+
+const PROVIDER_SIGNATURES: Array<[string, RegExp, string]> = [
+  ["aws", /\.amazonaws\.com\b/i, "endpoint:amazonaws.com"],
+  ["bos", /\.bcebos\.com\b/i, "endpoint:bcebos.com"],
+  ["bos", /x-bce-|\bbcecmd\b|\bgo-bcecli\b|\bbos:\/\//i, "header/cli:bce"],
+  ["oss", /\.aliyuncs\.com\b/i, "endpoint:aliyuncs.com"],
+  ["oss", /x-oss-|\bossutil\b|\boss:\/\//i, "header/cli:oss"],
+  ["cos", /\.myqcloud\.com\b/i, "endpoint:myqcloud.com"],
+  ["cos", /x-cos-|\bcoscli\b|\bcoscmd\b|q-sign-algorithm|\bcos:\/\//i, "header/cli:cos"],
+  ["gcs", /storage\.googleapis\.com\b/i, "endpoint:googleapis.com"],
+  ["gcs", /x-goog-|\bgsutil\b|\bgs:\/\//i, "header/cli:goog"],
+  ["azure", /\.blob\.core\.windows\.net\b/i, "endpoint:blob.core.windows.net"],
+  ["azure", /x-ms-(?:blob|version|date|meta)|\baz\s+storage\b/i, "header/cli:azure"],
+  ["obs", /\.myhuaweicloud\.com\b|\bobs\.[a-z0-9-]+\.myhuaweicloud/i, "endpoint:myhuaweicloud.com"],
+  ["obs", /x-obs-|\bobsutil\b|\bobs:\/\//i, "header/cli:obs"],
+  ["minio", /\bMinIO\b|x-minio-/i, "marker:minio"],
+];
+
+const PROVIDER_QUIRKS_REF: Record<string, string> = {
+  bos: "storageops-s3-protocol-compatibility/references/provider-quirks/bos.md",
+  oss: "storageops-s3-protocol-compatibility/references/provider-quirks/oss.md",
+  cos: "storageops-s3-protocol-compatibility/references/provider-quirks/cos.md",
+  minio: "storageops-s3-protocol-compatibility/references/provider-quirks/minio.md",
+};
+
+export function detectProvider(text: string): ProviderDetection {
+  const evidence = (text || "").slice(0, 100_000);
+  const hits: Record<string, string[]> = {};
+  for (const [provider, regex, label] of PROVIDER_SIGNATURES) {
+    regex.lastIndex = 0;
+    if (regex.test(evidence)) (hits[provider] ||= []).push(label);
+  }
+  const providers = Object.keys(hits);
+  if (providers.length === 0) {
+    return { provider: "unknown", confidence: "low", signals: [], quirks_ref: null };
+  }
+  // Strongest provider = most signal hits; an endpoint host match is high confidence.
+  providers.sort((a, b) => hits[b].length - hits[a].length);
+  const provider = providers[0];
+  const signals = Object.entries(hits).flatMap(([p, labels]) => labels.map(l => `${p}:${l}`));
+  const confidence: "high" | "medium" | "low" =
+    hits[provider].some(l => l.startsWith("endpoint:")) ? "high" : "medium";
+  return { provider, confidence, signals, quirks_ref: PROVIDER_QUIRKS_REF[provider] ?? null };
+}
+
 const DOMAIN_NEXT_ACTION: Record<string, string> = {
   "storageops-security-iam-policy": "Check identity, policy, key validity, bucket policy, and KMS constraints before changing permissions.",
   "storageops-s3-protocol-compatibility": "Compare endpoint style, region, canonical request shape, signing version, and required headers.",
@@ -1156,7 +1215,8 @@ export default function (pi: ExtensionAPI) {
       "Analyze evidence text and classify the issue domain (e.g., security, performance, network, " +
       "CLI/SDK, replication, lifecycle/cost, mount/filesystem, migration, data consistency, " +
       "event notification). Returns ranked domains with confidence scores, matched signals, " +
-      "recommended skill names, and the next evidence action.",
+      "recommended skill names, the next evidence action, and a best-effort storage provider " +
+      "(aws/bos/oss/cos/gcs/azure/obs/minio) detected from endpoint/headers/CLI with a quirks reference.",
     parameters: Type.Object({
       text: Type.String({ description: "Evidence text to analyze (log output, error messages, user report)" }),
     }),
@@ -1169,6 +1229,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       const domains = detectDomain(params.text);
+      const provider = detectProvider(params.text);
 
       return {
         content: [{
@@ -1177,6 +1238,13 @@ export default function (pi: ExtensionAPI) {
             domains,
             recommended_skill: domains[0]?.recommended_skill || null,
             ambiguous: domains.length > 1 && Math.abs(domains[0].confidence - domains[1].confidence) < 0.1,
+            provider: provider.provider,
+            provider_confidence: provider.confidence,
+            provider_signals: provider.signals,
+            provider_quirks_ref: provider.quirks_ref,
+            provider_note: provider.provider === "unknown"
+              ? "Provider not identified from the evidence; ask for the endpoint or a response header."
+              : "Detected provider is a hint — verify it (endpoints can be proxied/CNAME'd) before applying provider quirks.",
           }),
         }],
         details: {
@@ -1184,6 +1252,7 @@ export default function (pi: ExtensionAPI) {
           recommendedSkill: domains[0]?.recommended_skill || "unknown",
           topConfidence: domains[0]?.confidence || 0,
           domainCount: domains.length,
+          provider: provider.provider,
         },
       };
     },
