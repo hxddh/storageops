@@ -405,6 +405,24 @@ def detect_api_keys() -> list[str]:
     return [k for k in REQUIRED_API_KEYS if os.environ.get(k)]
 
 
+def _no_key_hint(agent_dir: Path) -> None:
+    """Print the canonical, actionable steps to configure a model key.
+
+    Single source of truth, shown wherever StorageOps detects no key (install
+    summary, diagnosis launch, help) so the guidance never diverges.
+    """
+    print("Set a model provider API key (pick the easiest):")
+    print("  storageops configure --api-key          # guided; stored locally (chmod 600)")
+    print("  export ANTHROPIC_API_KEY=sk-...          # or DEEPSEEK_API_KEY / OPENAI_API_KEY")
+    print(f"  echo sk-... > {agent_dir / 'api-key'}")
+    print("  pi /login                               # log in inside the Pi TUI")
+
+
+def _should_hint_no_key(args: list[str], agent_dir: Path) -> bool:
+    """True when a diagnosis launch has no resolvable key and none passed inline."""
+    return _configured_key_source(agent_dir) is None and not _has_flag(args, "--api-key")
+
+
 def _configured_key_source(agent_dir: Path) -> str | None:
     """
     Return a human description of where a usable model key is configured, or None.
@@ -805,17 +823,9 @@ def _final_check(agent_dir: Path, merge: bool) -> None:
     else:
         print("[warn] API key           not configured")
         print()
-        print("Set a model provider key before running a diagnosis (pick one):")
+        _no_key_hint(agent_dir)
         print()
-        print("  export ANTHROPIC_API_KEY=sk-...   # Claude")
-        print("  export DEEPSEEK_API_KEY=sk-...    # DeepSeek")
-        print("  export OPENAI_API_KEY=sk-...      # OpenAI")
-        print()
-        print(f"  echo sk-... > {agent_dir / 'api-key'}")
-        print(f"  chmod 600 {agent_dir / 'api-key'}")
-        print()
-        print("  Get a key: https://console.anthropic.com")
-        print("         or: https://platform.deepseek.com")
+        print("  Get a key: https://console.anthropic.com  or  https://platform.deepseek.com")
     print()
     if merge:
         print("Merge install: original Pi config backed up; use the pi command to call StorageOps.")
@@ -1184,11 +1194,8 @@ def cmd_help():
     print("    storageops configure --show        show model/key config")
     print("    storageops smoke                   explicit model smoke test")
     print()
-    print("  Configure an API key (pick one):")
-    print("    export ANTHROPIC_API_KEY=sk-...     environment variable")
-    print(f"    echo sk-... > {AGENT_DIR / 'api-key'}  local file")
-    print("    storageops --api-key sk-... ...     pass at runtime")
-    print("    pi /login                           login inside Pi TUI")
+    print("  No API key yet?")
+    _no_key_hint(AGENT_DIR)
 
 
 def main():
@@ -1234,10 +1241,10 @@ def main():
     # Inject API key from file/auth.json so it survives shell changes
     _inject_auth_env(agent_dir)
 
-    if len(args) == 0 and not detect_api_keys():
-        print("[info] No API key set (ANTHROPIC / DEEPSEEK / OPENAI).")
-        print(f"       Run /login inside Pi, or: export ANTHROPIC_API_KEY=sk-...")
-        print(f"       Or write to: {agent_dir / 'api-key'}")
+    if _should_hint_no_key(args, agent_dir):
+        print("[info] No model provider API key is configured.")
+        _no_key_hint(agent_dir)
+        print()
 
     os.environ["PI_CODING_AGENT_DIR"] = str(agent_dir)
     _prepend_storageops_bin_to_path()
