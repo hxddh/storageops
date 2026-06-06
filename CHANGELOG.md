@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-05 — v0.4.52: Consistent, actionable no-key guidance
+
+- **One no-key message everywhere**: a single `_no_key_hint()` is now shown at
+  every point a key is missing — install summary, diagnosis launch, and `--help` —
+  replacing three divergent texts. It leads with the productized
+  `storageops configure --api-key`, then env var and `pi /login`.
+- **Diagnosis launch no longer fails silently without a key**: a no-key run like
+  `storageops 'diagnose this 403'` now prints the actionable hint before handing
+  off to Pi (previously the hint only appeared for the bare interactive launch).
+  The check uses the accurate all-provider key source, so a gemini/mistral key in
+  the `api-key`/`auth.json` file is no longer mis-reported as missing. It stays
+  **non-blocking** — Pi still launches, so `pi /login` is unaffected.
+
 ## 2026-06-05 — v0.4.51: Scriptable, machine-readable readiness
 
 - **`storageops doctor --json`**: emits the same readiness report as a

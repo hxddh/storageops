@@ -175,3 +175,26 @@ def test_smoke_runs_pi_with_selected_agent_and_model(tmp_path, monkeypatch, caps
     assert calls["env"]["DEEPSEEK_API_KEY"] == "sk-file"
     assert calls["timeout"] == 9
     assert "model smoke succeeded" in capsys.readouterr().out
+
+
+def test_should_hint_no_key_logic(tmp_path, monkeypatch):
+    agent = tmp_path / "agent"
+    monkeypatch.setattr(storageops_cli, "_configured_key_source", lambda _a: None)
+    # No key, no inline --api-key: hint (including for args-present diagnosis runs).
+    assert storageops_cli._should_hint_no_key([], agent) is True
+    assert storageops_cli._should_hint_no_key(["diagnose this 403"], agent) is True
+    # Inline --api-key suppresses the hint.
+    assert storageops_cli._should_hint_no_key(["--api-key", "sk-x", "diagnose"], agent) is False
+    # A configured key (any source, e.g. gemini in the api-key file) suppresses it.
+    monkeypatch.setattr(storageops_cli, "_configured_key_source", lambda _a: "api-key file")
+    assert storageops_cli._should_hint_no_key(["diagnose"], agent) is False
+
+
+def test_no_key_hint_leads_with_configure(tmp_path, capsys):
+    storageops_cli._no_key_hint(tmp_path / "agent")
+    out = capsys.readouterr().out
+    assert "storageops configure --api-key" in out
+    assert "ANTHROPIC_API_KEY" in out
+    assert "pi /login" in out
+    # The productized command is listed before the raw export.
+    assert out.index("storageops configure --api-key") < out.index("export ")
