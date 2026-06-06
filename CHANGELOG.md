@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-06 — v0.4.54: Keep the mount analyzer advisory, not authoritative
+
+- **Preserve agent judgment**: the mount workflow previously said "base the
+  recommendation on that verdict" for `mount_workload_analyzer.py`. That
+  over-elevated a heuristic (a generic workload→amplification model) to an
+  authority. Reworded so the agent treats the analyzer output as *evidence to
+  weigh* and reconciles it with the specific mount (e.g. JuiceFS's metadata
+  engine or a cache-heavy s3fs config can change the conclusion). Made the run
+  conditional on having the inputs, matching the other helper-wirings. Pure
+  wording — no code change.
+
 ## 2026-06-06 — v0.4.53: Wire deterministic helpers into the agent's workflow
 
 - **Agent now runs the analyzers it has**: several skills shipped deterministic

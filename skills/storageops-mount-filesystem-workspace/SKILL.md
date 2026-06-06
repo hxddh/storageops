@@ -62,9 +62,13 @@ rclone mount (VFS-based), s3fs (FUSE), goofys (FUSE, read-optimized), JuiceFS (m
 ### Step 3: Measure Metadata Amplification
 A single `ls` on a directory with 1000 files = 1000 HEAD/GET requests to object storage API. Git status = stat() on every file in the repo. This is the #1 performance killer. See `references/object-storage-as-filesystem.md`.
 
-Run `python3 scripts/mount_workload_analyzer.py --tool <s3fs|goofys|juicefs|rclone> --workload <git|npm|build|ide|database|ls-find|read-only> --files <N> --rtt-ms <RTT> --json`
-to get the metadata-amplification estimate, the unsupported-POSIX list, and a
-suitability verdict; base the recommendation on that verdict.
+When you can name the tool, workload, and rough file count, run
+`python3 scripts/mount_workload_analyzer.py --tool <s3fs|goofys|juicefs|rclone> --workload <git|npm|build|ide|database|ls-find|read-only> --files <N> --rtt-ms <RTT> --json`
+for a metadata-amplification estimate, the unsupported-POSIX list, and a
+suitability hint. Treat its output as evidence to weigh, not a verdict to adopt:
+it uses a generic workload→amplification model, so reconcile it with the specific
+mount (e.g. JuiceFS's metadata engine or a cache-heavy s3fs config can change the
+conclusion) before recommending.
 
 ### Step 4: Check POSIX Semantic Mismatches
 | Operation | POSIX Expectation | Object Storage Reality | Impact |
