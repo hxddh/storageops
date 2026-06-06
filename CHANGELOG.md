@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-06-06 — v0.4.53: Wire deterministic helpers into the agent's workflow
+
+- **Agent now runs the analyzers it has**: several skills shipped deterministic
+  helpers but only listed them under *References*, so the agent re-reasoned what
+  the tool would have decided. Their workflows now invoke the helper at the
+  decision step:
+  - bigdata Step 1 runs `analyze_committer.py` for the committer type/risk,
+  - mount Step 3 runs `mount_workload_analyzer.py` for amplification/suitability,
+  - data-consistency Step 3 runs `etag_parser.py` (previously unmentioned),
+  - s3-protocol Step 1 runs `check_payload_hash.py` for `BadDigest` mismatches.
+- **Regression guard**: `skill_integrity_check.py` now fails if a
+  `scripts/*.py` helper is never named in its `SKILL.md` — a helper the agent's
+  instructions never point at is a helper it will never run. Prevents
+  "built a helper, forgot to wire it" recurring.
+- No new tools, commands, or dependencies — pure capability already built but
+  unused, now activated.
+
 ## 2026-06-05 — v0.4.52: Consistent, actionable no-key guidance
 
 - **One no-key message everywhere**: a single `_no_key_hint()` is now shown at

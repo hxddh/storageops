@@ -58,7 +58,7 @@ Protocol error →
 ## Workflow
 
 ### Step 1: Extract Signature Information
-From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/sigv4.md`. For saved XML/debug artifacts, run `scripts/parse_sigv4_error.py` to extract canonical request fields and credential scope.
+From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/sigv4.md`. For saved XML/debug artifacts, run `scripts/parse_sigv4_error.py` to extract canonical request fields and credential scope. For a `BadDigest`/`x-amz-content-sha256` mismatch on a PUT/copy, run `python3 scripts/check_payload_hash.py --raw-file <object> --declared-sha256 <value> [--content-encoding gzip]` to confirm deterministically whether the payload hash was computed over the wrong (pre-encoding) bytes.
 
 If the user can run a minimal read-only command and header/status evidence would
 change the diagnosis, use `capture_http_trace` with a required `filter_host`.
