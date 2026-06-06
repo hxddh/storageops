@@ -149,4 +149,4 @@ If the diagnosis points to a committer issue:
 - `references/partition-discovery.md` — Hive/Spark partition strategies | **Read when:** user reports stale/missing data after writes, or MSCK REPAIR TABLE slowness
 - `references/connection-pool.md` — S3A connection pool tuning | **Read when:** user reports job hangs, timeout errors, or "Unable to execute HTTP request"
 - `references/table-formats.md` — Iceberg/Delta/Hudi on object storage | **Read when:** user mentions Iceberg, Delta, or Hudi table format
-- `references/provider-compatibility.md` — Non-AWS committer behavior | **Read when:** user mentions BOS, OSS, COS, or any non-AWS S3 provider
+- `references/provider-compatibility.md` — Non-AWS committer behavior | **Read when:** the provider is non-AWS (BOS/OSS/COS) — named by the user or reported by `detect_domain`

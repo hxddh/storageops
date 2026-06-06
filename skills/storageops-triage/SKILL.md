@@ -60,6 +60,8 @@ From the user's input, extract: error code (HTTP status), error message, tool na
 ### Step 2: Classify by Domain
 Match against the decision tree above. If multiple domains match, note all with confidence ranking. The `detect_domain` tool can help classify by error signature patterns.
 
+`detect_domain` also reports a best-effort `provider` (aws/bos/oss/cos/gcs/azure/obs/minio) detected from the endpoint, vendor headers, or CLI — even when the user never names it. When it reports a non-AWS provider, carry that into routing and tell the specialist to apply that provider's quirks (e.g. `provider_quirks_ref`); object-storage misdiagnosis most often comes from applying AWS assumptions to a non-AWS provider. Treat the detected provider as a hint to verify (endpoints can be proxied/CNAME'd), not a fact.
+
 ### Step 3: Evidence Completeness Check
 Assess what evidence is present and what's missing for the target specialist skill:
 - **Sufficient**: user provided error message + tool + command + timestamps → route immediately

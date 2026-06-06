@@ -132,4 +132,4 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 - `references/replication.md` — Replication rule schema and permissions | **Read when:** user reports objects not replicating or replication rule questions
 - `references/versioning.md` — Versioning state machine and cost implications | **Read when:** user asks about versioning state changes, cost of versions, or delete marker behavior
 - `references/object-lock.md` — Retention modes, legal hold, compliance | **Read when:** user mentions object lock, legal hold, retention, or cannot delete objects
-- `references/replication.md` — Non-AWS replication (BOS/OSS/COS cross-region) | **Read when:** user mentions non-AWS providers (BOS/OSS/COS) and replication
+- `references/replication.md` — Non-AWS replication (BOS/OSS/COS cross-region) | **Read when:** the provider is non-AWS (BOS/OSS/COS) — named or reported by `detect_domain` — and replication is involved

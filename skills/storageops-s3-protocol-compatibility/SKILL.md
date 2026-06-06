@@ -142,7 +142,7 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 - `scripts/parse_sigv4_error.py` — Offline parser for SignatureDoesNotMatch XML/debug traces | **Read when:** user provides saved SigV4 error XML or client debug logs
 - `scripts/check_payload_hash.py` — Optional offline falsifier for BadDigest/x-amz-content-sha256 mismatch | **Read when:** a PUT/copy returns BadDigest and you can sample the uploaded bytes
 - `references/aws-s3-baseline.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
-- `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** user mentions a non-AWS provider (BOS/OSS/COS/GCS)
+- `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** the provider is non-AWS (BOS/OSS/COS/GCS) — whether the user named it or `detect_domain` reported it from the endpoint/headers
 - `references/checksum-etag.md` — Checksum/ETag semantics, BadDigest payload-hash class, and write-side request evidence | **Read when:** user reports checksum/MD5 mismatch, ETag surprises, BadDigest, or a failing PUT/copy
 - `references/multipart-upload.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
 - `references/cors.md` — S3 CORS behavior and browser preflight failures | **Read when:** user reports browser CORS, preflight, or missing Access-Control headers
