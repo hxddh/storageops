@@ -1,0 +1,5 @@
+The thumbnailer Lambda fires for small images but never for large ones.
+Small files (<5MB) upload via a single PUT and trigger fine.
+Large files are uploaded with the multipart API (CreateMultipartUpload ->
+UploadPart -> CompleteMultipartUpload) and never trigger the Lambda.
+Object key example: photos/2026/large-pano.jpg

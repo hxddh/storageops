@@ -1,4 +1,4 @@
-# StorageOps Skill Registry v0.4.56
+# StorageOps Skill Registry v0.4.57
 
 # Machine-readable metadata for all StorageOps skills.
 # Skills are auto-discovered by Pi from the skills/ directory.
@@ -147,7 +147,7 @@ skills:
 
   - name: storageops-migration-sync
     path: skills/storageops-migration-sync/SKILL.md
-    maturity: beta
+    maturity: mature
     mode: light_heavy
     trigger_keywords:
       - "migrat"
@@ -185,7 +185,7 @@ skills:
 
   - name: storageops-event-notification
     path: skills/storageops-event-notification/SKILL.md
-    maturity: beta
+    maturity: mature
     mode: light_heavy
     trigger_keywords:
       - "notification"

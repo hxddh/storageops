@@ -6,7 +6,7 @@ description: >
   time/cost estimation, ETag and metadata compatibility across providers,
   integrity verification, and rollback planning. Use when user plans to move
   data between object storage providers or set up ongoing cross-provider sync.
-maturity: beta
+maturity: mature
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:
@@ -76,6 +76,13 @@ Before full migration, test with 1000 representative objects:
 ### Step 6: Integrity Verification
 Post-migration: compare object count, total size, and sample checksums. For strict consistency, verify every object (rclone `--checksum`).
 
+When a sync/copy failed or corrupted, run
+`python3 scripts/sync_log_analyzer.py --log rclone.log --json` (or `--stdin`) on
+the rclone/s5cmd/obsutil log: it classifies the dominant error (checksum
+mismatch vs access denied vs not found vs throttle), reports transfer counts, and
+flags a destructive (deleting) sync. Reason over that summary — e.g. a checksum
+mismatch is usually a cross-provider ETag-format difference, not real corruption.
+
 ### Step 7: Feedback Loop
 Run `python3 scripts/migration_cost_estimator.py` with object count and size to validate time/cost estimates against actuals. If the dry-run fails or stalls, ask the user: "Did you run a dry-run with `--dry-run`? What error messages did you see? What is your current transfer rate?" If confidence < medium after diagnosis, go back to Step 3 (Time & Cost Estimation) and request more detailed bandwidth/topology data.
 
@@ -139,6 +146,8 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 **Recommendation**: Rclone with `--checksum --transfers 16`. Monitor for ETag mismatch on multipart objects.
 
 ## References
+- `scripts/sync_log_analyzer.py` — Offline rclone/s5cmd/obsutil log analyzer (error classification, counts, destructive-sync flag) | **Read when:** a sync/copy failed or corrupted and you have the transfer log
+- `scripts/migration_cost_estimator.py` — Offline time/cost estimator for a planned migration | **Read when:** validating a migration's time/cost against object count and size
 - `references/migration-strategies.md` — Detailed comparison of all 3 strategies | **Read when:** user is uncertain about which migration approach to take (server-side vs direct vs offline)
 - `references/rclone-migration-guide.md` — Rclone flags for cross-provider migration | **Read when:** user has selected rclone as the transfer tool and needs flag guidance
 - `references/cross-provider-compatibility.md` — ETag, metadata, ACL compatibility matrix | **Read when:** user reports checksum mismatches, metadata loss, or ACL/permission issues after migration
