@@ -41,7 +41,7 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.4.55  (pi: 0.78.0)
+StorageOps v0.4.56  (pi: 0.78.0)
   httpmon             : /root/.storageops/bin/httpmon
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
@@ -180,7 +180,7 @@ StorageOps registers a small Pi tool surface:
 | `scan_secrets` | Inline value-level redaction of credential-shaped text. |
 | `detect_domain` | Inline routing hint with matched signals and recommended skill. |
 | `search_memory` | Read-only search of scoped prior sessions with redacted snippets. |
-| `capture_http_trace` | Bounded httpmon wrapper for one read-only command. |
+| `capture_http_trace` | Bounded httpmon wrapper: known commands must be read-only; unknown commands run as bounded observation (still executed). |
 
 The inline tools are intentionally small. `scan_secrets` returns line/column,
 type, length, fingerprint, bounded redacted text, and no raw secret preview.
@@ -214,12 +214,21 @@ operations are rejected rather than traced. A rejected write trace returns a
 error body and the client's own debug dump, then recompute offline) so a failing
 PUT/copy stays diagnosable without performing the write.
 
-For custom SDK probes or vendor CLIs without a dedicated adapter, the tool uses
-a stricter `unknown_observation` policy instead of rejecting solely by
-executable name. Unknown-client observation is capped at 5 requests and 15
-seconds, requires the same `filter_host`, rejects explicit HTTP write methods,
-warns on suspicious arguments that may be operation names, and reports
-`method_violation=true` if captured metadata shows a non-read-only HTTP method.
+The safety tiers are:
+
+- **Known read-only commands** (e.g. `aws s3api head-object`, `rclone ls`): allowed.
+- **Known mutating/write or presigned material**: rejected.
+- **Unknown commands** (custom SDK probes, vendor CLIs without a dedicated
+  adapter): not rejected by executable name — they fall back to a stricter
+  `unknown_observation` policy.
+
+`unknown_observation` is capped at 5 requests and 15 seconds, requires the same
+`filter_host`, rejects explicit HTTP write methods, warns on suspicious arguments
+that may be operation names, and reports `method_violation=true` if captured
+metadata shows a non-read-only HTTP method. **Because the wrapper executes the
+command, an unknown command that itself mutates will perform that mutation** —
+StorageOps can only prove a command is read-only when it recognizes it, so use
+unknown-client observation only on commands you know are side-effect-free.
 Known storage clients with unclassified, non-mutating commands also fall back to
 bounded observation and return `operation_unclassified=true`.
 

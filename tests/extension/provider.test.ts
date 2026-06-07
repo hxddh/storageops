@@ -21,7 +21,15 @@ test("detectProvider identifies provider from endpoint/header/CLI and stays cons
   // Benign noise must not false-positive a provider.
   assert.equal(detectProvider("rclone version 1.65 finished the copy of jobs").provider, "unknown");
 
-  // Cross-provider migration surfaces both providers in signals for the agent to weigh.
+  // Cross-provider migration surfaces BOTH providers as structured entries, each
+  // with its own quirks reference, so the agent applies the right rules per side.
   const mig = detectProvider("migrate from bj.bcebos.com to oss-cn-hangzhou.aliyuncs.com");
-  assert.ok(mig.signals.some(s => s.startsWith("bos:")) && mig.signals.some(s => s.startsWith("oss:")));
+  const names = mig.providers.map(p => p.provider).sort();
+  assert.deepEqual(names, ["bos", "oss"]);
+  for (const e of mig.providers) {
+    assert.ok(e.quirks_ref && e.quirks_ref.includes(`provider-quirks/${e.provider}.md`));
+  }
+  // Single-provider case still yields a one-entry list with the top fields mirrored.
+  assert.equal(bos.providers.length, 1);
+  assert.equal(bos.providers[0].provider, bos.provider);
 });

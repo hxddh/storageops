@@ -11,7 +11,7 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
   - `scan_secrets` redacts credential values and returns safe fingerprints.
   - `detect_domain` ranks likely diagnostic domains and recommends the next skill.
   - `search_memory` searches prior Pi sessions with scored, redacted snippets.
-  - `capture_http_trace` wraps one bounded read-only command through httpmon and returns a sanitized HTTP summary.
+  - `capture_http_trace` wraps one bounded command through httpmon and returns a sanitized HTTP summary. Known storage commands must be read-only; an unknown command falls back to bounded observation but is still executed, so use only side-effect-free commands.
 - Deterministic helper scripts for access logs, policy analysis, throttling, ETags, payload hashes, small-object cost, migration estimates, SigV4 parsing, Spark committer config, mount workload suitability, endpoint reachability, and golden-case eval.
 - A regression suite of compact golden cases and size gates to keep the repository lean.
 
@@ -183,11 +183,15 @@ package did not upgrade and old bundled skills were redeployed.
 Run quality gates from a checkout:
 
 ```bash
-python3 scripts/skill_integrity_check.py
-python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
-  skills/storageops-eval-golden-cases/cases
-make validate
+make validate        # fast skill/extension/doc gates (greps the extension)
+make validate-full   # + pytest, extension behavioral tests, size/routing gates
 ```
+
+`make validate` only *greps* the TypeScript extension; the routing, provider, and
+trace behavior is covered by the extension tests, so run `make validate-full`
+(or `make test`) before changing `storageops_cli/extensions/storageops.ts`.
+`package_check.py`, `install-smoke`, and `diagnosis-smoke` run in CI (they need a
+wheel build or network) — see [Release](docs/release.md).
 
 ## Documentation Map
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-06-06 — v0.4.56: Review-response hardening (provider, install, gates, trace docs)
+
+Acts on a third-party audit; each item fact-checked against the code first.
+
+- **Provider detection handles migration/dual-provider**: `detect_domain` now
+  returns a `providers[]` array (each with its own confidence/signals/quirks_ref)
+  in addition to the primary `provider`, and prompts the agent to apply *each*
+  side's quirks for a migration/sync (source vs destination) rather than one
+  provider's rules to both.
+- **Install mirrors the bundle (no stale skills)**: `storageops install` now
+  removes deployed `storageops-*` skills that are no longer in the package
+  (renamed/removed), so Pi never loads an out-of-date skill. `doctor` reports
+  `unexpected_skills` and warns when stale skills are present.
+- **Local/CI gate parity**: new `make validate-full` and `make extension-tests`
+  (via `scripts/run_extension_tests.sh`) run the TypeScript extension behavioral
+  tests — the routing/provider/trace logic that `make validate` only greps.
+  README/AGENTS point contributors at it; `make test` now runs them too.
+- **Honest `capture_http_trace` docs**: README/ARCHITECTURE/cli-reference now
+  state the three tiers plainly — known read-only allowed, known mutating/
+  presigned rejected, and unknown commands run in bounded observation **but are
+  still executed**, so a mutating unknown command will perform that mutation.
+
 ## 2026-06-06 — v0.4.55: Deterministic provider detection (cross-cutting)
 
 - **Agent is now provider-aware deterministically**: `detect_domain` gains a

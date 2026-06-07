@@ -372,6 +372,15 @@ def _count_storageops_skills(skills_dir: Path) -> int:
     return sum(1 for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("storageops-"))
 
 
+def _bundled_skill_names() -> set[str]:
+    """Names of the storageops-* skill packs shipped in this package."""
+    try:
+        src = _package_data_dir() / "skills"
+        return {d.name for d in src.iterdir() if d.is_dir() and d.name.startswith("storageops-")}
+    except Exception:
+        return set()
+
+
 def _expected_skill_count() -> int:
     """How many skill packs the installed package ships (source of truth).
 
@@ -379,10 +388,20 @@ def _expected_skill_count() -> int:
     packs actually bundled with this wheel, so the check stays correct as the
     skill set grows or shrinks.
     """
-    try:
-        return _count_storageops_skills(_package_data_dir() / "skills")
-    except Exception:
-        return 0
+    return len(_bundled_skill_names())
+
+
+def _unexpected_skills(skills_dir: Path) -> list[str]:
+    """Deployed storageops-* skills not in the current package (stale/renamed)."""
+    if not skills_dir.is_dir():
+        return []
+    bundled = _bundled_skill_names()
+    if not bundled:
+        return []
+    return sorted(
+        d.name for d in skills_dir.iterdir()
+        if d.is_dir() and d.name.startswith("storageops-") and d.name not in bundled
+    )
 
 
 def is_installed(agent_dir: Path | None = None) -> bool:
@@ -689,17 +708,22 @@ def _copy_skills(data: Path, dst_agent: Path) -> None:
 
     skills_dst = _skills_dir_for_agent(dst_agent)
     skills_dst.mkdir(parents=True, exist_ok=True)
-    for skill_dir in sorted(skills_src.iterdir()):
-        if skill_dir.is_dir() and skill_dir.name.startswith("storageops-"):
-            dst = skills_dst / skill_dir.name
-            if dst.exists():
-                shutil.rmtree(dst)
-            shutil.copytree(skill_dir, dst)
-    count = sum(
-        1 for d in skills_dst.iterdir()
-        if d.is_dir() and d.name.startswith("storageops-")
-    )
-    print(f"  [ok] skills ({count}) -> {skills_dst}")
+    bundled = {d.name for d in skills_src.iterdir() if d.is_dir() and d.name.startswith("storageops-")}
+    for name in sorted(bundled):
+        dst = skills_dst / name
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(skills_src / name, dst)
+    # Remove stale skills no longer in the current package (renamed/removed), so a
+    # deploy is an exact mirror and Pi never loads an out-of-date skill.
+    removed = []
+    for d in sorted(skills_dst.iterdir()):
+        if d.is_dir() and d.name.startswith("storageops-") and d.name not in bundled:
+            shutil.rmtree(d)
+            removed.append(d.name)
+    if removed:
+        print(f"  [ok] removed stale skills: {', '.join(removed)}")
+    print(f"  [ok] skills ({len(bundled)}) -> {skills_dst}")
 
 
 def _merge_settings(dst_agent: Path, settings: dict) -> None:
@@ -940,6 +964,7 @@ def _runtime_status() -> dict:
         "skills_dir": skills_dir,
         "skill_count": _count_storageops_skills(skills_dir),
         "expected_skills": _expected_skill_count(),
+        "unexpected_skills": _unexpected_skills(skills_dir),
         "httpmon": find_httpmon(),
         "key_source": _configured_key_source(active_agent),
         "conflict": _key_conflict(active_agent),
@@ -996,6 +1021,7 @@ def _doctor_report(s: dict, ready: bool, next_action: str) -> dict:
         "agent_dir": str(s["active_agent"]),
         "skill_count": s["skill_count"],
         "expected_skills": s["expected_skills"],
+        "unexpected_skills": s.get("unexpected_skills") or [],
         "httpmon": s["httpmon"] or None,
         "api_key_source": s["key_source"],
         "api_key_conflict": s["conflict"],
@@ -1036,8 +1062,11 @@ def cmd_doctor(as_json: bool = False) -> int:
     _doctor_row("Pi", "ok" if s["pi_ok"] else "warn", pi_detail)
     install_detail = "independent" if independent else "merged" if merged else "not installed"
     _doctor_row("Install", "ok" if (independent or merged) else "warn", f"{install_detail} ({s['active_agent']})")
-    skills_ok = skill_count >= expected_skills if expected_skills else skill_count > 0
+    unexpected = s.get("unexpected_skills") or []
+    skills_ok = (skill_count >= expected_skills if expected_skills else skill_count > 0) and not unexpected
     skills_detail = f"{skill_count} packs" + (f" of {expected_skills}" if expected_skills else "") + f" ({s['skills_dir']})"
+    if unexpected:
+        skills_detail += f"  -- stale: {', '.join(unexpected[:5])} (run storageops install --force)"
     _doctor_row("Skills", "ok" if skills_ok else "warn", skills_detail)
     _doctor_row("httpmon", "ok" if s["httpmon"] else "warn", s["httpmon"] or "not found")
     _doctor_row("API key", "ok" if key_source else "warn", key_source or "not configured")
