@@ -252,11 +252,18 @@ type DomainDetection = {
 // returns "unknown" unless a clear signal is present. Note: x-amz-* headers are
 // shared by all S3-compatible providers, so they are NOT an AWS signal.
 
-type ProviderDetection = {
+type ProviderEntry = {
   provider: string;
   confidence: "high" | "medium" | "low";
   signals: string[];
   quirks_ref: string | null;
+};
+
+type ProviderDetection = ProviderEntry & {
+  // All providers detected in the evidence, strongest first. For migration/sync
+  // the source and destination differ and need different quirks; the top-level
+  // fields are the primary (strongest) provider for backward compatibility.
+  providers: ProviderEntry[];
 };
 
 const PROVIDER_SIGNATURES: Array<[string, RegExp, string]> = [
@@ -290,17 +297,26 @@ export function detectProvider(text: string): ProviderDetection {
     regex.lastIndex = 0;
     if (regex.test(evidence)) (hits[provider] ||= []).push(label);
   }
-  const providers = Object.keys(hits);
-  if (providers.length === 0) {
-    return { provider: "unknown", confidence: "low", signals: [], quirks_ref: null };
+  const names = Object.keys(hits);
+  if (names.length === 0) {
+    return { provider: "unknown", confidence: "low", signals: [], quirks_ref: null, providers: [] };
   }
   // Strongest provider = most signal hits; an endpoint host match is high confidence.
-  providers.sort((a, b) => hits[b].length - hits[a].length);
-  const provider = providers[0];
-  const signals = Object.entries(hits).flatMap(([p, labels]) => labels.map(l => `${p}:${l}`));
-  const confidence: "high" | "medium" | "low" =
-    hits[provider].some(l => l.startsWith("endpoint:")) ? "high" : "medium";
-  return { provider, confidence, signals, quirks_ref: PROVIDER_QUIRKS_REF[provider] ?? null };
+  names.sort((a, b) => hits[b].length - hits[a].length);
+  const providers: ProviderEntry[] = names.map(name => ({
+    provider: name,
+    confidence: hits[name].some(l => l.startsWith("endpoint:")) ? "high" : "medium",
+    signals: hits[name].map(l => `${name}:${l}`),
+    quirks_ref: PROVIDER_QUIRKS_REF[name] ?? null,
+  }));
+  const primary = providers[0];
+  return {
+    provider: primary.provider,
+    confidence: primary.confidence,
+    signals: providers.flatMap(p => p.signals),
+    quirks_ref: primary.quirks_ref,
+    providers,
+  };
 }
 
 const DOMAIN_NEXT_ACTION: Record<string, string> = {
@@ -1242,9 +1258,12 @@ export default function (pi: ExtensionAPI) {
             provider_confidence: provider.confidence,
             provider_signals: provider.signals,
             provider_quirks_ref: provider.quirks_ref,
+            providers: provider.providers,
             provider_note: provider.provider === "unknown"
               ? "Provider not identified from the evidence; ask for the endpoint or a response header."
-              : "Detected provider is a hint — verify it (endpoints can be proxied/CNAME'd) before applying provider quirks.",
+              : provider.providers.length > 1
+                ? "Multiple providers detected (e.g. a migration/sync): apply EACH provider's quirks to its side (source vs destination), not one provider's rules to both. Hints to verify — endpoints can be proxied/CNAME'd."
+                : "Detected provider is a hint — verify it (endpoints can be proxied/CNAME'd) before applying provider quirks.",
           }),
         }],
         details: {

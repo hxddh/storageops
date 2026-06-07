@@ -28,12 +28,15 @@ Packaging is the most fragile part of this repo. `storageops_cli.__init__._packa
 ## Validation Commands
 
 ```bash
-python3 scripts/skill_integrity_check.py
-python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
-  skills/storageops-eval-golden-cases/cases
-make validate
-.venv/bin/python -m pytest
+make validate        # fast skill/extension/doc gates (greps the extension only)
+make validate-full   # + pytest, extension behavioral tests, size/routing gates
 ```
+
+`make validate` does not exercise the TypeScript extension — the routing,
+provider, and trace logic is only covered by the extension behavioral tests, so
+run `make validate-full` (or `make extension-tests`) when touching
+`storageops_cli/extensions/storageops.ts`. `package_check.py`, `install-smoke`,
+and `diagnosis-smoke` run in CI (wheel build / network) — see `docs/release.md`.
 
 ## Editing Skills
 

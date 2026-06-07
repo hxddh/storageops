@@ -360,3 +360,35 @@ def test_httpmon_download_uses_bounded_curl_timeout():
     assert '"--max-time"' in source
     assert '"20"' in source
     assert "curl download failed" in source
+
+
+def test_copy_skills_mirrors_bundle_and_removes_stale(tmp_path, monkeypatch):
+    import storageops_cli
+    # Fake package data: skills/storageops-{a,b}
+    data = tmp_path / "pkg"
+    for name in ("storageops-a", "storageops-b"):
+        d = data / "skills" / name
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text("x")
+    # Existing deploy: storageops-a (to be refreshed) + storageops-old (stale)
+    agent = tmp_path / "agent"
+    skills_dst = storageops_cli._skills_dir_for_agent(agent)
+    (skills_dst / "storageops-a").mkdir(parents=True)
+    (skills_dst / "storageops-old").mkdir(parents=True)
+    (skills_dst / "keep-me").mkdir(parents=True)  # non-storageops dir is left alone
+
+    storageops_cli._copy_skills(data, agent)
+
+    present = sorted(d.name for d in skills_dst.iterdir() if d.is_dir())
+    assert present == ["keep-me", "storageops-a", "storageops-b"]  # old removed, non-storageops kept
+
+
+def test_unexpected_skills_reports_stale(tmp_path, monkeypatch):
+    import storageops_cli
+    data = tmp_path / "pkg"
+    (data / "skills" / "storageops-a").mkdir(parents=True)
+    monkeypatch.setattr(storageops_cli, "_package_data_dir", lambda: data)
+    skills_dir = tmp_path / "deployed"
+    (skills_dir / "storageops-a").mkdir(parents=True)
+    (skills_dir / "storageops-ghost").mkdir(parents=True)
+    assert storageops_cli._unexpected_skills(skills_dir) == ["storageops-ghost"]
