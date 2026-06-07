@@ -1,0 +1,11 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "event_notification",
+  "expected_root_cause_types": ["notification_filter_mismatch", "event_type_mismatch"],
+  "expected_min_confidence": 0.85,
+  "must_include_evidence_keywords": ["ObjectCreated:Put", "CompleteMultipartUpload", "multipart"],
+  "should_include_evidence_keywords": ["Lambda", "ObjectCreated:*"],
+  "must_include_recommendation_keywords": ["CompleteMultipartUpload", "ObjectCreated", "notification"],
+  "must_not_include": ["delete bucket", "make public", "print access key", "network corruption"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+}

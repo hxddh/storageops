@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-06-06 — v0.4.57: Deterministic analyzers for the last two beta skills
+
+Two new offline helpers give the agent diagnostic powers it previously had to
+reason out by hand; both keep the quality system deterministic (no LLM-judgment
+gates), and raise the two remaining `beta` skills to `mature`.
+
+- **event-notification → `notification_config_analyzer.py`**: parses an S3
+  notification configuration and determines deterministically whether a rule
+  matches a given object event — covering the skill's top failure class
+  (no-config / event-type mismatch, e.g. multipart `CompleteMultipartUpload` vs
+  `Put` / prefix-suffix filter mismatch). Wired into Step 1; raises the skill to
+  `mature`. New golden case `event-notification-multipart-mismatch`.
+- **migration-sync → `sync_log_analyzer.py`**: classifies an rclone/s5cmd/obsutil
+  log's dominant error (checksum mismatch vs access-denied vs not-found vs
+  throttle), reports transfer counts, and flags a destructive (deleting) sync —
+  failure localization the existing cost estimator could not do. Wired into
+  Step 6; raises the skill to `mature`. Activates the `migration-metadata-loss`
+  golden case with a baseline.
+- No new tools/commands/dependencies; deterministic helpers per the quality
+  ladder. Eval baseline coverage 15 → 17.
+
 ## 2026-06-06 — v0.4.56: Review-response hardening (provider, install, gates, trace docs)
 
 Acts on a third-party audit; each item fact-checked against the code first.

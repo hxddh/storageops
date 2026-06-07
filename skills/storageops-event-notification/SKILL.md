@@ -6,7 +6,7 @@ description: >
   Covers notification configuration, IAM permissions chaining, event type
   filtering, prefix/suffix filters, Lambda concurrency, and event delivery
   latency. Use when user expects events from S3 but targets aren't receiving them.
-maturity: beta
+maturity: mature
 mode: light_heavy
 estimated_tokens: 1300
 trigger_keywords:
@@ -49,6 +49,12 @@ Event not delivered →
 
 ### Step 1: Verify Notification Configuration Exists
 Check `PUT Bucket notification` configuration on the source bucket. No config = no events. Simple but commonly overlooked after bucket recreation.
+
+When you have the notification JSON (e.g. `aws s3api get-bucket-notification-configuration` output), run
+`python3 scripts/notification_config_analyzer.py --config notif.json --key <object key> --event s3:ObjectCreated:CompleteMultipartUpload --json`
+to determine deterministically whether a rule matches — it covers Steps 1–3
+(no-config / event-type-mismatch / prefix-suffix-filter-mismatch) — then reason
+over its verdict.
 
 ### Step 2: Check Event Type Matching
 - `s3:ObjectCreated:Put` — fires on PUT (single-shot upload)
@@ -125,6 +131,7 @@ If the notification chain appears correct but events are still missing, ask the 
 **Recommendation**: Increase Lambda reserved concurrency. Or fan-out: S3→SNS→SQS (subscription filter)→Lambda. SQS acts as durable buffer.
 
 ## References
+- `scripts/notification_config_analyzer.py` — Offline notification-config matcher (event type + prefix/suffix filter vs an object key) | **Read when:** events are not delivered and you have the notification configuration JSON
 - `references/notification-configuration.md` — Full notification schema, event types | **Read when:** user provides notification config XML/JSON or asks about event type matching
 - `references/lambda-integration.md` — Lambda resource policy, concurrency, DLQ | **Read when:** target is Lambda, or user reports Lambda not being invoked
 - `references/sqs-integration.md` — SQS queue policy, message attributes | **Read when:** target is SQS, queue is empty despite notifications configured
