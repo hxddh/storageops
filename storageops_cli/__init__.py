@@ -13,7 +13,7 @@ Post-install layout (independent mode):
     |   |-- settings.json
     |   |-- api-key            optional: persistent API key
     |   `-- extensions/storageops.ts
-    `-- skills/                16 packs (15 diagnostic + 1 eval)
+    `-- skills/                16 packs (13 diagnostic + triage + reporting + 1 eval)
 """
 
 import subprocess
@@ -1201,6 +1201,72 @@ def cmd_smoke(args: list[str]) -> int:
     return result.returncode or 1
 
 
+def _eval_corpus_dir() -> Path:
+    """Locate the packaged golden-case eval corpus."""
+    return _package_data_dir() / "skills" / "storageops-eval-golden-cases"
+
+
+def cmd_eval(args: list[str]) -> int:
+    """Run the deterministic golden-case eval harness against saved outputs.
+
+    Wraps the eval scripts so the regression workflow is one command instead of
+    three. No model key is needed: it scores already-saved diagnostic outputs
+    (or the committed baselines) against each case's expected.json.
+    """
+    if "--help" in args or "-h" in args:
+        print("Usage:")
+        print("  storageops eval --list                 list golden cases")
+        print("  storageops eval --baselines            score committed baselines, print summary")
+        print("  storageops eval <case> --output FILE   score one saved output against a case")
+        return 0
+
+    try:
+        corpus = _eval_corpus_dir()
+    except FileNotFoundError as exc:
+        print(f"[error] {exc}")
+        return 1
+    cases_dir = corpus / "cases"
+    baselines_dir = corpus / "baseline-outputs"
+    scripts_dir = corpus / "scripts"
+    if not cases_dir.is_dir():
+        print(f"[error] golden cases not found at {cases_dir}")
+        return 1
+
+    if _has_flag(args, "--list"):
+        names = sorted(d.name for d in cases_dir.iterdir() if (d / "expected.json").exists())
+        print(f"{len(names)} golden cases:")
+        for name in names:
+            has_baseline = (baselines_dir / f"{name}.md").exists()
+            print(f"  {name}" + ("  [baseline]" if has_baseline else ""))
+        return 0
+
+    if _has_flag(args, "--baselines"):
+        cmd = [
+            sys.executable, str(scripts_dir / "eval_all.py"),
+            "--cases", str(cases_dir),
+            "--outputs", str(baselines_dir),
+            "--only-with-outputs",
+        ]
+        return subprocess.run(cmd).returncode
+
+    # Single-case mode: first non-flag arg is the case name.
+    case_name = next((a for a in args if not a.startswith("-")), None)
+    output = _option_value(args, "--output")
+    if not case_name or not output:
+        print("[error] need a case name and --output FILE (or use --list / --baselines)")
+        return 2
+    case_dir = cases_dir / case_name
+    if not (case_dir / "expected.json").exists():
+        print(f"[error] no such golden case: {case_name} (try: storageops eval --list)")
+        return 1
+    cmd = [
+        sys.executable, str(scripts_dir / "eval_runner.py"),
+        "--case", str(case_dir),
+        "--output", output,
+    ]
+    return subprocess.run(cmd).returncode
+
+
 def cmd_help():
     """Print usage help."""
     print("StorageOps -- AI-powered S3-compatible object storage diagnostics")
@@ -1222,6 +1288,7 @@ def cmd_help():
     print("    storageops doctor                  readiness checks")
     print("    storageops configure --show        show model/key config")
     print("    storageops smoke                   explicit model smoke test")
+    print("    storageops eval --list             golden-case regression harness")
     print()
     print("  No API key yet?")
     _no_key_hint(AGENT_DIR)
@@ -1244,6 +1311,9 @@ def main():
 
     if len(args) >= 1 and args[0] == "smoke":
         sys.exit(cmd_smoke(args[1:]))
+
+    if len(args) >= 1 and args[0] == "eval":
+        sys.exit(cmd_eval(args[1:]))
 
     if len(args) >= 1 and args[0] in ("--version", "-V"):
         cmd_version()

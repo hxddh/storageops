@@ -1,0 +1,23 @@
+# rclone -vv copy ./backups remote-s3:examplebucket-1250000000 (excerpt)
+
+```
+rclone v1.66.0
+- backend: s3 (provider Other, env_auth=false, force_path_style=false)
+- endpoint: https://examplebucket-1250000000.cos.ap-guangzhou.myqcloud.com
+
+DEBUG : backups/db-2026-06-02.tar: Sending multipart upload (17 parts, 9134 MiB total)
+DEBUG : backups/db-2026-06-02.tar: multipart upload starting
+DEBUG : backups/db-2026-06-02.tar: Uploaded part 17/17
+DEBUG : backups/db-2026-06-02.tar: multipart upload complete
+DEBUG : backups/db-2026-06-02.tar: src md5 = 9f2a1d4e6a7b8c901122334455667788
+DEBUG : backups/db-2026-06-02.tar: dst ETag = "5d41402abc4b2a76b9719d911017c592-17"
+ERROR : backups/db-2026-06-02.tar: corrupted on transfer: MD5 hash differ
+        "9f2a1d4e6a7b8c901122334455667788" vs "5d41402abc4b2a76b9719d911017c592-17"
+ERROR : Attempt 1/3 failed with 1 errors and: corrupted on transfer
+```
+
+Notes from the user:
+- The same object copies fine with `coscmd` (the native Tencent tool).
+- `rclone` is configured with `type = s3`, not `type = s3, provider = TencentCOS`,
+  and not the dedicated `tencentcos` backend.
+- A `HEAD` on the destination shows the object is present and the byte size matches.

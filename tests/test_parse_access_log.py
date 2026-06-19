@@ -52,3 +52,15 @@ def test_parse_s3_log_skips_malformed_lines():
     result = parser.parse_s3_log(["too few fields", "# comment", S3_OK])
 
     assert result["details"]["count"] == 1
+
+
+def test_parse_s3_log_surfaces_skipped_and_parsed_counts():
+    parser = load_parser()
+    result = parser.parse_s3_log(["too few fields", "# comment", S3_OK, S3_DENIED])
+
+    details = result["details"]
+    # "# comment" and blank lines are not counted as skipped; only unparseable
+    # data lines (too few fields) are.
+    assert details["skipped_lines"] == 1
+    assert details["parsed_lines"] == 2
+    assert details["count"] == 2

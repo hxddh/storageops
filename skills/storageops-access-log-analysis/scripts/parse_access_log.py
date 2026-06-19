@@ -105,6 +105,7 @@ def _split_s3_line(line: str) -> List[str]:
 def parse_s3_log(lines: List[str]) -> Dict[str, Any]:
     """Parse AWS S3 Server Access Logs (space-delimited, Apache CLF-like)."""
     records = []
+    skipped = 0
 
     for line in lines:
         line = line.strip()
@@ -113,6 +114,7 @@ def parse_s3_log(lines: List[str]) -> Dict[str, Any]:
 
         parts = _split_s3_line(line)
         if len(parts) < 12:
+            skipped += 1
             continue
 
         # Field indices: 0=bucketOwner, 1=bucket, 2=[time], 3=remoteIP,
@@ -131,13 +133,13 @@ def parse_s3_log(lines: List[str]) -> Dict[str, Any]:
             "key": unquote(parts[7]),
         })
 
-    return _aggregate(records, "s3")
+    return _aggregate(records, "s3", skipped)
 
 
 def parse_csv_log(lines: List[str], provider: str) -> Dict[str, Any]:
     """Parse CSV access logs (BOS, COS). First line is header."""
     if not lines:
-        return _aggregate([], provider)
+        return _aggregate([], provider, 0)
 
     reader = csv.DictReader(io.StringIO("\n".join(lines)))
     records = []
@@ -187,12 +189,13 @@ def parse_csv_log(lines: List[str], provider: str) -> Dict[str, Any]:
             "key": row.get(m["key"], "-"),
         })
 
-    return _aggregate(records, provider)
+    return _aggregate(records, provider, 0)
 
 
 def parse_json_log(lines: List[str]) -> Dict[str, Any]:
     """Parse OSS real-time JSON access logs."""
     records = []
+    skipped = 0
 
     for line in lines:
         line = line.strip()
@@ -209,14 +212,15 @@ def parse_json_log(lines: List[str]) -> Dict[str, Any]:
                 "key": obj.get("object", "-"),
             })
         except json.JSONDecodeError:
-            pass
+            skipped += 1
 
-    return _aggregate(records, "oss")
+    return _aggregate(records, "oss", skipped)
 
 
 def parse_tab_log(lines: List[str]) -> Dict[str, Any]:
     """Parse OSS legacy tab-separated access logs."""
     records = []
+    skipped = 0
     fields_order = [
         "bucket_owner", "bucket", "time", "remote_ip", "requester",
         "request_id", "operation", "key", "request_uri", "http_status",
@@ -230,6 +234,7 @@ def parse_tab_log(lines: List[str]) -> Dict[str, Any]:
             continue
         parts = line.split("\t")
         if len(parts) < 10:
+            skipped += 1
             continue
         record = dict(zip(fields_order, parts))
         status_str = record.get("http_status", "0")
@@ -245,16 +250,23 @@ def parse_tab_log(lines: List[str]) -> Dict[str, Any]:
             "key": record.get("key", "-"),
         })
 
-    return _aggregate(records, "oss")
+    return _aggregate(records, "oss", skipped)
 
 
-def _aggregate(records: List[Dict], provider: str) -> Dict[str, Any]:
+def _aggregate(records: List[Dict], provider: str, skipped: int = 0) -> Dict[str, Any]:
     """Aggregate log records into statistics."""
     if not records:
         return {
             "ok": True,
             "summary": "0 requests | no data",
-            "details": {"provider": provider, "count": 0, "error_rate": 0, "error_samples": []},
+            "details": {
+                "provider": provider,
+                "count": 0,
+                "error_rate": 0,
+                "error_samples": [],
+                "parsed_lines": 0,
+                "skipped_lines": skipped,
+            },
             "findings": ["No log entries parsed"],
         }
 
@@ -322,6 +334,8 @@ def _aggregate(records: List[Dict], provider: str) -> Dict[str, Any]:
             "requesters": [{"requester": r, "count": c, "pct": round(c/count*100, 1)} for r, c in top_req],
             "error_samples": error_samples[:5],
             "bytes_total": bytes_total,
+            "parsed_lines": count,
+            "skipped_lines": skipped,
         },
         "findings": findings,
     }

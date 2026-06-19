@@ -7,7 +7,7 @@
       "domains": ["access-log", "observability"],
       "aliases": ["access_log", "server_access_log", "request_analysis", "traffic_analysis"],
       "signatures": ["access log", "server access log", "requester", "error rate", "cost attribution"],
-      "baseline": false
+      "baseline": true
     },
     "bigdata_pipeline": {
       "skill": "storageops-bigdata-pipeline",
@@ -28,7 +28,7 @@
       "domains": ["consistency"],
       "aliases": ["data_consistency", "etag_checksum", "stale_read"],
       "signatures": ["consistency", "stale", "ETag", "checksum", "mismatch"],
-      "baseline": false
+      "baseline": true
     },
     "cors_configuration": {
       "skill": "storageops-s3-protocol-compatibility",
@@ -49,7 +49,7 @@
       "domains": ["lifecycle", "cost"],
       "aliases": ["storage_cost", "request_cost", "small_file_cost"],
       "signatures": ["lifecycle", "cost", "billing", "Standard_IA", "Glacier", "small objects"],
-      "baseline": false
+      "baseline": true
     },
     "migration_sync": {
       "skill": "storageops-migration-sync",
@@ -84,7 +84,7 @@
       "domains": ["replication"],
       "aliases": ["crr_srr", "versioning", "delete_marker", "object_lock"],
       "signatures": ["replication", "CRR", "SRR", "versioning", "DeleteMarker", "Object Lock"],
-      "baseline": false
+      "baseline": true
     },
     "reporting": {
       "skill": "storageops-evidence-reporting",
