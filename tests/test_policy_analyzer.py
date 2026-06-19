@@ -1,4 +1,7 @@
 import importlib.util
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -69,3 +72,21 @@ def test_explicit_deny_is_informational_not_an_issue():
 
     assert result["ok"] is True
     assert "explicit_denies" in result["details"]
+
+
+def test_missing_file_emits_json_error_not_traceback(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    module_path = root / "skills" / "storageops-security-iam-policy" / "scripts" / "policy_analyzer.py"
+    missing = tmp_path / "does_not_exist.json"
+
+    proc = subprocess.run(
+        [sys.executable, str(module_path), "--file", str(missing)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 1
+    payload = json.loads(proc.stdout)
+    assert payload["ok"] is False
+    assert str(missing) in payload["error"]
+    assert "Traceback" not in proc.stderr

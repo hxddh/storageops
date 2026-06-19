@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-06-19 — v0.5.0: Robustness, replication analyzer, eval harness CLI, corpus growth
+
+A consolidated review release: fix long-tail script robustness, give the last
+script-less skill a deterministic helper, add a one-command regression harness,
+and grow baseline/provider coverage. No new runtime tools or dependencies; the
+quality ladder stays deterministic (no LLM-judgment gates).
+
+- **Bug fixes (deterministic, low-risk):**
+  - `policy_analyzer.py` now emits the standard `{"ok": false, "error": ...}`
+    JSON on an unreadable/missing policy file instead of a Python traceback.
+  - `parse_access_log.py` surfaces `parsed_lines` / `skipped_lines` so silently
+    dropped malformed log lines are visible to the agent.
+  - `parse_sigv4_error.py` reports `xml_parse_fallback` when it degrades from XML
+    parsing to the lossy regex path.
+  - Corrected the skill-count phrasing across `README`, `ARCHITECTURE`, the
+    extension header, and the installer docstring (13 diagnostic + triage +
+    reporting + 1 eval = 16 packs).
+- **Skills:**
+  - **replication-versioning → `replication_status_analyzer.py`**: the last
+    diagnostic skill without a helper now has a deterministic offline analyzer
+    that classifies the dominant replication/versioning failure (destination
+    versioning disabled, rule disabled, delete-marker not replicated, source
+    suspended, replication FAILED). Wired into Step 1.
+  - **security-iam-policy references**: expanded five stub references
+    (policy-evaluation, cross-account, kms-permissions, vpc-endpoints,
+    provider-differences) into actionable diagnostic content — the
+    highest-traffic 403/AccessDenied domain.
+  - **data-consistency** promoted `beta → mature` (tested ETag analyzer + golden
+    baseline).
+- **Tooling / agent UX:**
+  - New `storageops eval` subcommand wraps the golden-case harness:
+    `--list`, `--baselines` (score committed baselines), and
+    `<case> --output FILE` — the regression workflow in one command, no model
+    key required.
+- **Eval corpus:**
+  - Added baselines for the four previously baseline-less domains
+    (access-log, consistency, lifecycle, replication); baseline coverage 17 → 22.
+  - New provider-specific case `cos-multipart-etag-corruption` (Tencent COS
+    multipart-ETag false "corruption" via a non-native tool) with baseline;
+    corpus 36 → 37.
+- **Quality gates:** added unit tests for previously-untested gates
+  (`no_hardcoded_pricing`, `repo_size_gate`, `version_reference_check`,
+  `package_check`) plus the new analyzer and `storageops eval`.
+
 ## 2026-06-06 — v0.4.57: Deterministic analyzers for the last two beta skills
 
 Two new offline helpers give the agent diagnostic powers it previously had to

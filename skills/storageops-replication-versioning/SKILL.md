@@ -58,6 +58,8 @@ Replication/versioning issue →
 ### Step 1: Verify Configuration
 Three pre-requisites for replication: versioning enabled on BOTH buckets, replication rule on source bucket, IAM role with correct permissions (`s3:ReplicateObject`, `s3:ReplicateDelete`, `s3:ReplicateTags`).
 
+When the user provides replication/versioning evidence (`get-bucket-replication`, `get-bucket-versioning`, `head-object` ReplicationStatus, or a log), run the deterministic offline analyzer first to localize the dominant failure class: run `scripts/replication_status_analyzer.py` with `--file <evidence>` (or `--stdin`). It never contacts a bucket and emits `{ok, summary, root_cause, findings, recommendation}` — use its `root_cause` (e.g. `dest_versioning_disabled`, `rule_disabled`, `delete_marker_not_replicated`, `source_versioning_suspended`) to drive the steps below.
+
 ### Step 2: Replication Diagnosis
 - **Missing replicas**: Check replication rule filter (prefix/tags), object creation time vs rule creation time, delete marker replication setting
 - **Replication lag**: Check S3 Replication Time Control (RTC, SLA 15 min). Cross-region latency is normal.
@@ -129,6 +131,7 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 **Recommendation**: Wait for retention expiry. If urgent, contact provider support (AWS can't override COMPLIANCE either). For future: use GOVERNANCE mode with s3:BypassGovernanceRetention permission.
 
 ## References
+- `scripts/replication_status_analyzer.py` — Offline deterministic classifier for replication/versioning evidence (root cause + recommendation as JSON) | **Run when:** the user provides `get-bucket-replication`/`get-bucket-versioning`/`head-object` output or a replication log
 - `references/replication.md` — Replication rule schema and permissions | **Read when:** user reports objects not replicating or replication rule questions
 - `references/versioning.md` — Versioning state machine and cost implications | **Read when:** user asks about versioning state changes, cost of versions, or delete marker behavior
 - `references/object-lock.md` — Retention modes, legal hold, compliance | **Read when:** user mentions object lock, legal hold, retention, or cannot delete objects

@@ -1,6 +1,6 @@
 # Architecture
 
-StorageOps v0.4.57 is a Pi Coding Agent extension and skill pack.
+StorageOps v0.5.0 is a Pi Coding Agent extension and skill pack.
 
 ## Components
 
@@ -67,7 +67,7 @@ the managed location, so merged Pi installs do not need users to edit `PATH`.
 
 ## Skills
 
-`skills/` contains 15 diagnostic `storageops-*` skill packs plus 1 eval skill pack. Each skill directory has:
+`skills/` contains 15 `storageops-*` skill packs (13 diagnostic, plus triage and evidence-reporting) plus 1 eval skill pack. Each skill directory has:
 
 ```text
 SKILL.md

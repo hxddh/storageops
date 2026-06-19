@@ -25,7 +25,8 @@ def _strip_namespace(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def _parse_xml_fields(text: str) -> dict[str, str]:
+def _parse_xml_fields(text: str) -> tuple[dict[str, str], bool]:
+    """Return (fields, used_regex_fallback). Fallback is lossy regex parsing."""
     fields: dict[str, str] = {}
     try:
         root = ET.fromstring(text)
@@ -34,12 +35,12 @@ def _parse_xml_fields(text: str) -> dict[str, str]:
             match = re.search(rf"<{tag}>(.*?)</{tag}>", text, re.S)
             if match:
                 fields[tag] = match.group(1).strip()
-        return fields
+        return fields, True
     for element in root.iter():
         tag = _strip_namespace(element.tag)
         if tag in TAG_NAMES and element.text:
             fields[tag] = element.text.strip()
-    return fields
+    return fields, False
 
 
 def _extract_block(lines: list[str], start_index: int) -> str:
@@ -118,7 +119,7 @@ def _likely_causes(fields: dict[str, str], canonical: dict[str, Any], scope: dic
 
 def parse_sigv4_evidence(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8", errors="ignore")
-    fields = _parse_xml_fields(text)
+    fields, xml_parse_fallback = _parse_xml_fields(text)
     fields.update(_parse_debug_blocks(text))
     canonical_text = fields.get("CanonicalRequest") or fields.get("ClientCanonicalRequest", "")
     string_to_sign = fields.get("StringToSign") or fields.get("ClientStringToSign", "")
@@ -135,6 +136,7 @@ def parse_sigv4_evidence(path: Path) -> dict[str, Any]:
         "client_canonical_request": fields.get("ClientCanonicalRequest"),
         "credential_scope": scope,
         "canonical_summary": canonical,
+        "xml_parse_fallback": xml_parse_fallback,
         "likely_causes": _likely_causes(fields, canonical, scope),
     }
 

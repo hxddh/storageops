@@ -1,0 +1,13 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "cli_sdk_behavior",
+  "expected_root_cause_types": ["multipart_etag_not_md5", "provider_etag_incompatibility"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["corrupted on transfer", "multipart", "ETag", "myqcloud"],
+  "should_include_evidence_keywords": ["rclone", "ap-guangzhou", "9134"],
+  "must_include_recommendation_keywords": ["tencentcos", "checksum", "ignore"],
+  "must_not_include": ["delete bucket", "make public", "print access key", "re-upload everything", "disable replication"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "input_type": "log_file",
+  "domain": "cli_sdk_behavior"
+}

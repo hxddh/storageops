@@ -7,7 +7,7 @@
  *
  * Architecture:
  *   Pi ← storageops.ts (4 tools: scan_secrets, detect_domain, search_memory, capture_http_trace)
- *     ← skills/*.SKILL.md (16 packs: 15 diagnostic + 1 eval)
+ *     ← skills/*.SKILL.md (16 packs: 13 diagnostic + triage + reporting + 1 eval)
  *
  * Placement: .pi/extensions/storageops.ts (auto-discovered by Pi)
  * Reload:    /reload inside Pi session

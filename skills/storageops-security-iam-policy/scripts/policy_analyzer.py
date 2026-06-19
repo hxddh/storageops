@@ -165,8 +165,12 @@ def main():
     if args.stdin:
         raw = sys.stdin.read()
     else:
-        with open(args.file, "r") as fh:
-            raw = fh.read()
+        try:
+            with open(args.file, "r") as fh:
+                raw = fh.read()
+        except OSError as exc:
+            print(json.dumps({"ok": False, "error": f"could not read {args.file}: {exc}"}))
+            sys.exit(1)
 
     try:
         doc = json.loads(raw)

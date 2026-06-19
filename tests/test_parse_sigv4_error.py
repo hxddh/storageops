@@ -46,6 +46,7 @@ UNSIGNED-PAYLOAD</CanonicalRequest>
     assert result["canonical_summary"]["method"] == "GET"
     assert result["canonical_summary"]["path"] == "/bucket/key"
     assert result["canonical_summary"]["signed_headers"] == ["host", "x-amz-date"]
+    assert result["xml_parse_fallback"] is False
 
 
 def test_parse_client_debug_blocks(tmp_path):
@@ -103,3 +104,6 @@ abcdef</StringToSign>
     assert result["ok"] is True
     assert result["code"] == "SignatureDoesNotMatch"
     assert result["credential_scope"]["region"] == "us-west-2"
+    # XML wrapped in a markdown fence fails strict XML parsing and falls back to
+    # the lossy regex path, which must be signalled.
+    assert result["xml_parse_fallback"] is True

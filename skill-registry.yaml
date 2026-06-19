@@ -1,4 +1,4 @@
-# StorageOps Skill Registry v0.4.57
+# StorageOps Skill Registry v0.5.0
 
 # Machine-readable metadata for all StorageOps skills.
 # Skills are auto-discovered by Pi from the skills/ directory.
@@ -159,7 +159,7 @@ skills:
 
   - name: storageops-data-consistency
     path: skills/storageops-data-consistency/SKILL.md
-    maturity: beta
+    maturity: mature
     mode: light_heavy
     trigger_keywords:
       - "consistency"
