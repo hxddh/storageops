@@ -76,6 +76,13 @@ result instead of eyeballing the string.
 - **BOS uses different ETag format** for multipart — may cause checksum mismatch on cross-provider copy
 - SSE-KMS changes ETag — NOT the MD5 of the object
 
+When a multipart ETag "changed" after a copy/migration but the bytes look
+identical, the usual cause is **re-chunking** (a different part size on each side).
+Run `python3 scripts/multipart_etag_calculator.py --total-size <bytes> --observed-etag <hex>-N [--other-part-size <bytes>]`
+to recover the source part-size band and confirm deterministically whether the
+destination's part size reproduces the ETag — distinguishing a re-chunk from real
+corruption. With a part list, compute the ETag directly via `--part-md5s <file>`.
+
 ### Step 4: Concurrent Write Analysis
 Object storage has no write locking. Two simultaneous PUTs to the same key = last writer wins. For multi-client scenarios, recommend: versioning + conditional writes (If-None-Match header).
 
@@ -166,6 +173,7 @@ If the root cause is still unclear after Step 5:
 
 ## References
 - `scripts/etag_parser.py` — Offline ETag classifier (single-part/multipart, AWS vs BOS shape, SSE hints) | **Read when:** you have one or more ETags and need to confirm the upload type or a cross-provider format mismatch
+- `scripts/multipart_etag_calculator.py` — Compute/verify a multipart ETag from part MD5s, or reverse the part-size band from `--total-size` + observed `<hex>-N` | **Run when:** a multipart ETag "changed" after copy/migration though the bytes look identical (re-chunking vs corruption)
 - `references/cache-layers.md` — Complete cache layer inventory across SDK, mount, CDN | **Read when:** user reports stale reads, outdated data, or mount filesystem inconsistencies
 - `references/etag-format.md` — ETag formats by upload type and provider | **Read when:** user mentions ETag mismatch, checksum errors, or cross-provider copy with corrupted files
 - `references/multipart-consistency.md` — Multipart upload lifecycle and consistency | **Read when:** user reports objects not appearing after large upload, or incomplete multipart uploads consuming storage

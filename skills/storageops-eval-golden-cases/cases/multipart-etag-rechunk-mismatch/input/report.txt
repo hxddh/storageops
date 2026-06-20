@@ -1,0 +1,24 @@
+Data integrity verification flagged an ETag mismatch — is this object corrupted?
+
+Our consistency check compares the source ETag against the destination ETag after
+a copy and reports a mismatch:
+
+Source object (AWS S3):
+  s3://prod-archive/backups/2026-05/db.tar
+  Size: 104857600 bytes (100 MiB)
+  ETag: "9bced0aef6f0b2f4a7f2d3c1e8a4b5c6-2"   (multipart, 2 parts)
+  Uploaded with default 64 MiB multipart chunk size.
+
+Destination object (S3-compatible target):
+  Size: 104857600 bytes (100 MiB)   <-- identical byte count
+  ETag: "1f0a2b3c4d5e6f70819a2b3c4d5e6f70-7"  (multipart, 7 parts)
+  Re-uploaded with a 16 MiB multipart part size.
+
+What we already verified ourselves:
+  Full-object MD5 (streamed, both sides): 3a1f...c9 == 3a1f...c9  -> IDENTICAL
+  Byte-for-byte download diff: no differences.
+
+So the content looks consistent, but the verifier marks the object as corrupted
+because the multipart ETag differs. Is the data actually inconsistent, or is the
+ETag mismatch expected? Why do the ETags differ if the bytes are identical, and how
+do we make the destination multipart ETag match the source?

@@ -1,0 +1,10 @@
+own bkt [06/Jun/2026:14:00:01 +0000] 10.0.0.1 arn:aws:iam::1:user/ingest r01 REST.PUT.OBJECT events/2026/06/06/a1 "PUT /events/2026/06/06/a1" 200 - 512 512 4 4 "-" "ingest" -
+own bkt [06/Jun/2026:14:00:01 +0000] 10.0.0.1 arn:aws:iam::1:user/ingest r02 REST.PUT.OBJECT events/2026/06/06/a2 "PUT /events/2026/06/06/a2" 503 SlowDown 0 512 2 2 "-" "ingest" -
+own bkt [06/Jun/2026:14:00:01 +0000] 10.0.0.1 arn:aws:iam::1:user/ingest r03 REST.PUT.OBJECT events/2026/06/06/a3 "PUT /events/2026/06/06/a3" 503 SlowDown 0 512 2 2 "-" "ingest" -
+own bkt [06/Jun/2026:14:00:02 +0000] 10.0.0.1 arn:aws:iam::1:user/ingest r04 REST.PUT.OBJECT events/2026/06/06/a4 "PUT /events/2026/06/06/a4" 503 SlowDown 0 512 2 2 "-" "ingest" -
+own bkt [06/Jun/2026:14:00:02 +0000] 10.0.0.1 arn:aws:iam::1:user/ingest r05 REST.PUT.OBJECT events/2026/06/06/a5 "PUT /events/2026/06/06/a5" 503 SlowDown 0 512 2 2 "-" "ingest" -
+own bkt [06/Jun/2026:14:00:02 +0000] 10.0.0.1 arn:aws:iam::1:user/ingest r06 REST.PUT.OBJECT events/2026/06/06/a6 "PUT /events/2026/06/06/a6" 200 - 512 512 4 4 "-" "ingest" -
+own bkt [06/Jun/2026:14:00:03 +0000] 10.0.0.2 arn:aws:iam::1:user/reader r07 REST.GET.OBJECT catalog/index.json "GET /catalog/index.json" 200 - 2048 2048 6 6 "-" "reader" -
+own bkt [06/Jun/2026:14:00:03 +0000] 10.0.0.2 arn:aws:iam::1:user/reader r08 REST.GET.OBJECT catalog/parts/p1 "GET /catalog/parts/p1" 200 - 4096 4096 7 7 "-" "reader" -
+own bkt [06/Jun/2026:14:00:04 +0000] 10.0.0.2 arn:aws:iam::1:user/reader r09 REST.GET.OBJECT catalog/parts/p2 "GET /catalog/parts/p2" 200 - 4096 4096 7 7 "-" "reader" -
+own bkt [06/Jun/2026:14:00:04 +0000] 10.0.0.1 arn:aws:iam::1:user/ingest r10 REST.PUT.OBJECT events/2026/06/06/a7 "PUT /events/2026/06/06/a7" 503 SlowDown 0 512 2 2 "-" "ingest" -

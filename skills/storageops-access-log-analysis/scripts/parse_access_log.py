@@ -102,7 +102,7 @@ def _split_s3_line(line: str) -> List[str]:
     return tokens
 
 
-def parse_s3_log(lines: List[str]) -> Dict[str, Any]:
+def parse_s3_log(lines: List[str], prefix_depth: Optional[int] = None) -> Dict[str, Any]:
     """Parse AWS S3 Server Access Logs (space-delimited, Apache CLF-like)."""
     records = []
     skipped = 0
@@ -133,13 +133,13 @@ def parse_s3_log(lines: List[str]) -> Dict[str, Any]:
             "key": unquote(parts[7]),
         })
 
-    return _aggregate(records, "s3", skipped)
+    return _aggregate(records, "s3", skipped, prefix_depth)
 
 
-def parse_csv_log(lines: List[str], provider: str) -> Dict[str, Any]:
+def parse_csv_log(lines: List[str], provider: str, prefix_depth: Optional[int] = None) -> Dict[str, Any]:
     """Parse CSV access logs (BOS, COS). First line is header."""
     if not lines:
-        return _aggregate([], provider, 0)
+        return _aggregate([], provider, 0, prefix_depth)
 
     reader = csv.DictReader(io.StringIO("\n".join(lines)))
     records = []
@@ -189,10 +189,10 @@ def parse_csv_log(lines: List[str], provider: str) -> Dict[str, Any]:
             "key": row.get(m["key"], "-"),
         })
 
-    return _aggregate(records, provider, 0)
+    return _aggregate(records, provider, 0, prefix_depth)
 
 
-def parse_json_log(lines: List[str]) -> Dict[str, Any]:
+def parse_json_log(lines: List[str], prefix_depth: Optional[int] = None) -> Dict[str, Any]:
     """Parse OSS real-time JSON access logs."""
     records = []
     skipped = 0
@@ -214,10 +214,10 @@ def parse_json_log(lines: List[str]) -> Dict[str, Any]:
         except json.JSONDecodeError:
             skipped += 1
 
-    return _aggregate(records, "oss", skipped)
+    return _aggregate(records, "oss", skipped, prefix_depth)
 
 
-def parse_tab_log(lines: List[str]) -> Dict[str, Any]:
+def parse_tab_log(lines: List[str], prefix_depth: Optional[int] = None) -> Dict[str, Any]:
     """Parse OSS legacy tab-separated access logs."""
     records = []
     skipped = 0
@@ -250,10 +250,48 @@ def parse_tab_log(lines: List[str]) -> Dict[str, Any]:
             "key": record.get("key", "-"),
         })
 
-    return _aggregate(records, "oss", skipped)
+    return _aggregate(records, "oss", skipped, prefix_depth)
 
 
-def _aggregate(records: List[Dict], provider: str, skipped: int = 0) -> Dict[str, Any]:
+def _prefix_of(key: str, depth: int) -> str:
+    """First ``depth`` '/'-separated segments of a key, as a drill-down prefix."""
+    if not key or key in ("-", "/"):
+        return "<root>"
+    segments = key.lstrip("/").split("/")
+    if len(segments) <= depth:
+        return "/".join(segments)
+    return "/".join(segments[:depth]) + "/"
+
+
+def _prefix_breakdown(records: List[Dict], depth: int, top: int = 10) -> List[Dict[str, Any]]:
+    """Aggregate request/error/throttle counts by key prefix at the given depth."""
+    counts: Counter = Counter()
+    errors: Counter = Counter()
+    throttles: Counter = Counter()
+    for r in records:
+        prefix = _prefix_of(r.get("key", "-"), depth)
+        counts[prefix] += 1
+        status = r.get("status", 0)
+        code = (r.get("error_code") or "")
+        if 400 <= status < 600:
+            errors[prefix] += 1
+        if status == 503 or code in ("SlowDown", "503 SlowDown", "ServiceUnavailable"):
+            throttles[prefix] += 1
+    breakdown = []
+    for prefix, c in counts.most_common(top):
+        breakdown.append({
+            "prefix": prefix,
+            "count": c,
+            "errors": errors.get(prefix, 0),
+            "throttles": throttles.get(prefix, 0),
+            "error_rate": round(errors.get(prefix, 0) / c, 4) if c else 0,
+            "pct": round(c / max(1, sum(counts.values())) * 100, 1),
+        })
+    return breakdown
+
+
+def _aggregate(records: List[Dict], provider: str, skipped: int = 0,
+               prefix_depth: Optional[int] = None) -> Dict[str, Any]:
     """Aggregate log records into statistics."""
     if not records:
         return {
@@ -317,26 +355,52 @@ def _aggregate(records: List[Dict], provider: str, skipped: int = 0) -> Dict[str
         findings.append(f"AccessDenied errors at {errors['AccessDenied']/count*100:.1f}% — possible credential issue")
     if errors.get("SlowDown", 0) > 0:
         findings.append(f"{errors['SlowDown']} SlowDown/Throttling events — check performance-diagnosis skill")
+    details = {
+        "provider": provider,
+        "count": count,
+        "error_rate": round(error_rate, 4),
+        "top_requester": top_req[0][0] if top_req else None,
+        "top_operation": top_op[0][0] if top_op else None,
+        "status_distribution": {"2xx": s2xx, "3xx": s3xx, "4xx": s4xx, "5xx": s5xx},
+        "operations": dict(top_op),
+        "requesters": [{"requester": r, "count": c, "pct": round(c/count*100, 1)} for r, c in top_req],
+        "error_samples": error_samples[:5],
+        "bytes_total": bytes_total,
+        "parsed_lines": count,
+        "skipped_lines": skipped,
+    }
+
+    # Optional key-prefix drill-down: localizes a hot or error-heavy prefix that
+    # the flat requester/operation view hides (e.g. a single prefix taking all
+    # the 503s, the signature of a hot-prefix throttle).
+    if prefix_depth is not None and prefix_depth > 0:
+        breakdown = _prefix_breakdown(records, prefix_depth)
+        details["prefix_depth"] = prefix_depth
+        details["prefix_breakdown"] = breakdown
+        total_throttles = sum(b["throttles"] for b in breakdown)
+        if total_throttles and breakdown:
+            hot = max(breakdown, key=lambda b: b["throttles"])
+            if hot["throttles"] >= max(1, total_throttles * 0.5):
+                findings.append(
+                    f"Prefix '{hot['prefix']}' concentrates {hot['throttles']}/{total_throttles} "
+                    f"throttle (503/SlowDown) events — likely hot prefix; see performance-diagnosis skill"
+                )
+        total_pref_errors = sum(b["errors"] for b in breakdown)
+        if total_pref_errors and breakdown:
+            hot_err = max(breakdown, key=lambda b: b["errors"])
+            if hot_err["errors"] >= max(1, total_pref_errors * 0.5) and hot_err["error_rate"] > 0.05:
+                findings.append(
+                    f"Prefix '{hot_err['prefix']}' holds {hot_err['errors']}/{total_pref_errors} "
+                    f"errors at {hot_err['error_rate']*100:.0f}% error rate"
+                )
+
     if not findings:
         findings.append("No significant anomalies detected")
 
     return {
         "ok": True,
         "summary": f"{count} requests | {error_rate*100:.1f}% error rate | top op: {top_op[0][0]} ({top_op[0][1]/count*100:.0f}%)",
-        "details": {
-            "provider": provider,
-            "count": count,
-            "error_rate": round(error_rate, 4),
-            "top_requester": top_req[0][0] if top_req else None,
-            "top_operation": top_op[0][0] if top_op else None,
-            "status_distribution": {"2xx": s2xx, "3xx": s3xx, "4xx": s4xx, "5xx": s5xx},
-            "operations": dict(top_op),
-            "requesters": [{"requester": r, "count": c, "pct": round(c/count*100, 1)} for r, c in top_req],
-            "error_samples": error_samples[:5],
-            "bytes_total": bytes_total,
-            "parsed_lines": count,
-            "skipped_lines": skipped,
-        },
+        "details": details,
         "findings": findings,
     }
 
@@ -348,8 +412,12 @@ def main():
     parser.add_argument("--provider", "-p", choices=["s3", "bos", "oss", "cos", "auto"],
                         default="auto", help="Log format provider (default: auto-detect)")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON")
+    parser.add_argument("--by-prefix", type=int, default=None, metavar="DEPTH",
+                        help="Also break requests/errors/throttles down by key prefix at DEPTH "
+                             "path segments (e.g. --by-prefix 2 groups by the first two '/' levels)")
 
     args = parser.parse_args()
+    prefix_depth = args.by_prefix
 
     # Read input
     if args.file:
@@ -387,14 +455,14 @@ def main():
 
     # Parse
     if provider == "s3":
-        result = parse_s3_log(lines)
+        result = parse_s3_log(lines, prefix_depth)
     elif provider in ("bos", "cos"):
-        result = parse_csv_log(lines, provider)
+        result = parse_csv_log(lines, provider, prefix_depth)
     elif provider == "oss":
         if lines[0].strip().startswith("{"):
-            result = parse_json_log(lines)
+            result = parse_json_log(lines, prefix_depth)
         else:
-            result = parse_tab_log(lines)
+            result = parse_tab_log(lines, prefix_depth)
     else:
         result = {"ok": False, "error": f"Unknown provider: {provider}"}
 

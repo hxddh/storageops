@@ -1,0 +1,10 @@
+$ aws s3 cp s3://shared-data/report.csv . --profile account-a
+fatal error: An error occurred (AccessDenied) when calling the GetObject
+operation: User: arn:aws:iam::111111111111:user/alice is not authorized to
+perform: s3:GetObject on resource: "arn:aws:s3:::shared-data/report.csv"
+because no resource-based policy allows the s3:GetObject action
+
+Caller account (A): 111111111111
+Bucket owner account (B): 222222222222
+Action: s3:GetObject
+Resource: arn:aws:s3:::shared-data/report.csv

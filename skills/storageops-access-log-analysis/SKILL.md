@@ -108,7 +108,7 @@ Suggest: **"If one requester generates 80%+ of bytes sent, consider CloudFront C
 If latency is the main concern, route to performance-diagnosis.
 
 ### Step 8: Feedback Loop
-If the log analysis identifies a pattern but the root cause is unclear: **"Can you correlate this time window with recent deployments, configuration changes, or traffic spikes?"** Run the provided log through the parser to extract structured data: `python3 scripts/parse_access_log.py --file <log> --provider <s3|bos|oss|cos|auto> --pretty`, then reason over its JSON instead of eyeballing the raw lines. If confidence < medium: **"Can you share a larger log sample (covering a longer time window, e.g., 24-48 hours) to establish a baseline?"**
+If the log analysis identifies a pattern but the root cause is unclear: **"Can you correlate this time window with recent deployments, configuration changes, or traffic spikes?"** Run the provided log through the parser to extract structured data: `python3 scripts/parse_access_log.py --file <log> --provider <s3|bos|oss|cos|auto> --pretty`, then reason over its JSON instead of eyeballing the raw lines. When 503/SlowDown or 4xx errors cluster, add `--by-prefix <depth>` to localize the hot or error-heavy key prefix (e.g. `--by-prefix 2` groups by the first two `/` levels) — this surfaces the hot-prefix signature that the flat requester/operation view hides. If confidence < medium: **"Can you share a larger log sample (covering a longer time window, e.g., 24-48 hours) to establish a baseline?"**
 
 ## User Interaction
 

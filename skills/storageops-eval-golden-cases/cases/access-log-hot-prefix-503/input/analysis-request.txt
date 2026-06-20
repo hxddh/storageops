@@ -1,0 +1,5 @@
+I have S3 server access logs for the last hour and need to find why 503 SlowDown
+spiked. Please analyze the access log: summarize the top requester and operation
+mix, then break the requests down by key prefix — I suspect a hot prefix is taking
+all the throttling. Which prefix concentrates the 503s, and is the rest of the
+bucket (the catalog/ reads) healthy?
