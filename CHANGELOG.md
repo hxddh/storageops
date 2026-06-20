@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-06-20 — v0.6.2: Deepen the progressive-disclosure layer (8 stub references → actionable depth)
+
+A docs-only, on-philosophy capability release: under Agent Skills' progressive
+disclosure, a skill's depth lives in the references loaded on demand. Eight
+reference files were shallow checklists (~300–360 bytes); when the model loaded
+one for a hard case it under-delivered. Each is now expanded to verified,
+actionable depth — mechanism, ordered checks, concrete commands, and honest
+verification status — and cross-linked to the deterministic helpers shipped in
+v0.6.0–v0.6.1 so they are discovered at the point of use. No new scripts, routing,
+or gates; SKILL.md files are unchanged (they already reference these files).
+
+- **event-notification** (target-side delivery, the silent-drop class):
+  `notification-configuration.md` (event-type/prefix/suffix AND-match, multipart
+  completion event, literal case-sensitive filters), `lambda-integration.md`
+  (resource policy + async retry/DLQ + concurrency, delivered-vs-never-delivered),
+  `sqs-integration.md` (queue policy + SSE-KMS key policy + FIFO-not-supported),
+  `sns-integration.md` (two delivery legs: S3→SNS publish and SNS→subscriber). All
+  cross-link `notification_target_policy_validator.py`.
+- **data-consistency**: `multipart-consistency.md` (incomplete upload ≠ object,
+  5 MiB min part, ETag is not the object MD5), `cdn-invalidation.md` (origin-fresh
+  vs edge-stale, Cache-Control/TTL precedence, versioned-URL durable fix). Cross-link
+  `multipart_etag_calculator.py`.
+- **migration-sync**: `integrity-verification.md` (completeness vs integrity,
+  single-part vs multipart ETag, explicit checksums, encryption boundary),
+  `bandwidth-estimation.md` (effective-throughput formula, small-object latency
+  bound, concurrency as the lever — strictly bytes/time, no pricing). Cross-link
+  `multipart_etag_calculator.py` and `throttle_tuning_recommender.py`.
+
+Validation: all gates green (skill_integrity, version_reference, routing_contract,
+no_hardcoded_pricing, reference_scope, repo_size); 206 pytest + 21 extension tests
+pass; 28/28 baselines 100% PASS. Version 0.6.1 → 0.6.2.
+
 ## 2026-06-20 — v0.6.1: Deterministic analyzers for cross-account, ETag re-chunk, and prefix drill-down
 
 A focused Track-B follow-up to v0.6.0, same philosophy (concise SKILL.md, detail
