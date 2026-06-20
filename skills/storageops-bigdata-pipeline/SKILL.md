@@ -36,6 +36,8 @@ recommended_tools:
 
 The most common S3 big-data failures are committer race conditions (V1 default), small-file amplification, and connection pool exhaustion. Always identify the committer type first — it determines the entire diagnosis path.
 
+> **Scope boundary:** this skill owns Spark/Hive/Flink committer, partition-discovery, and table-format issues. `storageops-cli-sdk-diagnosis` owns SDK/Hadoop-version-specific bugs; `storageops-performance-diagnosis` owns general throughput tuning (multipart, concurrency, throttling). Route version-pinned defects and raw throughput complaints to those skills.
+
 ## Decision Tree
 
 ```
@@ -109,9 +111,11 @@ If the diagnosis points to a committer issue:
 
 ```markdown
 # Diagnosis: [one-line]
+**Route**: storageops-bigdata-pipeline
 **Committer**: [type]
-**Root cause**: committer-race | partition-discovery | small-files | connection-pool | table-format | s3guard
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[committer-race|partition-discovery|small-files|connection-pool|table-format|s3guard], affected_layer=[committer|metadata|filesystem-client|table-format]
 
 ## Evidence
 - Engine: [Spark 3.x / Hive 3.x]
@@ -124,6 +128,12 @@ If the diagnosis points to a committer issue:
 ## Recommendations
 1. **[config change]** — `fs.s3a.committer.name=magic` (manual-only, test in staging)
 2. ...
+
+## What Would Falsify This
+- [evidence that would make the diagnosis unlikely]
+
+## Risks / Open Questions
+- [missing config, production risk, provider-specific caveat]
 ```
 
 ## Examples
@@ -142,6 +152,16 @@ If the diagnosis points to a committer issue:
 **Input**: Iceberg table on BOS, writes succeed but reads return stale data after compaction.
 **Diagnosis**: BOS Iceberg catalog may not support atomic rename required by Iceberg commit protocol  
 **Recommendation**: Use Hive catalog with BOS, test snapshot isolation under concurrent writes.
+
+## What Would Falsify This
+- `analyze_committer.py` (or the config) shows an S3A committer (magic/staging) already active, ruling out a FileOutputCommitter V1 `_temporary` rename race.
+- The failure reproduces on a single task with no speculative execution and no concurrent writers, making a committer/task-collision race unlikely versus a genuine missing input path.
+- Output file count is small and partition count is modest, so a small-file/LIST-amplification hypothesis cannot explain the slow query.
+
+## Risks / Open Questions
+- Without `spark-defaults.conf`/`*-site.xml` and the driver log, the committer and connection-pool settings are inferred, not confirmed — confidence should stay medium.
+- A committer change requires a cluster restart and only affects new jobs; validate on a data subset before full rollout to avoid corrupting production output.
+- On BOS/OSS/COS the S3A magic committer and atomic-rename guarantees differ from AWS — confirm provider committer support via `references/provider-compatibility.md` before recommending it.
 
 ## References
 - `references/committer-guide.md` — S3A committer configuration matrix | **Read when:** user reports FileNotFoundException, FileAlreadyExistsException, or mentions committer name

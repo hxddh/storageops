@@ -30,6 +30,8 @@ recommended_tools:
 
 Choose the right migration strategy based on data volume, network bandwidth, and provider compatibility. The three strategies trade speed vs cost vs complexity.
 
+> **Scope boundary:** this skill owns cross-provider migration planning, sync integrity/checksum verification, and transfer-strategy selection. `storageops-cli-sdk-diagnosis` owns single-tool bugs (an rclone/s5cmd flag or version defect). `storageops-data-consistency` owns ETag semantics and format (what an ETag means and how it is computed); route a multipart ETag-format mismatch surfaced *during migration* here, but the underlying ETag definition there.
+
 ## Decision Tree
 
 ```
@@ -104,7 +106,11 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 
 ```markdown
 # Migration Plan: [one-line]
+**Route**: storageops-migration-sync
 **Strategy**: server-side-copy | direct-transfer | offline-transfer
+**Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[strategy-mismatch | etag-incompatibility | metadata-loss | throughput-shortfall | destructive-sync], affected_layer=[source | destination | transfer-tool | provider-protocol]
 **Estimated time**: [hours/days]
 **Estimated cost**: [amount]
 
@@ -124,6 +130,16 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 2. Checksum: sample N random objects
 3. ...
 ```
+
+## What Would Falsify This
+- Checksums match byte-for-byte on every sampled object after a multipart transfer — rules out an ETag-format incompatibility as the cause of reported "corruption."
+- Object count and total size are identical on source and destination — rules out a partial/stalled migration and points at metadata or ACL gaps instead.
+- The same rclone/s5cmd command succeeds on a single-provider (same-vendor) copy — isolates the failure to a cross-provider protocol difference, not the transfer tool itself.
+
+## Risks / Open Questions
+- Egress and request pricing are provider- and region-specific and change over time; a cost estimate is unreliable until current BOS/OSS/COS and source-side rates are confirmed.
+- A `sync` (vs `copy`) can delete objects on the destination that are absent at the source — confirm the destination is empty or intended-to-mirror before running a non-dry-run sync.
+- Custom `x-amz-meta-*` header length/encoding limits differ across BOS/OSS/COS; metadata that survives a 1000-object dry-run may still be silently truncated at scale.
 
 ## Examples
 
@@ -146,8 +162,8 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 **Recommendation**: Rclone with `--checksum --transfers 16`. Monitor for ETag mismatch on multipart objects.
 
 ## References
-- `scripts/sync_log_analyzer.py` — Offline rclone/s5cmd/obsutil log analyzer (error classification, counts, destructive-sync flag) | **Read when:** a sync/copy failed or corrupted and you have the transfer log
-- `scripts/migration_cost_estimator.py` — Offline time/cost estimator for a planned migration | **Read when:** validating a migration's time/cost against object count and size
+- `scripts/sync_log_analyzer.py` — Offline rclone/s5cmd/obsutil log analyzer (error classification, counts, destructive-sync flag); run `python3 scripts/sync_log_analyzer.py --log <log> --json` (or `--stdin`) | **Run when:** a sync/copy failed or corrupted and you have the transfer log
+- `scripts/migration_cost_estimator.py` — Offline time/cost estimator for a planned migration | **Run when:** validating a migration's time/cost against object count and size
 - `references/migration-strategies.md` — Detailed comparison of all 3 strategies | **Read when:** user is uncertain about which migration approach to take (server-side vs direct vs offline)
 - `references/rclone-migration-guide.md` — Rclone flags for cross-provider migration | **Read when:** user has selected rclone as the transfer tool and needs flag guidance
 - `references/cross-provider-compatibility.md` — ETag, metadata, ACL compatibility matrix | **Read when:** user reports checksum mismatches, metadata loss, or ACL/permission issues after migration

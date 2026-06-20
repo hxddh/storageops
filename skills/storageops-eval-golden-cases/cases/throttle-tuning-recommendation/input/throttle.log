@@ -1,0 +1,11 @@
+# s5cmd sync run: concurrency=32, ~800 req/s offered
+# Tail of the run log (16 of ~320 sampled requests throttled => ~5%)
+2026-06-20 14:02:01 INFO  s5cmd sync s3://data-bucket/exports/ started workers=32
+2026-06-20 14:02:03 ERROR cp s3://data-bucket/exports/p001.parquet: 429 SlowDown: Please reduce your request rate.
+2026-06-20 14:02:03 ERROR cp s3://data-bucket/exports/p002.parquet: 429 SlowDown: Please reduce your request rate.
+2026-06-20 14:02:04 INFO  cp s3://data-bucket/exports/p003.parquet 200 OK
+2026-06-20 14:02:04 ERROR cp s3://data-bucket/exports/p004.parquet: 429 SlowDown: Please reduce your request rate.
+2026-06-20 14:02:05 ERROR cp s3://data-bucket/exports/p005.parquet: 429 SlowDown: Please reduce your request rate.
+2026-06-20 14:02:06 INFO  cp s3://data-bucket/exports/p006.parquet 200 OK
+2026-06-20 14:02:07 ERROR cp s3://data-bucket/exports/p007.parquet: 429 SlowDown: Please reduce your request rate.
+2026-06-20 14:02:09 INFO  Totals: requests=320 throttled=16 (5.0%) success=304 concurrency=32

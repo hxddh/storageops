@@ -33,6 +33,8 @@ recommended_tools:
 
 Diagnose failures at the S3 wire protocol level. Most issues reduce to: signature mismatch, header encoding, XML body format, or missing API implementation.
 
+> **Scope boundary:** this skill owns the wire protocol — signature (SigV4/SigV2), canonical request and StringToSign, required headers, chunked encoding, XML body schema, CORS, and provider protocol quirks. `storageops-network-endpoint-access` owns DNS/TCP/TLS reachability (connection refused, cert errors, name resolution). `storageops-security-iam-policy` owns identity and permission failures (403/AccessDenied) — a *valid* signature that is *denied* is an IAM problem, not a protocol one.
+
 ## Decision Tree
 
 ```
@@ -58,7 +60,7 @@ Protocol error →
 ## Workflow
 
 ### Step 1: Extract Signature Information
-From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/sigv4.md`. For saved XML/debug artifacts, run `scripts/parse_sigv4_error.py` to extract canonical request fields and credential scope. For a `BadDigest`/`x-amz-content-sha256` mismatch on a PUT/copy, run `python3 scripts/check_payload_hash.py --raw-file <object> --declared-sha256 <value> [--content-encoding gzip]` to confirm deterministically whether the payload hash was computed over the wrong (pre-encoding) bytes.
+From debug output: signature version (v2/v4), `StringToSign`, `CanonicalRequest`, and `Authorization` header format. See `references/sigv4.md`. For saved XML/debug artifacts, run `python3 scripts/parse_sigv4_error.py <error-xml-or-debug-log> --json` to extract canonical request fields and credential scope. For a `BadDigest`/`x-amz-content-sha256` mismatch on a PUT/copy, run `python3 scripts/check_payload_hash.py --raw-file <object> --declared-sha256 <value> [--content-encoding gzip]` to confirm deterministically whether the payload hash was computed over the wrong (pre-encoding) bytes.
 
 If the user can run a minimal read-only command and header/status evidence would
 change the diagnosis, use `capture_http_trace` with a required `filter_host`.
@@ -103,8 +105,11 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 
 ```markdown
 # Diagnosis: [one-line]
+**Route**: storageops-s3-protocol-compatibility
 **Root cause**: sigv2-vs-v4 | clock-skew | header-reordering | missing-api | xml-format | chunked-encoding | provider-quirk
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[signature-mismatch | clock-skew | header-reordering | missing-api | xml-format | chunked-encoding | payload-hash | provider-quirk], affected_layer=[client-sdk | proxy | request-encoding | provider-protocol]
 
 ## Evidence
 - Error: [code + message]
@@ -119,6 +124,16 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 1. **[fix]** (manual-only) — [config change or SDK upgrade]
 2. **[workaround]** — [alternative API or SDK]
 ```
+
+## What Would Falsify This
+- The recomputed CanonicalRequest/StringToSign matches the client's debug dump byte-for-byte yet the request still fails — points away from header reordering toward a credential, region-scope, or clock-skew cause.
+- `ListBuckets` (a minimal signed call) succeeds against the same endpoint and credentials — isolates the failure to one operation/parameter rather than a systemic SigV2-vs-V4 mismatch.
+- The same request succeeds against AWS S3 but fails against the provider — confirms a provider-specific quirk rather than a client-side signing bug.
+
+## Risks / Open Questions
+- Signature debug traces carry the `Authorization` header and credential scope; ensure secrets are redacted before sharing, and never re-send a write request to "trace" it (that performs a real mutation).
+- Provider quirks evolve: BOS/OSS/COS support for SigV2, virtual-hosted style, and aws-chunked encoding changes across endpoint versions — confirm against current provider docs rather than assuming a fixed quirk.
+- Clock skew (>15 min) and proxy/load-balancer header rewriting are environmental and may not be visible in the client debug output alone; host time and intermediary config may need separate confirmation.
 
 ## Examples
 
@@ -139,13 +154,12 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 
 ## References
 - `references/sigv4.md` — SigV2 vs SigV4 deep dive, StringToSign format | **Read when:** user reports SignatureDoesNotMatch or signature-related errors
-- `scripts/parse_sigv4_error.py` — Offline parser for SignatureDoesNotMatch XML/debug traces | **Read when:** user provides saved SigV4 error XML or client debug logs
-- `scripts/check_payload_hash.py` — Optional offline falsifier for BadDigest/x-amz-content-sha256 mismatch | **Read when:** a PUT/copy returns BadDigest and you can sample the uploaded bytes
+- `scripts/parse_sigv4_error.py` — Offline parser for SignatureDoesNotMatch XML/debug traces; run `python3 scripts/parse_sigv4_error.py <error-xml-or-debug-log> --json` | **Run when:** user provides saved SigV4 error XML or client debug logs
+- `scripts/check_payload_hash.py` — Optional offline falsifier for BadDigest/x-amz-content-sha256 mismatch; run `python3 scripts/check_payload_hash.py --raw-file <object> --declared-sha256 <value> [--content-encoding gzip]` | **Run when:** a PUT/copy returns BadDigest and you can sample the uploaded bytes
 - `references/aws-s3-baseline.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
 - `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** the provider is non-AWS (BOS/OSS/COS/GCS) — whether the user named it or `detect_domain` reported it from the endpoint/headers
 - `references/checksum-etag.md` — Checksum/ETag semantics, BadDigest payload-hash class, and write-side request evidence | **Read when:** user reports checksum/MD5 mismatch, ETag surprises, BadDigest, or a failing PUT/copy
 - `references/multipart-upload.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
 - `references/cors.md` — S3 CORS behavior and browser preflight failures | **Read when:** user reports browser CORS, preflight, or missing Access-Control headers
-- `references/list-objects.md` — Request/response XML schemas and provider differences | **Read when:** user reports MalformedXML or XML parsing errors
+- `references/list-objects.md` — Request/response XML schemas, provider differences, and Unicode/encoding in keys and headers | **Read when:** user reports MalformedXML, XML parsing errors, or encoding issues with special characters in object keys
 - `references/provider-quirks/` — Provider-specific protocol differences | **Read when:** endpoint behavior differs from AWS S3
-- `references/list-objects.md` — Unicode/encoding in keys and headers | **Read when:** user reports encoding issues with special characters in object keys

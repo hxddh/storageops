@@ -30,6 +30,8 @@ recommended_tools:
 
 Diagnose why storage costs are higher than expected, and recommend lifecycle strategies. Most cost surprises come from: minimum storage duration penalties, small-file overhead (each file = 1 billable object), and retrieval fees on archived data. Treat class thresholds, minimum durations, and prices as provider-specific assumptions until confirmed.
 
+> **Scope boundary:** this skill owns lifecycle/storage-class structural cost (transitions, minimum durations, minimum billable size, multipart waste). The small-file *throughput* penalty (slow PUT/GET, 429/SlowDown) belongs to `storageops-performance-diagnosis`. Request-level cost attribution derived from access logs (per-prefix LIST/GET counts) belongs to `storageops-access-log-analysis`. Route here when the concern is billed storage, tiering, or lifecycle rules — not transfer speed or log-derived request volume.
+
 ## Decision Tree
 
 ```
@@ -63,6 +65,8 @@ Breakdown: storage cost (GB-month per class), request cost (PUT/GET/LIST), retri
 - **Versioning**: Each version = full object cost. Noncurrent versions in IA still billable.
 - **Incomplete multipart**: Orphaned parts billed at STANDARD rate until deleted.
 
+When a lifecycle configuration is available, run the simulator to surface these structurally (no money): `python3 scripts/lifecycle_rule_simulator.py --file <lifecycle.json> --object-age-days <d> --avg-object-size <s>`. It reports applicable transitions/expirations, `min_duration_risks` (wasted DAYS), `size_penalty` (amplification MULTIPLIER vs minimum billable BYTES), missing `AbortIncompleteMultipartUpload`, and rule conflicts.
+
 ### Step 4: Recommend Lifecycle Strategy
 - **Hot data**: STANDARD
 - **Warm data**: IA or Intelligent Tiering, after confirming access pattern and minimum duration
@@ -92,8 +96,10 @@ Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantif
 
 ```markdown
 # Cost Analysis: [one-line]
-**Monthly cost**: [current] → [projected] (save [amount]/month, [%])
+**Route**: storageops-lifecycle-cost
 **Confidence**: high | medium | low (depends on inventory completeness)
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[type], affected_layer=[lifecycle|storage_class|request|multipart]
 
 ## Current State
 - Objects: [count], Total: [size]
@@ -128,16 +134,22 @@ Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantif
 **Diagnosis**: 300GB of incomplete multipart upload parts, billed at STANDARD rate indefinitely.
 **Recommendation**: Add lifecycle rule: `AbortIncompleteMultipartUpload` after 7 days. Immediate savings: 300GB/month.
 
+## What Would Falsify This
+- The simulator reports `size_penalty` null or a multiplier under ~10% — small files are not the cost driver; look at total volume, versioning, or retrieval instead.
+- Billed storage equals the sum of actual object sizes with no minimum-duration `wasted_days` — there is no lifecycle structural penalty; the cost is simply real data growth.
+- Objects transitioned long ago and never deleted/re-transitioned before the minimum duration — premature-transition penalty does not apply.
+
+## Risks / Open Questions
+- Provider-specific minimum durations and minimum billable sizes differ from the dated AWS defaults encoded here (e.g. OSS/BOS/COS); confirm before quoting `wasted_days` or multipliers.
+- IA/archive retrieval charges can exceed the storage savings from transitioning — confirm access frequency before recommending a tier change.
+- Intelligent-Tiering monitoring/automation overhead may outweigh savings for small or predictable workloads.
+
 ## References
-- `references/pricing-assumptions.md` — Dated assumptions for minimum durations, billable sizes, and price quoting
-  **Read when:** user asks for concrete savings, prices, or lifecycle timing recommendations
-- `references/storage-class.md` — Per-class pricing (STANDARD, IA, ARCHIVE, DEEP_ARCHIVE)
-  **Read when:** user needs to compare storage class costs for a specific provider, or asks "what does IA cost vs STANDARD?"
-- `references/lifecycle.md` — Lifecycle rule schema, transition constraints
-  **Read when:** user provides a lifecycle XML configuration to parse, or asks "what lifecycle options do I have?"
-- `references/inventory-cost-analysis.md` — How to get object inventory for cost analysis
-  **Read when:** user doesn't have an inventory report but needs cost analysis — this explains how to generate one
-- `references/request-cost.md` — PUT/GET/LIST/HEAD per-request pricing
-  **Read when:** user's cost concern is about API request charges (e.g., high-frequency LIST operations) rather than storage
-- `references/request-cost.md` — Per-provider pricing differences (BOS/OSS/COS/AWS)
-  **Read when:** user mentions a specific cloud provider other than AWS, or asks about multi-cloud cost comparison
+- `references/pricing-assumptions.md` — Dated assumptions for minimum durations, billable sizes, and price quoting | **Read when:** user asks for concrete savings, prices, or lifecycle timing recommendations
+- `references/storage-class.md` — Per-class cost model (STANDARD, IA, ARCHIVE, DEEP_ARCHIVE) and provider equivalents | **Read when:** user needs to compare storage class costs for a specific provider, or asks "what does IA cost vs STANDARD?"
+- `references/lifecycle.md` — Lifecycle rule schema, transition constraints | **Read when:** user provides a lifecycle XML configuration to parse, or asks "what lifecycle options do I have?"
+- `references/inventory-cost-analysis.md` — How to get object inventory for cost analysis | **Read when:** user doesn't have an inventory report but needs cost analysis — this explains how to generate one
+- `references/request-cost.md` — Per-request (PUT/GET/LIST/HEAD) cost model and per-provider differences (BOS/OSS/COS/AWS) | **Read when:** user's cost concern is API request charges (e.g., high-frequency LIST) or multi-cloud request-cost comparison
+- `references/intelligent-tiering.md` — Intelligent-Tiering monitoring overhead and break-even reasoning | **Read when:** user weighs Intelligent-Tiering against a static class for an unpredictable access pattern
+- `scripts/small_object_analyzer.py` — Deterministic per-object minimum-billable-size penalty from a CSV inventory | **Run when:** an inventory CSV is available and you need to quantify small-object amplification
+- `scripts/lifecycle_rule_simulator.py` — Deterministic lifecycle simulator for minimum-duration, size, multipart, and rule-conflict risks | **Run when:** a lifecycle configuration is available and you need structural cost risks before recommending changes

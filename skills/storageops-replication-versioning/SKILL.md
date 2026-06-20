@@ -31,6 +31,8 @@ recommended_tools:
 
 Replication issues fall into three categories: configuration (rules not matching), operation (replication failing), and versioning (unexpected object state).
 
+> **Scope boundary:** this skill owns replication rules, versioning state, delete-marker propagation, and object-lock compliance. `storageops-data-consistency` owns read-after-write visibility (a freshly written object not yet visible is consistency, not replication). `storageops-lifecycle-cost` owns the storage cost of noncurrent versions and lifecycle expiration — route "versions are expensive / how do I expire old versions" there.
+
 ## Decision Tree
 
 ```
@@ -97,8 +99,11 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 
 ```markdown
 # Diagnosis: [one-line]
+**Route**: storageops-replication-versioning
 **Subsystem**: replication-rule | replication-lag | delete-marker | versioning | object-lock
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[rule-misconfig | dest-versioning-disabled | delete-marker-not-replicated | replication-lag | versioning-state | object-lock-retention], affected_layer=[source-bucket | dest-bucket | iam-role | replication-pipeline]
 
 ## Evidence
 - Source bucket: [versioning state, replication rules]
@@ -112,6 +117,16 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 1. **[config fix]** (manual-only) — [expected effect]
 2. **[retroactive fix]** — [S3 Batch Replication for existing objects]
 ```
+
+## What Would Falsify This
+- `get-bucket-versioning` returns `Enabled` on BOTH source and destination — rules out the most common "objects not replicating" cause and shifts focus to rule filters or IAM.
+- Objects created *after* the rule was added replicate fine while only older objects are missing — confirms the non-retroactive behavior rather than a broken rule.
+- A `head-object` on the source shows `ReplicationStatus: COMPLETED` for the missing keys — points at a destination-side deletion or a list/comparison error, not a replication failure.
+
+## Risks / Open Questions
+- Enabling versioning is irreversible and creates a billable object per version; confirm the cost and lifecycle plan before recommending it.
+- Non-AWS providers (BOS/OSS/COS) implement cross-region replication, delete-marker replication, and object-lock semantics differently from AWS — RTC-style SLAs and `BypassGovernanceRetention` equivalents may not exist; verify against provider docs before quoting behavior.
+- Replication metrics (`OperationsPendingReplication`, `ReplicationLatency`) may be unavailable on non-AWS consoles, leaving lag diagnosis dependent on manual source/destination listing comparison.
 
 ## Examples
 
@@ -131,8 +146,7 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 **Recommendation**: Wait for retention expiry. If urgent, contact provider support (AWS can't override COMPLIANCE either). For future: use GOVERNANCE mode with s3:BypassGovernanceRetention permission.
 
 ## References
-- `scripts/replication_status_analyzer.py` — Offline deterministic classifier for replication/versioning evidence (root cause + recommendation as JSON) | **Run when:** the user provides `get-bucket-replication`/`get-bucket-versioning`/`head-object` output or a replication log
-- `references/replication.md` — Replication rule schema and permissions | **Read when:** user reports objects not replicating or replication rule questions
+- `scripts/replication_status_analyzer.py` — Offline deterministic classifier for replication/versioning evidence (root cause + recommendation as JSON); run `python3 scripts/replication_status_analyzer.py --file <evidence>` (or `--stdin`) | **Run when:** the user provides `get-bucket-replication`/`get-bucket-versioning`/`head-object` output or a replication log
+- `references/replication.md` — Replication rule schema and permissions, plus non-AWS (BOS/OSS/COS) cross-region replication differences | **Read when:** user reports objects not replicating, has replication rule/permission questions, OR the provider is non-AWS (BOS/OSS/COS — named or reported by `detect_domain`) and replication is involved
 - `references/versioning.md` — Versioning state machine and cost implications | **Read when:** user asks about versioning state changes, cost of versions, or delete marker behavior
 - `references/object-lock.md` — Retention modes, legal hold, compliance | **Read when:** user mentions object lock, legal hold, retention, or cannot delete objects
-- `references/replication.md` — Non-AWS replication (BOS/OSS/COS cross-region) | **Read when:** the provider is non-AWS (BOS/OSS/COS) — named or reported by `detect_domain` — and replication is involved

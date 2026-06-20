@@ -1,0 +1,10 @@
+The ingest Lambda is never invoked when objects land in the bucket.
+Bucket notification: s3:ObjectCreated:* -> Lambda function "ingest", no
+prefix/suffix filter. Uploads (PutObject) succeed and the objects appear in the
+bucket, but the Lambda's CloudWatch Logs show zero invocations and there is no
+error returned to the uploader.
+
+Source bucket ARN: arn:aws:s3:::ingest-source
+Lambda function ARN: arn:aws:lambda:us-east-1:111122223333:function:ingest
+
+Attached: lambda-get-policy.json (output of `aws lambda get-policy`).
