@@ -1,7 +1,7 @@
 {
   "case_type": "diagnosis",
-  "expected_category": "s3_protocol_compatibility",
-  "expected_root_cause_types": ["multipart_etag_rechunk", "multipart_part_size_mismatch"],
+  "expected_category": "consistency_integrity",
+  "expected_root_cause_types": ["multipart_etag_rechunk", "etag_format_not_corruption"],
   "expected_min_confidence": 0.8,
   "must_include_evidence_keywords": ["multipart", "part size", "ETag"],
   "should_include_evidence_keywords": ["64 MiB", "16 MiB", "identical"],

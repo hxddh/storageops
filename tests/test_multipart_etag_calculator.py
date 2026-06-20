@@ -7,7 +7,7 @@ from pathlib import Path
 
 def load():
     root = Path(__file__).resolve().parents[1]
-    p = root / "skills" / "storageops-s3-protocol-compatibility" / "scripts" / "multipart_etag_calculator.py"
+    p = root / "skills" / "storageops-data-consistency" / "scripts" / "multipart_etag_calculator.py"
     spec = importlib.util.spec_from_file_location("multipart_etag_calculator", p)
     assert spec and spec.loader
     m = importlib.util.module_from_spec(spec)

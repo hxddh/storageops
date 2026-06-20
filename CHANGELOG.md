@@ -12,11 +12,12 @@ golden case + baseline.
   SSE-KMS, the key policy) with explicit-Deny precedence, and reports which link
   breaks — catching the common "fixed one side, still blocked" trap. Conservative:
   it surfaces Conditions/SCPs/boundaries as open questions rather than assuming them.
-- **s3-protocol-compatibility → `multipart_etag_calculator.py`**: computes/verifies
-  an S3-style multipart ETag from part MD5s, and reverse-engineers the part-size
-  band from `--total-size` + observed `<hex>-N`. Pinpoints the #1 "ETag changed but
-  the bytes are identical" cause — re-chunking with a different part size. Honors the
-  canonical matrix: refuses to claim an OSS/COS computation it cannot verify.
+- **data-consistency → `multipart_etag_calculator.py`**: computes/verifies an
+  S3-style multipart ETag from part MD5s, and reverse-engineers the part-size band
+  from `--total-size` + observed `<hex>-N`. Pinpoints the #1 "ETag changed but the
+  bytes are identical" cause — re-chunking with a different part size — separating it
+  from real corruption. Honors the canonical matrix: refuses to claim an OSS/COS
+  computation it cannot verify.
 - **access-log-analysis → `parse_access_log.py --by-prefix DEPTH`**: aggregates
   requests/errors/throttles by key prefix at a chosen depth, surfacing the
   hot-prefix signature (503/SlowDown concentrated on one prefix) that the flat

@@ -1,11 +1,11 @@
 # Summary
 
-Category: s3_protocol_compatibility
-Route: storageops-s3-protocol-compatibility
+Category: consistency_integrity
+Route: storageops-data-consistency
 Confidence: 0.88
 Root Cause Type: multipart_etag_rechunk
 Evidence Quality: sufficient
-Primary Diagnosis: root_cause_type=multipart_etag_rechunk, affected_layer=protocol
+Primary Diagnosis: root_cause_type=multipart_etag_rechunk, affected_layer=object-store
 
 The two multipart ETags differ because the object was re-chunked, not because the
 data changed. A multipart ETag is the MD5 of the concatenated part MD5s followed
