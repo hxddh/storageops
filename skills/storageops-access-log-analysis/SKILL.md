@@ -34,6 +34,8 @@ recommended_tools:
 
 Analyze object storage server access logs to identify error patterns, traffic profiles, anomaly spikes, and cost attribution. All major cloud providers deliver access logs in structured formats (CSV, JSON, or space-delimited).
 
+> **Scope boundary:** this skill owns log parsing and traffic/anomaly analysis. `storageops-security-iam-policy` owns 403/401 permission root-cause (policy/ACL evaluation); `storageops-lifecycle-cost` owns request- and storage-cost attribution. Surface the access-pattern evidence here, then route permission or cost decisions to those skills.
+
 ## Decision Tree
 
 ```
@@ -106,7 +108,7 @@ Suggest: **"If one requester generates 80%+ of bytes sent, consider CloudFront C
 If latency is the main concern, route to performance-diagnosis.
 
 ### Step 8: Feedback Loop
-If the log analysis identifies a pattern but the root cause is unclear: **"Can you correlate this time window with recent deployments, configuration changes, or traffic spikes?"** Run the provided log through `scripts/parse_access_log.py` to extract structured data. If confidence < medium: **"Can you share a larger log sample (covering a longer time window, e.g., 24-48 hours) to establish a baseline?"**
+If the log analysis identifies a pattern but the root cause is unclear: **"Can you correlate this time window with recent deployments, configuration changes, or traffic spikes?"** Run the provided log through the parser to extract structured data: `python3 scripts/parse_access_log.py --file <log> --provider <s3|bos|oss|cos|auto> --pretty`, then reason over its JSON instead of eyeballing the raw lines. If confidence < medium: **"Can you share a larger log sample (covering a longer time window, e.g., 24-48 hours) to establish a baseline?"**
 
 ## User Interaction
 
@@ -125,9 +127,12 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 
 ```markdown
 # Access Log Analysis: [one-line summary]
+**Route**: storageops-access-log-analysis
 **Provider**: AWS S3 | BOS | OSS | COS
 **Time Range**: YYYY-MM-DD HH:MM — YYYY-MM-DD HH:MM UTC
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[error-spike|access-pattern|anomaly|cost-attribution], affected_layer=[requester|credential|operation-mix|traffic-volume]
 
 ## Key Metrics
 - Total requests: [N]
@@ -141,6 +146,12 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 ## Recommendations
 1. **[category]** (manual-only) — [specific action]
 2. **[category]** — [diagnostic or validation command]
+
+## What Would Falsify This
+- [evidence that would make the diagnosis unlikely]
+
+## Risks / Open Questions
+- [missing data, log delivery gaps, provider-specific caveats]
 ```
 
 ## Examples
@@ -161,6 +172,16 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 **Log Analysis**: 15,000 DELETE requests between 03:00-03:15 UTC from `arn:aws:iam::123456789012:role/cleanup-lambda`. User-Agent: `boto3/1.34.0`.
 **Diagnosis**: A Lambda function with an overly broad lifecycle cleanup rule deleted active objects. The cleanup policy was configured to delete objects older than 1 day instead of 30 days.
 **Recommendation**: Immediately suspend the cleanup Lambda. Restore deleted objects from version history (if versioning was enabled) or backup. Fix the cleanup rule to 30 days and add a `dry-run` mode before deployment.
+
+## What Would Falsify This
+- The error spike predates any IAM/bucket-policy/credential change in the same window, pointing to client behavior rather than a config root cause.
+- Top requester and operation mix are flat versus the 7-day baseline, so a "new requester" or "DELETE storm" anomaly hypothesis does not hold.
+- 5xx (503/500) rates correlate with the spike while 4xx stays flat — the issue is provider-side/throttling, not access or permission.
+
+## Risks / Open Questions
+- Access logs are best-effort and delayed 1-24h (S3) or buffered (BOS/COS CSV, OSS Log Service), so a short window may undercount and miss the triggering event.
+- Logs lack the policy/ACL context to prove a 403 root cause — confirm via CloudTrail (AWS) or the equivalent audit trail before attributing to permissions.
+- Field semantics differ across BOS/OSS/COS (turnaround vs total time, requester ID shape); a cross-provider comparison needs `references/provider-log-formats.md` to avoid mismatched columns.
 
 ## References
 - `references/s3-access-log-format.md` — AWS S3 Server Access Log schema, 20+ fields explained | **Read when:** user provides S3 access logs or asks about S3-specific log fields

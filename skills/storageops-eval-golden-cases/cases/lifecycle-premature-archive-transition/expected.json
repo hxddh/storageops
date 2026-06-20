@@ -1,0 +1,31 @@
+{
+  "expected_category": "lifecycle_cost",
+  "expected_subcategory": "minimum_duration_penalty",
+  "expected_min_confidence": 0.80,
+  "must_include_evidence_keywords": [
+    "GLACIER",
+    "minimum",
+    "90",
+    "transition"
+  ],
+  "should_include_evidence_keywords": [
+    "wasted",
+    "duration",
+    "expire"
+  ],
+  "must_include_recommendation_keywords": [
+    "minimum",
+    "duration",
+    "transition"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make public",
+    "print access key",
+    "billing bug"
+  ],
+  "expected_root_cause_types": ["minimum_duration_penalty", "premature_transition"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"],
+  "input_type": "natural_language",
+  "domain": "lifecycle_cost"
+}

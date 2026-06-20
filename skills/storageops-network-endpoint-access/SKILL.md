@@ -33,6 +33,8 @@ recommended_tools:
 
 Isolate the failing network layer: DNS → TCP → TLS → HTTP → Application. Most object storage connectivity issues are DNS configuration or TLS certificate mismatches.
 
+> **Scope boundary:** this skill owns DNS/TCP/TLS/endpoint reachability (the transport path). `storageops-s3-protocol-compatibility` owns signature and protocol-level mismatches; `storageops-security-iam-policy` owns auth/permission. Once the connection succeeds, route HTTP 400/403 and SignatureDoesNotMatch errors to those skills.
+
 ## Decision Tree
 
 ```
@@ -67,7 +69,7 @@ Public endpoint, VPC endpoint (gateway/interface), PrivateLink endpoint, or cust
 - Non-AWS providers may NOT support virtual-hosted style (BOS, early OSS)
 
 ### Step 3: Basic Connectivity
-What the user can test. If the user provides an endpoint and wants an active check from this machine, use `scripts/endpoint_reachability_test.py`; otherwise suggest equivalent commands:
+What the user can test. If the user provides an endpoint and wants an active check from this machine, run `python3 scripts/endpoint_reachability_test.py https://<endpoint> --timeout 5` (add `--skip-http` for DNS/TCP/TLS only) and reason over its JSON; otherwise suggest equivalent commands:
 ```bash
 # DNS resolution test
 nslookup <endpoint>
@@ -110,8 +112,11 @@ If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"
 
 ```markdown
 # Diagnosis: [one-line]
+**Route**: storageops-network-endpoint-access
 **Layer**: DNS | TCP | TLS | proxy | MTU | VPC-endpoint
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[dns|tcp|tls|proxy|mtu|vpc-endpoint], affected_layer=[dns|tcp|tls|proxy|routing]
 
 ## Evidence
 - Endpoint: [sanitized URL]
@@ -124,6 +129,12 @@ If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"
 ## Recommendations
 1. **[fix]** (manual-only) — [specific network change]
 2. **[diagnostic command]** — [to verify the fix]
+
+## What Would Falsify This
+- [evidence that would make the diagnosis unlikely]
+
+## Risks / Open Questions
+- [missing data, production risk, provider-specific caveat]
 ```
 
 ## Examples
@@ -143,11 +154,20 @@ If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"
 **Diagnosis**: Proxy is stripping/mangling the `Authorization` header. Some proxies treat `Authorization` as sensitive and remove it.
 **Recommendation**: Add S3 endpoint to `NO_PROXY`. Or configure proxy to pass-through Authorization header.
 
+## What Would Falsify This
+- `nslookup`/the reachability probe resolves the endpoint and a TCP connect to 443 succeeds, ruling out a DNS or routing-layer root cause.
+- The `curl -w` timing breakdown shows `time_appconnect` completing cleanly, so a TLS/SNI/certificate hypothesis does not hold.
+- The error first appears only after the connection is established (HTTP 400/403/SignatureDoesNotMatch), meaning it is protocol/auth, not network — route out of this skill.
+
+## Risks / Open Questions
+- Without the raw `curl -v` output or the probe JSON, the failing layer (DNS vs TCP vs TLS vs proxy) is inferred and confidence should stay medium.
+- Reachability from this environment may differ from the user's subnet (private subnet, NAT, corporate proxy, VPC endpoint policy), so a local "works" does not clear their path.
+- Non-AWS providers (BOS, early OSS) may not support virtual-hosted style and use different endpoint/CA conventions; confirm via `references/dns-host-header.md` before recommending a URL style.
+
 ## References
 - `scripts/endpoint_reachability_test.py` — Read-only DNS/TCP/TLS/HTTP HEAD checker | **Read when:** user asks for an active endpoint check or provides a URL to test from this environment
 - `references/dns-host-header.md` — Virtual-hosted vs path-style, provider support matrix | **Read when:** user reports DNS errors, NameResolutionError, or endpoint URL construction issues
-- `references/tls-mtu-rtt.md` — TLS SNI, CA bundles, certificate validation | **Read when:** user reports TLS/SSL/certificate errors
+- `references/tls-mtu-rtt.md` — TLS SNI, CA bundles, certificate validation, plus MTU and fragmentation analysis | **Read when:** user reports TLS/SSL/certificate errors or intermittent timeouts suggesting MTU/fragmentation
 - `references/private-access.md` — VPC endpoint configuration and troubleshooting | **Read when:** user mentions VPC endpoints, private subnets, or PrivateLink
 - `references/endpoint-routing.md` — Proxy interference patterns | **Read when:** user is behind a corporate proxy or reports proxy-related errors
-- `references/tls-mtu-rtt.md` — MTU and fragmentation analysis | **Read when:** user reports intermittent timeouts or MTU-related issues
 - `references/cross-cloud-dedicated-line.md` — FastConnect/ExpressRoute diagnostics | **Read when:** user mentions cross-cloud dedicated lines, ExpressRoute, or FastConnect

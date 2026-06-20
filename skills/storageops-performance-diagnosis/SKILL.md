@@ -68,7 +68,7 @@ one bounded command. Do not use it for bulk transfers, uploads, downloads, sync,
 or body capture.
 
 ### Step 3: Apply Targeted Tuning
-- **Throttling (429)**: Reduce concurrency, add exponential backoff with jitter. See `references/throttling.md`.
+- **Throttling (429)**: Reduce concurrency, add exponential backoff with jitter. See `references/throttling.md`. To turn a detected throttle rate into a concrete concurrency/backoff recommendation, run `python3 scripts/throttle_tuning_recommender.py --throttle-rate <r> --concurrency <n> [--provider <p>]`.
 - **Small files**: batch operations, increase parallel connections, consider archive-and-compress. See `references/small-files.md`.
 - **Large files**: tune multipart size and concurrency. See `references/multipart-tuning.md`.
 - **Prefix hotspot**: spread objects across prefixes. See `references/prefix-hotspot.md`.
@@ -141,9 +141,9 @@ If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_de
 **Recommendation**: Coalesce to 100 partitions before write, use S3A committer, expect <10 min
 
 ## References
-- `references/throttling.md` — 429/503 patterns, backoff strategies, provider limits | **Read when:** user reports 429/503/SlowDown/Throttling errors
+- `references/throttling.md` — 429/503 patterns, backoff strategies, and per-provider concurrency/rate limits | **Read when:** user reports 429/503/SlowDown/Throttling errors or is hitting rate limits on a specific cloud provider
 - `references/small-files.md` — Metadata amplification, batching | **Read when:** workload contains many files <1MB
 - `references/multipart-tuning.md` — Chunk size, concurrency, provider quirks | **Read when:** user is uploading/downloading files >100MB
 - `references/prefix-hotspot.md` — Key distribution and request rate partitioning | **Read when:** many files share the same prefix and throughput is below expected
 - `references/throughput-model.md` — Expected throughput formulas | **Read when:** user provides timing data and asks why throughput is low
-- `references/throttling.md` — Per-provider concurrency and rate limits | **Read when:** user is hitting limits on a specific cloud provider
+- `scripts/throttle_tuning_recommender.py` — Deterministic concurrency/backoff recommender from an observed throttle rate | **Run when:** throttling is confirmed and the user asks what concurrency/backoff to use

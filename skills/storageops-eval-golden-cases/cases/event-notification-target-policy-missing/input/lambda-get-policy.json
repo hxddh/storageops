@@ -1,0 +1,4 @@
+{
+  "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"apigw-invoke\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:111122223333:function:ingest\",\"Condition\":{\"ArnLike\":{\"aws:SourceArn\":\"arn:aws:execute-api:us-east-1:111122223333:abcd1234/*\"}}}]}",
+  "RevisionId": "00000000-0000-0000-0000-000000000000"
+}

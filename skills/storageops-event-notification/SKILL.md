@@ -30,6 +30,8 @@ recommended_tools:
 
 S3 events follow a chain: Object action → Notification rule match (event type + prefix/suffix filter) → IAM permissions → Target (Lambda/SQS/SNS/EventBridge). A break at any link stops delivery.
 
+> **Scope boundary:** this skill owns event *delivery* failures — notification rules, event-type/filter matching, and the target's own resource policy (Lambda/SQS/SNS allow for `s3.amazonaws.com`). Identity-side and bucket-policy permission errors (a caller's `AccessDenied`, principal/role/condition problems on the *bucket* policy) belong to `storageops-security-iam-policy`. Tool/SDK-version-specific behavior (an SDK default that suppresses events) routes to `storageops-cli-sdk-diagnosis`.
+
 ## Decision Tree
 
 ```
@@ -66,11 +68,15 @@ over its verdict.
 ### Step 3: Check Prefix/Suffix Filters
 Notification rules support prefix and suffix filtering. If configured, events only fire for matching objects. Empty/missing filter = match all.
 
-### Step 4: IAM Permission Chain
-S3 needs `lambda:InvokeFunction` to call Lambda, or `sqs:SendMessage` to send to SQS. But ALSO:
+### Step 4: Target Resource Policy (events configured but not delivered / target not firing)
+When Step 1 shows a rule *would* fire but the target never receives events, the #1 cause is the target's own resource policy not allowing S3 — and S3 returns NO error. S3 needs `lambda:InvokeFunction` to call Lambda, or `sqs:SendMessage` to send to SQS. But ALSO:
 - **Lambda**: Resource-based policy must allow `s3.amazonaws.com` as principal + `lambda:InvokeFunction` + source bucket ARN
 - **SQS**: Queue policy must allow S3 principal `s3.amazonaws.com` + `sqs:SendMessage`
 - **SNS**: Topic policy must allow S3 principal + `sns:Publish`
+
+Check this deterministically with the target's resource policy (Lambda `get-policy`, or the SQS/SNS `Policy` attribute):
+`python3 scripts/notification_target_policy_validator.py --file <target-policy.json> --target-type lambda --source-bucket-arn arn:aws:s3:::<source-bucket>`
+It reports `policy_ok`, the exact `missing` statement(s), and a `suggested_statement` — then reason over its verdict.
 
 ### Step 5: Lambda Concurrency
 If Lambda is throttled (`TooManyRequestsException`), events are retried but may ultimately be dropped if backlog exceeds retention. Check Lambda reserved concurrency and CloudWatch throttle metrics.
@@ -96,8 +102,11 @@ If the notification chain appears correct but events are still missing, ask the 
 
 ```markdown
 # Diagnosis: [one-line]
+**Route**: storageops-event-notification
 **Failure point**: no-config | event-type-mismatch | filter-mismatch | iam-gap | lambda-throttle | target-policy
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[type], affected_layer=[rule|target_policy|filter|event_type]
 
 ## Evidence
 - Bucket notification config: [present? event types? filters?]
@@ -130,8 +139,20 @@ If the notification chain appears correct but events are still missing, ask the 
 **Diagnosis**: Lambda concurrency limit reached. S3 retries events, but if Lambda stays throttled, events eventually expire.
 **Recommendation**: Increase Lambda reserved concurrency. Or fan-out: S3→SNS→SQS (subscription filter)→Lambda. SQS acts as durable buffer.
 
+## What Would Falsify This
+- The target resource policy already allows `s3.amazonaws.com` to `InvokeFunction`/`SendMessage`/`Publish` (validator reports `policy_ok: true`), yet events are still missing → the gap is upstream: re-check the rule's event type and prefix/suffix filter, not the target policy.
+- CloudTrail (or the target's own metrics) shows the event WAS emitted and delivered → delivery is fine; the problem is in the consumer (Lambda code error, SQS not polled), not the notification chain.
+- Events arrive intermittently rather than never → points to throttling/concurrency or message-size limits (Steps 5–6), not a missing/wrong policy or filter.
+
+## Risks / Open Questions
+- **Cross-account targets**: when the bucket and target are in different accounts, the allow may also need `aws:SourceAccount` alongside `aws:SourceArn`; confirm the account id, not just the bucket ARN.
+- **Fan-out (S3→SNS→SQS)**: a correct SNS topic policy is necessary but not sufficient — the SQS subscription and the queue's own policy allowing the SNS topic must also be present.
+- **Lambda concurrency / DLQ**: a valid policy can still lose events under sustained throttling or a misconfigured/absent DLQ; the validator confirms permission, not delivery durability.
+- **Non-AWS providers** (BOS/OSS/COS): event-trigger permission models differ; `--target-type` heuristics assume AWS action names — confirm provider semantics via `references/provider-compatibility.md`.
+
 ## References
-- `scripts/notification_config_analyzer.py` — Offline notification-config matcher (event type + prefix/suffix filter vs an object key) | **Read when:** events are not delivered and you have the notification configuration JSON
+- `scripts/notification_config_analyzer.py` — Offline notification-config matcher (event type + prefix/suffix filter vs an object key) | **Run when:** events are not delivered and you have the notification configuration JSON
+- `scripts/notification_target_policy_validator.py` — Offline target resource-policy validator (Lambda/SQS/SNS allow for `s3.amazonaws.com`) | **Run when:** the rule would fire but events still are not delivered, and you have the target's resource policy JSON
 - `references/notification-configuration.md` — Full notification schema, event types | **Read when:** user provides notification config XML/JSON or asks about event type matching
 - `references/lambda-integration.md` — Lambda resource policy, concurrency, DLQ | **Read when:** target is Lambda, or user reports Lambda not being invoked
 - `references/sqs-integration.md` — SQS queue policy, message attributes | **Read when:** target is SQS, queue is empty despite notifications configured

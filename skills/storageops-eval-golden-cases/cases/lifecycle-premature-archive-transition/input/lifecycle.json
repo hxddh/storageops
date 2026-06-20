@@ -1,0 +1,13 @@
+{
+  "Rules": [
+    {
+      "ID": "ArchiveThenExpire",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "data/" },
+      "Transitions": [
+        { "Days": 30, "StorageClass": "GLACIER" }
+      ],
+      "Expiration": { "Days": 60 }
+    }
+  ]
+}

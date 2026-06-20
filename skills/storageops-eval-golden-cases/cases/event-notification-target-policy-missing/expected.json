@@ -1,0 +1,11 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "event_notification",
+  "expected_root_cause_types": ["target_policy_missing_s3_invoke", "missing_target_permission"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["lambda:InvokeFunction", "s3.amazonaws.com", "resource policy"],
+  "should_include_evidence_keywords": ["get-policy", "ObjectCreated"],
+  "must_include_recommendation_keywords": ["InvokeFunction", "SourceArn", "add"],
+  "must_not_include": ["delete bucket", "make public", "print access key"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+}

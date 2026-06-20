@@ -34,6 +34,8 @@ recommended_tools:
 
 Object storage is NOT a POSIX filesystem. Almost every mount issue stems from a semantic mismatch: tools (git, compilers, IDEs) expect POSIX behaviors that object storage doesn't provide natively.
 
+> **Scope boundary:** this skill owns FUSE mount performance (stat/HEAD amplification, cache tuning) and POSIX semantic gaps (rename/lock/mmap/symlink). `storageops-performance-diagnosis` owns network-layer throughput (429/SlowDown, multipart, bandwidth saturation) — route a slow mount caused by raw throughput there. `storageops-data-consistency` owns cache-coherence *correctness* (is the data wrong?); this skill handles cache coherence only as a mount-tuning trade-off (is the data stale because the cache TTL is too high?).
+
 ## Decision Tree
 
 ```
@@ -102,9 +104,12 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 
 ```markdown
 # Diagnosis: [one-line]
+**Route**: storageops-mount-filesystem-workspace
 **Mount type**: [tool + version]
 **Root cause**: metadata-amplification | posix-mismatch | cache-coherence | tool-bug
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[metadata-amplification | posix-mismatch | cache-coherence | tool-bug], affected_layer=[fuse-client | mount-cache | object-store-api | workload]
 
 ## Evidence
 - Mount command: [sanitized]
@@ -120,6 +125,16 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 2. **[workflow change]** — [e.g., use object storage SDK for writes, mount for reads]
 3. **[alternative tool]** — [JuiceFS for POSIX-heavy workloads]
 ```
+
+## What Would Falsify This
+- `ls`/`git status` is fast after raising `--dir-cache-time`/`--attr-timeout` — confirms metadata amplification rather than a network or tool bug.
+- The failing operation does no rename, lock, mmap, or symlink (pure sequential read/write) — rules out a POSIX semantic mismatch as the cause.
+- The same workload runs cleanly on a local SSD path with identical tool versions — isolates the failure to the mount layer, not the application.
+
+## Risks / Open Questions
+- Raising cache TTLs (`--attr-timeout`, `--dir-cache-time`) trades freshness for speed; on a bucket written by other clients this can serve stale data and is unsafe for coordinated read-write workloads.
+- s3fs/goofys cache directories that fill the local disk cause silent write failures; available space on the cache path (e.g. `/tmp`) is often unknown and must be confirmed.
+- JuiceFS depends on a separate metadata engine (Redis/DB); its POSIX guarantees and failure modes differ from rclone/s3fs, and the metadata engine's own availability becomes a new single point of failure across BOS/OSS/COS deployments.
 
 ## Examples
 
@@ -139,7 +154,7 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 **Recommendation**: Build locally, sync output to mount. Or reduce to `make -j1`. For production: JuiceFS with full POSIX emulation.
 
 ## References
-- `scripts/mount_workload_analyzer.py` — Offline mount/workspace suitability analyzer (metadata amplification, POSIX gaps, verdict) | **Read when:** deciding whether a workload (git/npm/build/ide/database) belongs on an object-storage mount, or explaining why a mount is slow/unsafe
+- `scripts/mount_workload_analyzer.py` — Offline mount/workspace suitability analyzer (metadata amplification, POSIX gaps, verdict) | **Run when:** deciding whether a workload (git/npm/build/ide/database) belongs on an object-storage mount, or explaining why a mount is slow/unsafe
 - `references/fuse.md` — FUSE mount tuning, rclone VFS cache modes, and s3fs options by workload | **Read when:** user uses any FUSE-based mount tool (rclone mount, s3fs, goofys) and needs cache/option tuning or reports performance/corruption issues
 - `references/posix-semantics.md` — POSIX vs object storage behavior matrix | **Read when:** user reports git, npm, compilers, or other POSIX-dependent tools failing on mount
 - `references/object-storage-as-filesystem.md` — Quantifying and reducing stat/HEAD amplification | **Read when:** user reports slow `ls`, `git status`, or file managers on mount

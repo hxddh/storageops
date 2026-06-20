@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-06-19 — v0.6.0: Skills uplift — gold-standard floor + new deterministic analyzers
+
+A skills-quality release with two tracks, both strictly within the Agent Skills
+philosophy (SKILL.md stays concise, detail in references, deterministic helpers
+only — no LLM-judgment gates, no hardcoded pricing).
+
+- **Track A — raise the floor (all 13 diagnostic skills now gold-standard):**
+  - Added `What Would Falsify This` + `Risks / Open Questions` to every diagnostic
+    skill (was 3/13 → now 13/13) — the biggest epistemic gap, curbs over-confident
+    diagnosis.
+  - Added `> Scope boundary:` notes delimiting each skill from its neighbors to
+    reduce routing ambiguity.
+  - Standardized the Output Contract across skills: `Route`, `Confidence`,
+    `Evidence Quality`, and `Primary Diagnosis: root_cause_type=…, affected_layer=…`
+    (was 5 divergent field schemes → one), improving downstream parse + eval match.
+  - Fixed references hygiene: deduped `replication.md` (replication-versioning),
+    `request-cost.md` (lifecycle-cost), `throttling.md` (performance), and
+    `tls-mtu-rtt.md` (network); converted lifecycle-cost refs to the inline
+    `| **Read when:**` format; made the access-log parser invocation concrete.
+- **Track B — new deterministic diagnostic power:**
+  - **event-notification → `notification_target_policy_validator.py`**: checks
+    whether a Lambda/SQS/SNS target resource policy actually permits S3 delivery —
+    the #1 cause of silently-undelivered events (rule matched, target rejects).
+  - **performance → `throttle_tuning_recommender.py`**: turns an observed throttle
+    rate + concurrency into concrete safe concurrency / backoff-base / jitter /
+    expected-throttle output — upgrades "found throttling" to "here's the fix".
+  - **lifecycle-cost → `lifecycle_rule_simulator.py`**: simulates a lifecycle
+    config against an object age/size profile and surfaces minimum-duration
+    penalties, minimum-billable-size amplification, orphaned-multipart risk, and
+    rule conflicts — expressed structurally (days/bytes/multipliers), never money.
+- **Eval corpus:** added 3 golden cases with baselines
+  (`event-notification-target-policy-missing`, `throttle-tuning-recommendation`,
+  `lifecycle-premature-archive-transition`); each new analyzer is unit-tested.
+
 ## 2026-06-19 — v0.5.0: Robustness, replication analyzer, eval harness CLI, corpus growth
 
 A consolidated review release: fix long-tail script robustness, give the last

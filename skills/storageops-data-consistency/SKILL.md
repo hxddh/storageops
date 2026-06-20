@@ -33,6 +33,8 @@ recommended_tools:
 
 Object storage (AWS S3, BOS, OSS, COS, GCS) has been **strongly consistent** for core operations since ~2020. If user reports "eventual consistency" issues, the root cause is almost always client-side: caching, ETag confusion, or concurrent write races.
 
+> **Scope boundary:** this skill owns ETag/stale-read/cache-coherence and concurrent-write semantics. `storageops-replication-versioning` owns versioning and cross-region/replication state; `storageops-s3-protocol-compatibility` owns signature and protocol-level mismatches. Route version/replica divergence and protocol/signature errors to those skills.
+
 ## Decision Tree
 
 ```
@@ -109,8 +111,10 @@ If the root cause is still unclear after Step 5:
 
 ```markdown
 # Diagnosis: [one-line]
-**Root cause**: client-cache | mount-cache | cdn-cache | multipart-not-completed | concurrent-write | etag-format | sse-kms-etag
+**Route**: storageops-data-consistency
 **Confidence**: high | medium | low
+**Evidence Quality**: sufficient | partial | insufficient
+**Primary Diagnosis**: root_cause_type=[client-cache|mount-cache|cdn-cache|multipart-not-completed|concurrent-write|etag-format|sse-kms-etag], affected_layer=[client|mount|cdn|object-store]
 
 ## Timeline
 - Write: [timestamp]
@@ -125,6 +129,12 @@ If the root cause is still unclear after Step 5:
 
 ## Recommendations
 1. **[fix]** — [cache invalidation, versioning enable, conditional write pattern]
+
+## What Would Falsify This
+- [evidence that would make the diagnosis unlikely]
+
+## Risks / Open Questions
+- [missing timeline data, production risk, provider-specific caveat]
 ```
 
 ## Examples
@@ -143,6 +153,16 @@ If the root cause is still unclear after Step 5:
 **Input**: Updated image on S3, website still shows old image 2 hours later.
 **Diagnosis**: CDN (CloudFront) cached old version with `max-age=86400`. ETag not being invalidated.
 **Recommendation**: CloudFront invalidation: `aws cloudfront create-invalidation --distribution-id <ID> --paths /path/to/image.jpg`. Long-term: use versioned filenames or shorter Cache-Control.
+
+## What Would Falsify This
+- A direct `HEAD` (bypassing every cache/CDN/mount) already returns the latest `Last-Modified`/`ETag`/`Content-Length`, so the stale read lives in a client layer, not the object store.
+- The object's `ETag` carries a multipart `-N` suffix or SSE-KMS markers (`etag_parser.py`), explaining a "checksum changed" report without any actual data divergence.
+- The two readers hit the same single client with no CDN, mount, or second writer in the path, ruling out CDN-TTL and concurrent-write (last-writer-wins) hypotheses.
+
+## Risks / Open Questions
+- Without precise timestamps for upload start, `CompleteMultipartUpload`, and first read, a multipart-not-completed vs cache-staleness call stays uncertain.
+- Object storage has no write locking, so a hidden concurrent writer can silently invalidate the diagnosis — confirm whether versioning was enabled to recover prior state.
+- BOS multipart ETag shape differs from AWS and SSE-KMS rewrites the ETag; cross-provider copy checks need `references/etag-format.md` to avoid false "corruption" conclusions.
 
 ## References
 - `scripts/etag_parser.py` — Offline ETag classifier (single-part/multipart, AWS vs BOS shape, SSE hints) | **Read when:** you have one or more ETags and need to confirm the upload type or a cross-provider format mismatch
