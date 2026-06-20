@@ -63,7 +63,7 @@ Evaluate in order: Explicit Deny → SCP → IAM Policy → Bucket Policy → AC
 If logs are provided, scan for exposed credentials: AK/SK pairs, session tokens, signed URLs with credentials, Authorization headers. Report any findings as `[CREDENTIAL_LEAK]`.
 
 ### Step 6: Feedback Loop
-If the user provides a policy JSON document, run `python3 scripts/policy_analyzer.py --file <policy.json>` to automatically identify explicit Deny statements, overly broad permissions, and public access risks. After diagnosis, ask user to test: 'Run `aws s3 ls s3://<bucket> --profile <profile>` to confirm the issue persists. If the fix works, also test a secondary action like `aws s3 cp`.' If confidence < medium or root cause is unclear, go back to Step 3 (Permission Chain) and request the IAM policy document or bucket policy JSON from the user.
+If the user provides a policy JSON document, run `python3 scripts/policy_analyzer.py --file <policy.json>` to automatically identify explicit Deny statements, overly broad permissions, and public access risks. For a **cross-account** denial where both the caller IAM policy and the bucket policy are available, run `python3 scripts/cross_account_access_validator.py --principal-arn <arn> --action s3:GetObject --resource arn:aws:s3:::<bucket>/<key> --resource-account <owner-acct> --identity-policy <iam.json> --bucket-policy <bucket.json> [--kms-key-policy <key.json>]` to deterministically report which link in the AND-chain (identity / resource / KMS) breaks — this catches the common "fixed one side, still blocked" trap. After diagnosis, ask user to test: 'Run `aws s3 ls s3://<bucket> --profile <profile>` to confirm the issue persists. If the fix works, also test a secondary action like `aws s3 cp`.' If confidence < medium or root cause is unclear, go back to Step 3 (Permission Chain) and request the IAM policy document or bucket policy JSON from the user.
 
 ## User Interaction
 
@@ -136,6 +136,8 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 **Recommendation**: Immediately rotate the exposed key, revoke affected sessions if applicable, and redact all logs containing this key before sharing them. Do not disable authentication as a workaround.
 
 ## References
+- `scripts/policy_analyzer.py` — Offline analyzer for a single IAM/bucket policy (explicit Deny, broad actions, public access); run `python3 scripts/policy_analyzer.py --file <policy.json>` | **Run when:** the user shares one policy document to audit
+- `scripts/cross_account_access_validator.py` — Offline AND-chain evaluator across the caller IAM policy + bucket policy (+ optional KMS key policy); reports the broken link | **Run when:** a cross-account 403 and both the identity and resource policies are available
 - `references/policy-evaluation.md` — Full permission evaluation order with examples | **Read when:** user reports 403/401 and has IAM/bucket policy documents to share
 - `references/cross-account.md` — Cross-account setup patterns | **Read when:** user mentions multiple AWS accounts, cross-account access, or ARNs from different account IDs
 - `references/kms-permissions.md` — KMS key policy requirements | **Read when:** user mentions KMS, encryption keys, kms:Decrypt, or server-side encryption errors

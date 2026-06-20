@@ -1,0 +1,41 @@
+# Alice's IAM Policy (Account A — 111111111111) — HAS the allow
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::shared-data",
+        "arn:aws:s3:::shared-data/*"
+      ]
+    }
+  ]
+}
+```
+
+# Bucket Policy (Account B — 222222222222) — does NOT grant Account A
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowInternalTeam",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::222222222222:role/internal-reader"
+      },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::shared-data/*"
+    }
+  ]
+}
+```
+
+Note: Alice's IAM policy already allows `s3:GetObject`, but the bucket policy on
+account 222222222222 only names an in-account role; it never grants account A
+(111111111111) or Alice's principal. The resource-side link of the cross-account
+chain is missing.

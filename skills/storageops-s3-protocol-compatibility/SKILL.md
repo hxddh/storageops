@@ -73,6 +73,13 @@ real mutation. Get the request from the server error body and the client's own
 debug dump, then recompute offline. See `references/checksum-etag.md`
 (*Write-side request evidence*). Read-only trace use is unchanged.
 
+For a multipart **ETag that "changed" after a migration or copy** while the bytes
+look identical, the usual cause is re-chunking (a different part size). Run
+`python3 scripts/multipart_etag_calculator.py --total-size <bytes> --observed-etag <hex>-N [--other-part-size <bytes>]`
+to recover the source part-size band and confirm deterministically whether the
+destination's part size reproduces the ETag. With a part list, compute the ETag
+directly via `--part-md5s <file>`.
+
 ### Step 2: Compare Against AWS S3 Baseline
 AWS S3 is the reference implementation. Check `references/aws-s3-baseline.md` for expected behavior of the failing operation.
 
@@ -159,6 +166,7 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 - `references/aws-s3-baseline.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
 - `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** the provider is non-AWS (BOS/OSS/COS/GCS) — whether the user named it or `detect_domain` reported it from the endpoint/headers
 - `references/checksum-etag.md` — Checksum/ETag semantics, BadDigest payload-hash class, and write-side request evidence | **Read when:** user reports checksum/MD5 mismatch, ETag surprises, BadDigest, or a failing PUT/copy
+- `scripts/multipart_etag_calculator.py` — Compute/verify an S3-style multipart ETag from part MD5s, or reverse the part size from `--total-size` + observed `<hex>-N` | **Run when:** a multipart ETag "changed" after migration/copy though the bytes look identical (re-chunking), or you need to confirm a multipart ETag from a part list
 - `references/multipart-upload.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
 - `references/cors.md` — S3 CORS behavior and browser preflight failures | **Read when:** user reports browser CORS, preflight, or missing Access-Control headers
 - `references/list-objects.md` — Request/response XML schemas, provider differences, and Unicode/encoding in keys and headers | **Read when:** user reports MalformedXML, XML parsing errors, or encoding issues with special characters in object keys

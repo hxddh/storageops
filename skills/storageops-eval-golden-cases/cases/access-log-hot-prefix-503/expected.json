@@ -1,0 +1,11 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "access_log_analysis",
+  "expected_root_cause_types": ["hot_prefix_throttling", "prefix_request_concentration"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["prefix", "503", "SlowDown"],
+  "should_include_evidence_keywords": ["events/2026", "by-prefix", "catalog"],
+  "must_include_recommendation_keywords": ["prefix", "spread", "backoff"],
+  "must_not_include": ["delete bucket", "make public", "ignore the errors"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+}

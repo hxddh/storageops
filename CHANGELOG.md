@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-06-20 — v0.6.1: Deterministic analyzers for cross-account, ETag re-chunk, and prefix drill-down
+
+A focused Track-B follow-up to v0.6.0, same philosophy (concise SKILL.md, detail
+in references, deterministic helpers only — no LLM-judgment gates, no hardcoded
+pricing). Three new diagnostic capabilities, each unit-tested and backed by a
+golden case + baseline.
+
+- **security-iam-policy → `cross_account_access_validator.py`**: evaluates the
+  cross-account access chain offline (caller IAM policy AND bucket policy AND, when
+  SSE-KMS, the key policy) with explicit-Deny precedence, and reports which link
+  breaks — catching the common "fixed one side, still blocked" trap. Conservative:
+  it surfaces Conditions/SCPs/boundaries as open questions rather than assuming them.
+- **s3-protocol-compatibility → `multipart_etag_calculator.py`**: computes/verifies
+  an S3-style multipart ETag from part MD5s, and reverse-engineers the part-size
+  band from `--total-size` + observed `<hex>-N`. Pinpoints the #1 "ETag changed but
+  the bytes are identical" cause — re-chunking with a different part size. Honors the
+  canonical matrix: refuses to claim an OSS/COS computation it cannot verify.
+- **access-log-analysis → `parse_access_log.py --by-prefix DEPTH`**: aggregates
+  requests/errors/throttles by key prefix at a chosen depth, surfacing the
+  hot-prefix signature (503/SlowDown concentrated on one prefix) that the flat
+  requester/operation view hides.
+- **Eval corpus:** +3 golden cases with baselines (`multipart-etag-rechunk-mismatch`,
+  `cross-account-bucket-grant-missing`, `access-log-hot-prefix-503`); 25 → 28
+  scored baselines.
+
 ## 2026-06-19 — v0.6.0: Skills uplift — gold-standard floor + new deterministic analyzers
 
 A skills-quality release with two tracks, both strictly within the Agent Skills
