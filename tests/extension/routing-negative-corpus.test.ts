@@ -50,6 +50,16 @@ const NEGATIVE_CASES: NegativeCase[] = [
     text: "The archive object failed during upload.",
     forbidden: [["storageops-bigdata-pipeline", "bigdata_engine"]],
   },
+  {
+    name: "cost center is not lifecycle storage cost",
+    text: "Please tag the upload to the marketing cost center for the quarterly report.",
+    forbidden: [["storageops-lifecycle-cost", "cost"]],
+  },
+  {
+    name: "at all costs is not lifecycle storage cost",
+    text: "We must keep the service available at all costs during the migration window.",
+    forbidden: [["storageops-lifecycle-cost", "cost"]],
+  },
 ];
 
 test("routing negative corpus blocks known bare-substring false positives", () => {

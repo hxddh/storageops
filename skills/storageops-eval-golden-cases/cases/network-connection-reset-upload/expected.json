@@ -1,0 +1,11 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "network_endpoint_access",
+  "expected_root_cause_types": ["middlebox_transport_reset", "connection_reset_path_issue"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["connection reset", "broken pipe", "large"],
+  "should_include_evidence_keywords": ["firewall", "small", "downloads"],
+  "must_include_recommendation_keywords": ["MTU", "timeout", "firewall"],
+  "must_not_include": ["delete bucket", "make the bucket public", "rotate the access key", "disable TLS"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+}

@@ -175,6 +175,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/连接(?:失败|超时|被拒)|证书|解析失败|无法访问/i, "network_cjk"],
     [/VPC|endpoint|ENDPOINT/i, "endpoint"],
     [/host\s*unreachable|no\s*route/i, "route"],
+    [/RequestTimeout|connection\s*reset|reset\s*by\s*peer|broken\s*pipe|\bECONNRESET\b|\bEPIPE\b|unexpected\s*EOF/i, "transport"],
   ],
   "storageops-cli-sdk-diagnosis": [
     [/rclone/i, "rclone"],
@@ -195,7 +196,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
   "storageops-lifecycle-cost": [
     [/lifecycle/i, "lifecycle"],
     [/Standard_IA|Glacier|Deep_Archive/i, "storage_class"],
-    [/cost|费用|计费|账单/i, "cost"],
+    [/\bcost\b.*\b(storage|request|egress|transition|tier|bill|lifecycle|retrieval|IA|Glacier|Archive|GB|TB)\b|\b(storage|request|egress|transition|tier|bill|lifecycle|retrieval|IA|Glacier|Archive|GB|TB)\b.*\bcost\b|费用|计费|账单/i, "cost"],
     [/transition|\bexpir(?:e|es|ed|ation|ing)?\b/i, "transition"],
     [/objects.*small|small.*objects/i, "small_objects"],
   ],

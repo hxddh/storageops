@@ -1,0 +1,16 @@
+Large uploads intermittently fail with "connection reset by peer" / broken pipe.
+
+Symptoms:
+- PUT of large objects (>500 MB, multipart) fails partway through ~30% of the time.
+- Client errors alternate between "Connection reset by peer (ECONNRESET)" and
+  "broken pipe (EPIPE)" mid-transfer.
+- Small objects (<5 MB) upload reliably; downloads of any size are fine.
+- It started after the network team put a new firewall/NAT appliance in the path.
+
+$ aws s3 cp ./big.tar s3://prod-bucket/big.tar
+upload failed: ./big.tar to s3://prod-bucket/big.tar
+  ("Connection reset by peer",)
+
+Endpoint: s3.us-east-1.amazonaws.com  (works from a different network segment)
+The credentials and bucket policy are unchanged and small PUTs succeed, so this is
+not an auth problem. Why do large uploads get reset, and how do we confirm it?
