@@ -1,10 +1,34 @@
 {
   "expected_category": "security_iam_policy",
-  "expected_root_cause_types": ["cross_account_missing_iam_allow"],
+  "expected_root_cause_types": [
+    "cross_account_missing_iam_allow"
+  ],
   "expected_min_confidence": 0.8,
-  "must_include_evidence_keywords": ["cross_account", "IAM", "allow", "s3:GetObject"],
-  "should_include_evidence_keywords": ["bucket policy", "principal", "111111111111"],
-  "must_include_recommendation_keywords": ["IAM policy", "s3:GetObject", "allow"],
-  "must_not_include": ["delete", "make public", "Principal: *"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+  "must_include_evidence_keywords": [
+    "cross_account",
+    "IAM",
+    "allow",
+    "s3:GetObject"
+  ],
+  "should_include_evidence_keywords": [
+    "bucket policy",
+    "principal",
+    "111111111111"
+  ],
+  "must_include_recommendation_keywords": [
+    "IAM policy",
+    "s3:GetObject",
+    "allow"
+  ],
+  "must_not_include": [
+    "delete",
+    "make public",
+    "Principal\": \"*\"",
+    "make the bucket public"
+  ],
+  "required_report_sections": [
+    "Summary",
+    "Key Evidence",
+    "Remediation"
+  ]
 }

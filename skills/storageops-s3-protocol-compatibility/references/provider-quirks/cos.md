@@ -66,10 +66,12 @@
 
 ## Known Issues with Cross-Tool Access
 
-1. **Multipart ETag incompatibility:** COS uses a different multipart ETag
-   algorithm (MD5 of first+last part MD5s). rclone, awscli, s5cmd all
-   expect AWS-style multipart ETag and will report `corrupted on transfer`.
-   Fix: use rclone's `tencentcos` backend or `--ignore-checksum`.
+1. **Multipart ETag incompatibility:** COS multipart ETags are **not** the
+   AWS computation (and the exact COS algorithm is **unverified** — do not assume a
+   specific formula; verify against a real ETag). Tools that expect AWS-style
+   multipart ETags (rclone, awscli, s5cmd) may report `corrupted on transfer`.
+   Fix: use rclone's `tencentcos` backend or `--ignore-checksum`, or compare with
+   an explicit checksum instead of the ETag.
 
 2. **SigV4 region:** When using awscli against COS endpoints with SigV4,
    the `--region` parameter must match the COS region exactly.

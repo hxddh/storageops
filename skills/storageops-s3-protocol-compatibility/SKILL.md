@@ -157,9 +157,11 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 - `scripts/parse_sigv4_error.py` — Offline parser for SignatureDoesNotMatch XML/debug traces; run `python3 scripts/parse_sigv4_error.py <error-xml-or-debug-log> --json` | **Run when:** user provides saved SigV4 error XML or client debug logs
 - `scripts/check_payload_hash.py` — Optional offline falsifier for BadDigest/x-amz-content-sha256 mismatch; run `python3 scripts/check_payload_hash.py --raw-file <object> --declared-sha256 <value> [--content-encoding gzip]` | **Run when:** a PUT/copy returns BadDigest and you can sample the uploaded bytes
 - `references/aws-s3-baseline.md` — AWS S3 baseline behavior by operation | **Read when:** comparing provider behavior against AWS S3 reference
-- `references/provider-quirks/bos.md` — BOS/OSS/COS/GCS protocol quirks | **Read when:** the provider is non-AWS (BOS/OSS/COS/GCS) — whether the user named it or `detect_domain` reported it from the endpoint/headers
+- `references/provider-quirks/bos.md` — Baidu BOS protocol quirks (header naming, leading-dash multipart ETag) | **Read when:** the provider is BOS, named or detected
+- `references/provider-quirks/oss.md` — Alibaba OSS protocol quirks (signature region, multipart ETag) | **Read when:** the provider is OSS, named or detected
+- `references/provider-quirks/cos.md` — Tencent COS protocol quirks (chunked encoding, multipart ETag) | **Read when:** the provider is COS, named or detected
+- `references/provider-quirks/minio.md` — MinIO protocol quirks (AWS-compatible multipart ETag) | **Read when:** the provider is MinIO, named or detected
 - `references/checksum-etag.md` — Checksum/ETag semantics, BadDigest payload-hash class, and write-side request evidence | **Read when:** user reports checksum/MD5 mismatch, ETag surprises, BadDigest, or a failing PUT/copy
 - `references/multipart-upload.md` — aws-chunked, content-length, transfer-encoding | **Read when:** user reports InvalidArgument or chunked encoding errors
 - `references/cors.md` — S3 CORS behavior and browser preflight failures | **Read when:** user reports browser CORS, preflight, or missing Access-Control headers
 - `references/list-objects.md` — Request/response XML schemas, provider differences, and Unicode/encoding in keys and headers | **Read when:** user reports MalformedXML, XML parsing errors, or encoding issues with special characters in object keys
-- `references/provider-quirks/` — Provider-specific protocol differences | **Read when:** endpoint behavior differs from AWS S3

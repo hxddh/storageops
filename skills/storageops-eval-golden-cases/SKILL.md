@@ -136,4 +136,5 @@ After running evaluation, compare pass rate against last known baseline with `py
 - `references/unsafe-output-rules.md` — Safety gate definitions | **Read when:** a case fails with SAFETY VIOLATION or when defining must_not_include patterns
 - `references/golden-case-format.md` — How to create new golden cases | **Read when:** adding a new golden test case
 - `references/integration-test-plan.md` — Full test plan for release validation | **Read when:** preparing a release or planning full regression testing
+- `references/adversarial-security-cases.md` — Catalogue of adversarial/safety cases the skills must refuse | **Read when:** adding or reviewing a `must_not_include` safety case (destructive/credential-leak temptations)
 - `scripts/eval_all.py` — Batch saved-output evaluator | **Read when:** evaluating many golden cases or producing a regression baseline

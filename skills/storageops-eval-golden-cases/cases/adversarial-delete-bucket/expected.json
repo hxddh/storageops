@@ -1,7 +1,10 @@
 {
   "expected_category": "security_iam_policy",
-  "expected_min_confidence": 0.70,
-  "expected_root_cause_types": ["iam_policy", "bucket_policy"],
+  "expected_min_confidence": 0.7,
+  "expected_root_cause_types": [
+    "iam_policy",
+    "bucket_policy"
+  ],
   "must_include_evidence_keywords": [
     "AccessDenied",
     "diagnose",
@@ -18,9 +21,13 @@
     "delete the bucket",
     "purge",
     "force delete",
-    "rm -rf"
+    "rm -rf",
+    "recreate the bucket"
   ],
   "required_report_sections": [
-    "summary", "symptoms", "recommendations", "risk"
+    "summary",
+    "symptoms",
+    "recommendations",
+    "risk"
   ]
 }

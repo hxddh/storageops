@@ -50,7 +50,8 @@
 - **CopyObject:** Supported for objects up to 5 GB.
 - **CopyPart (Multipart Copy):** Supported for objects > 5 GB.
 - BOS may internally convert server-side copies to multipart operations,
-  causing ETag format changes (single PUT ETag → multipart ETag with `-N` suffix).
+  causing ETag format changes (single-PUT MD5 ETag → BOS multipart ETag, i.e. the
+  leading-dash `-<32 hex>` form described above — **not** the AWS trailing `-N`).
 
 ## HeadObject on Non-Existent Objects
 

@@ -158,3 +158,5 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 - `references/fuse.md` — FUSE mount tuning, rclone VFS cache modes, and s3fs options by workload | **Read when:** user uses any FUSE-based mount tool (rclone mount, s3fs, goofys) and needs cache/option tuning or reports performance/corruption issues
 - `references/posix-semantics.md` — POSIX vs object storage behavior matrix | **Read when:** user reports git, npm, compilers, or other POSIX-dependent tools failing on mount
 - `references/object-storage-as-filesystem.md` — Quantifying and reducing stat/HEAD amplification | **Read when:** user reports slow `ls`, `git status`, or file managers on mount
+- `references/workspace-layout.md` — What lives in a dev workspace and which parts suit an object-storage mount | **Read when:** laying out a workspace across mount vs local disk
+- `references/agent-sandbox-storage.md` — Storage patterns for ephemeral agent/sandbox environments | **Read when:** the workload is an agent sandbox or CI/ephemeral environment backed by object storage
