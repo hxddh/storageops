@@ -90,7 +90,10 @@ def _canonical_summary(canonical_request: str) -> dict[str, Any]:
         summary["path"] = lines[1]
     if len(lines) > 2:
         summary["query"] = lines[2]
-    if len(lines) >= 2:
+    # The payload hash is the last line of a *complete* canonical request (method,
+    # path, query, headers, blank, signed-headers, hash = >= 6 lines). On a short
+    # fragment lines[-1] is the path/query, not the hash — don't mislabel it.
+    if len(lines) >= 6:
         summary["payload_hash"] = lines[-1]
     signed_headers_index = None
     for index, line in enumerate(lines):

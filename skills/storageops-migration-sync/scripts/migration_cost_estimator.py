@@ -37,14 +37,27 @@ PROVIDERS: dict[str, dict[str, float | None]] = {
 }
 
 
+def _present(row: dict, key: str) -> bool:
+    # CSV cells arrive as strings, so a literal "0" is truthy; test presence and a
+    # non-empty value, not truthiness, otherwise total_size_bytes="0" wrongly
+    # shadows a total_size_gb fallback.
+    return str(row.get(key, "")).strip() != ""
+
+
 def _resolve_total_bytes(row: dict) -> float:
-    """Byte-priority: total_size_bytes > total_size_gb > total_size_tb."""
-    if row.get("total_size_bytes"):
+    """Byte-priority: total_size_bytes > total_size_gb > total_size_tb.
+
+    A present-but-zero byte value is only used when it is the sole size given;
+    otherwise fall through to the GB/TB columns.
+    """
+    if _present(row, "total_size_bytes") and float(row["total_size_bytes"]) > 0:
         return float(row["total_size_bytes"])
-    if row.get("total_size_gb"):
+    if _present(row, "total_size_gb"):
         return float(row["total_size_gb"]) * 1e9
-    if row.get("total_size_tb"):
+    if _present(row, "total_size_tb"):
         return float(row["total_size_tb"]) * 1e12
+    if _present(row, "total_size_bytes"):
+        return float(row["total_size_bytes"])  # explicit 0 with no other size given
     raise ValueError("missing one of: total_size_bytes, total_size_gb, total_size_tb")
 
 
@@ -168,18 +181,22 @@ def main() -> None:
     ap.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
     args = ap.parse_args()
 
-    inputs: list[dict] = []
-    if args.stdin:
-        inputs = _parse_stdin()
-    elif args.file:
-        inputs = _parse_csv(args.file)
-    else:
-        ap.print_help()
-        raise SystemExit("specify --file or --stdin")
+    indent = 2 if args.pretty else None
+    try:
+        if args.stdin:
+            inputs = _parse_stdin()
+        elif args.file:
+            inputs = _parse_csv(args.file)
+        else:
+            ap.print_help()
+            raise SystemExit("specify --file or --stdin")
+    except (json.JSONDecodeError, OSError) as exc:
+        # Bad/unreadable input must yield the JSON error envelope, not a traceback.
+        print(json.dumps({"ok": False, "error": f"could not read input: {exc}"}, indent=indent))
+        return
 
     results = [estimate(row) for row in inputs]
     out = results[0] if len(results) == 1 else results
-    indent = 2 if args.pretty else None
     print(json.dumps(out, indent=indent))
 
 

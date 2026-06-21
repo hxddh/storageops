@@ -73,24 +73,28 @@ def _glob_match(pattern: str, value: str) -> bool:
     return re.match(regex, value) is not None
 
 
-def _action_matches(stmt_actions: Any, action: str) -> bool:
-    for a in _as_list(stmt_actions):
-        if _glob_match(str(a), action):
-            return True
-    return False
+def _action_matches(stmt: dict, action: str) -> tuple[bool, bool]:
+    """(matches, used_not). Honour Action and the inverted NotAction form."""
+    if "Action" in stmt:
+        return any(_glob_match(str(a), action) for a in _as_list(stmt["Action"])), False
+    if "NotAction" in stmt:
+        return (not any(_glob_match(str(a), action) for a in _as_list(stmt["NotAction"]))), True
+    return True, False  # no action constraint
 
 
-def _resource_matches(stmt_resources: Any, resource: str) -> bool:
-    resources = _as_list(stmt_resources)
-    if not resources:
-        # Identity policies always carry Resource; resource policies may omit it
-        # (meaning "this resource"). Treat an absent Resource as a match.
-        return True
-    return any(_glob_match(str(r), resource) for r in resources)
+def _resource_matches(stmt: dict, resource: str) -> tuple[bool, bool]:
+    """(matches, used_not). Honour Resource and the inverted NotResource form."""
+    if "Resource" in stmt:
+        return any(_glob_match(str(r), resource) for r in _as_list(stmt["Resource"])), False
+    if "NotResource" in stmt:
+        return (not any(_glob_match(str(r), resource) for r in _as_list(stmt["NotResource"]))), True
+    # Identity policies always carry Resource; resource policies may omit it
+    # (meaning "this resource"). Treat an absent Resource as a match.
+    return True, False
 
 
-def _principal_matches(stmt_principal: Any, principal_arn: str) -> bool:
-    """Does a resource-policy Principal grant the given caller principal ARN?"""
+def _principal_grants(stmt_principal: Any, principal_arn: str) -> bool:
+    """Does a resource-policy Principal value grant the given caller principal ARN?"""
     if stmt_principal == "*":
         return True
     values: List[str] = []
@@ -115,6 +119,16 @@ def _principal_matches(stmt_principal: Any, principal_arn: str) -> bool:
     return False
 
 
+def _principal_matches(stmt: dict, principal_arn: str) -> tuple[bool, bool]:
+    """(matches, used_not). Honour Principal and the inverted NotPrincipal form."""
+    if "Principal" in stmt:
+        return _principal_grants(stmt["Principal"], principal_arn), False
+    if "NotPrincipal" in stmt:
+        # A statement applies to every principal NOT listed in NotPrincipal.
+        return (not _principal_grants(stmt["NotPrincipal"], principal_arn)), True
+    return False, False  # resource-policy statement with no principal grants nobody
+
+
 def _has_condition(stmt: dict) -> bool:
     return isinstance(stmt.get("Condition"), dict) and bool(stmt.get("Condition"))
 
@@ -129,23 +143,33 @@ def evaluate_link(
     """Evaluate one policy: explicit Deny > explicit Allow > implicit Deny."""
     allow_hit: Optional[str] = None
     conditional = False
+    allow_not = False
     for i, stmt in enumerate(statements, start=1):
         effect = str(stmt.get("Effect", "")).lower()
-        if not _action_matches(stmt.get("Action"), action):
+        a_match, a_not = _action_matches(stmt, action)
+        if not a_match:
             continue
-        if not _resource_matches(stmt.get("Resource"), resource):
+        r_match, r_not = _resource_matches(stmt, resource)
+        if not r_match:
             continue
-        if match_principal and not _principal_matches(stmt.get("Principal"), principal_arn or ""):
-            continue
+        used_not = a_not or r_not
+        if match_principal:
+            p_match, p_not = _principal_matches(stmt, principal_arn or "")
+            if not p_match:
+                continue
+            used_not = used_not or p_not
         sid = stmt.get("Sid", f"statement#{i}")
         if effect == "deny":
-            return {"result": "explicit_deny", "matched_sid": sid, "conditional": _has_condition(stmt)}
+            return {"result": "explicit_deny", "matched_sid": sid,
+                    "conditional": _has_condition(stmt), "not_clause": used_not}
         if effect == "allow" and allow_hit is None:
             allow_hit = sid
             conditional = _has_condition(stmt)
+            allow_not = used_not
     if allow_hit is not None:
-        return {"result": "allow", "matched_sid": allow_hit, "conditional": conditional}
-    return {"result": "implicit_deny", "matched_sid": None, "conditional": False}
+        return {"result": "allow", "matched_sid": allow_hit, "conditional": conditional,
+                "not_clause": allow_not}
+    return {"result": "implicit_deny", "matched_sid": None, "conditional": False, "not_clause": False}
 
 
 def _kms_action_for(action: str) -> Optional[str]:
@@ -282,6 +306,12 @@ def validate(
         open_questions.append(
             "One or more matched statements carry a Condition; this validator matches the "
             "statement but does not evaluate Condition values — confirm the request meets them."
+        )
+    if any(l.get("not_clause") for l in links):
+        open_questions.append(
+            "A matched statement uses an inverted element (NotAction/NotResource/NotPrincipal); "
+            "these are evaluated as 'everything except the listed set' and are easy to get wrong — "
+            "double-check the intended effect."
         )
     if cross_account and bucket_policy is not None and identity_policy is None:
         open_questions.append("Caller IAM policy was not supplied; the identity-side allow is assumed unknown.")

@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-06-21 — v0.6.6: Correctness hardening (helper bug-fix release)
+
+A focused bug-fix release. A correctness audit of the deterministic helpers (the
+audit that did not complete in the v0.6.3 round) found eight real bugs, each with a
+reproduction; all are fixed and pinned with a regression test (the missing tests are
+why they shipped green). No new features; no new complexity.
+
+- **`cross_account_access_validator` silently dropped a Deny expressed via
+  `NotAction`/`NotResource`/`NotPrincipal`** → false "allow" from a security-decision
+  tool (highest impact). Now evaluates the inverted forms correctly (Deny-NotAction
+  blocks the non-excluded action; the excluded action stays allowed) and surfaces an
+  open-question caveat for inverted clauses.
+- **`throttle_tuning_recommender.parse_size` parsed decimal units as binary**
+  (`64MB`→67108864 instead of 64000000), contradicting the sibling
+  `multipart_etag_calculator`. Fixed to honour the `i` (MiB=1024, MB=1000).
+- **`small_object_analyzer` misclassified "GLACIER IR" / "Glacier Instant Retrieval"
+  as plain GLACIER** (40 KB min-billable instead of 128 KB), under-reporting the
+  small-object penalty. Now normalises class spelling (space/hyphen/prose).
+- **`migration_cost_estimator`**: a CSV `total_size_bytes="0"` (truthy string)
+  shadowed the `total_size_gb`/`tb` fallback → 0-byte migration; now a presence/value
+  check. Malformed stdin JSON / missing CSV now emit the `{"ok":false}` envelope
+  instead of a traceback.
+- **`notification_target_policy_validator`**: a wildcard `Principal:"*"` Allow was
+  reported as "no S3 grant" (false "delivery blocked"); it now correctly permits
+  delivery and flags the grant as over-broad.
+- **`lifecycle_rule_simulator`**: same-day transition+expiration now sorts
+  deterministically with expiration precedence (S3 semantics), avoiding a false
+  "wasted days" on a class never really entered.
+- **`parse_sigv4_error`**: stopped mislabeling a short canonical-request fragment's
+  last line as `payload_hash` (requires a full ≥6-line canonical request).
+
+Validation: all gates green; 219 pytest (+8 regression tests) + 21 extension tests;
+31/31 baselines 100% PASS. Version 0.6.5 → 0.6.6.
+
 ## 2026-06-21 — v0.6.5: Thicken non-AWS provider depth
 
 Continues the multi-provider rebalancing (v0.6.4) by deepening the actual content a
