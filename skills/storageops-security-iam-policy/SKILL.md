@@ -143,3 +143,8 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 - `references/kms-permissions.md` — KMS key policy requirements | **Read when:** user mentions KMS, encryption keys, kms:Decrypt, or server-side encryption errors
 - `references/vpc-endpoints.md` — VPC endpoint policy diagnosis | **Read when:** user mentions VPC endpoints, private subnets, or access from within AWS network
 - `references/provider-differences.md` — IAM model differences (BOS/OSS/COS vs AWS) | **Read when:** user uses non-AWS S3 providers (Alibaba OSS, Baidu BOS, Tencent COS, GCS)
+- `references/access-denied.md` — Anatomy of the 403 response and how to read the denial reason | **Read when:** user pastes a 403 AccessDenied body and you need to map the message to a cause
+- `references/bucket-policy.md` — Bucket (resource) policy structure and common grant mistakes | **Read when:** user shares a bucket policy or the denial is on the resource side
+- `references/kms-sse.md` — KMS/SSE encryption types and the key-policy grants S3 needs | **Read when:** the object is SSE-KMS/SSE-C and access fails despite an S3 allow
+- `references/sts-token.md` — STS temporary-credential structure and assume-role trust pitfalls | **Read when:** the caller uses an assumed role / session token and gets denied
+- `references/secret-redaction.md` — What to redact (AK/SK, session tokens, signed URLs) and how | **Read when:** logs or policies may contain credentials and must be sanitized before sharing

@@ -169,6 +169,18 @@ def validate_skills(errors: list[str]) -> dict[str, dict[str, Any]]:
                     f"{skill_file}: helper scripts/{helper.name} is not referenced in SKILL.md "
                     f"(the agent will never run it); wire it into the workflow",
                 )
+
+        # Every reference must be reachable from SKILL.md. Under progressive
+        # disclosure a reference the SKILL.md never links is depth the agent can
+        # never load — it rots silently. Require each references/*.md to be linked.
+        for ref in sorted((skill_dir / "references").rglob("*.md")):
+            rel = ref.relative_to(skill_dir).as_posix()
+            if rel not in links:
+                fail(
+                    errors,
+                    f"{skill_file}: reference {rel} is not linked from SKILL.md "
+                    f"(orphaned — the agent can never load it); add it to the References section",
+                )
     return metas
 
 

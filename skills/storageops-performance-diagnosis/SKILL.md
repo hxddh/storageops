@@ -146,4 +146,5 @@ If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_de
 - `references/multipart-tuning.md` — Chunk size, concurrency, provider quirks | **Read when:** user is uploading/downloading files >100MB
 - `references/prefix-hotspot.md` — Key distribution and request rate partitioning | **Read when:** many files share the same prefix and throughput is below expected
 - `references/throughput-model.md` — Expected throughput formulas | **Read when:** user provides timing data and asks why throughput is low
+- `references/performance-benchmarks.md` — Order-of-magnitude throughput/RPS reference by scenario (verify non-AWS rows against the provider) | **Read when:** you need a rough baseline to judge whether observed numbers are anomalous
 - `scripts/throttle_tuning_recommender.py` — Deterministic concurrency/backoff recommender from an observed throttle rate | **Run when:** throttling is confirmed and the user asks what concurrency/backoff to use

@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-06-20 — v0.6.3: Quality hardening — orphan-reference gate, factual fixes, re-armed safety gate
+
+Driven by a comprehensive four-part audit (SKILL.md correctness, analyzer
+robustness, eval-corpus coverage, references/routing/gates). Three on-philosophy,
+low-complexity tracks; no new analyzers or routing churn.
+
+- **New deterministic gate + reachability fixes.** `skill_integrity_check.py` now
+  fails on any `references/*.md` not linked from its SKILL.md — under progressive
+  disclosure an unlinked reference is depth the agent can never load. The gate
+  surfaced **16 orphaned references**, all now linked: 5 in security-iam-policy
+  (incl. `secret-redaction.md`), 4 in triage (`required-evidence`,
+  `diagnostic-decision-tree`, `issue-taxonomy`, `error-code-encyclopedia`), the
+  `cos`/`oss`/`minio` provider-quirks that `detect_domain` already points to, plus
+  mount/performance/eval references. Pure capability gain — existing depth made
+  discoverable. Unit-tested.
+- **Factual correctness.** Fixed the SigV4 clock-skew tolerance in
+  cli-sdk-diagnosis (was ">5 min", contradicting the protocol skill and reality —
+  now ">~15 min"); reconciled `provider-quirks/bos.md` (it wrongly described BOS
+  multipart ETags with an AWS trailing `-N` instead of the leading-dash form); and
+  removed residual unverified multipart-ETag algorithm claims still asserted as fact
+  in `cos.md`/`oss.md` "Known Issues".
+- **Re-armed the safety gate.** Several `must_not_include` literals never fired
+  against natural phrasing: `"Principal: *"` can never match the real JSON
+  `"Principal": "*"`, and `"make bucket public"` misses "make **the** bucket
+  public". Fixed the JSON form and added the natural unsafe phrasings across the
+  cross-account and adversarial cases, restoring real safety coverage.
+
+Validation: all gates green; 207 pytest (+1 orphan-gate test) + 21 extension
+tests; 28/28 baselines 100% PASS. Version 0.6.2 → 0.6.3.
+
 ## 2026-06-20 — v0.6.2: Deepen the progressive-disclosure layer (8 stub references → actionable depth)
 
 A docs-only, on-philosophy capability release: under Agent Skills' progressive

@@ -45,7 +45,7 @@ CLI/SDK error →
   │   ├─ multipart upload corruption? → ETag format mismatch (BOS vs AWS)
   │   └─ "directory not found"? → rclone VFS cache issue
   ├─ aws CLI? → Check `references/awscli.md`
-  │   ├─ SignatureDoesNotMatch? → Clock skew >5 min
+  │   ├─ SignatureDoesNotMatch? → Clock skew >~15 min (SigV4 tolerance)
   │   └─ SSL/TLS error? → ca-certificates or proxy
   ├─ boto3/botocore? → Check `references/boto3-botocore.md`
   │   ├─ ClientError 403? → Region mismatch or credential chain
@@ -76,7 +76,7 @@ error body and the client's own debug dump (`--debug`/`-vv --dump headers`/
 (*Write-side request evidence*).
 
 ### Step 3: Check Configuration
-Common misconfigurations: wrong endpoint URL, wrong region, wrong signature version (v2 vs v4), proxy settings interfering, clock skew (>5 min causes signature failure).
+Common misconfigurations: wrong endpoint URL, wrong region, wrong signature version (v2 vs v4), proxy settings interfering, clock skew (>~15 min from server time exceeds the SigV4 tolerance and causes signature failure).
 
 ### Step 4: Cross-Tool Comparison
 If multiple tools are mentioned: does the same operation fail with a different tool? This isolates tool-specific bugs from service-side issues.

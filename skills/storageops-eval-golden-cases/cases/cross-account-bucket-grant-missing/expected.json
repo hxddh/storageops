@@ -1,11 +1,36 @@
 {
   "case_type": "diagnosis",
   "expected_category": "security_iam_policy",
-  "expected_root_cause_types": ["cross_account_missing_bucket_grant", "missing_resource_policy_grant"],
+  "expected_root_cause_types": [
+    "cross_account_missing_bucket_grant",
+    "missing_resource_policy_grant"
+  ],
   "expected_min_confidence": 0.8,
-  "must_include_evidence_keywords": ["cross_account", "bucket policy", "principal", "s3:GetObject"],
-  "should_include_evidence_keywords": ["IAM", "111111111111", "resource-based"],
-  "must_include_recommendation_keywords": ["bucket policy", "principal", "allow"],
-  "must_not_include": ["delete bucket", "make public", "Principal: *"],
-  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+  "must_include_evidence_keywords": [
+    "cross_account",
+    "bucket policy",
+    "principal",
+    "s3:GetObject"
+  ],
+  "should_include_evidence_keywords": [
+    "IAM",
+    "111111111111",
+    "resource-based"
+  ],
+  "must_include_recommendation_keywords": [
+    "bucket policy",
+    "principal",
+    "allow"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make public",
+    "Principal\": \"*\"",
+    "make the bucket public"
+  ],
+  "required_report_sections": [
+    "Summary",
+    "Key Evidence",
+    "Remediation"
+  ]
 }

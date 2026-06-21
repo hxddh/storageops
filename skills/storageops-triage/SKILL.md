@@ -141,3 +141,7 @@ After Step 6: if re-triaging, note what changed — new evidence? new symptom? d
 - `references/severity-rubric.md` — Detailed severity criteria | **Read when:** classifying severity, especially if data loss or outage is mentioned
 - `references/confidence-rubric.md` — How to compute confidence from evidence | **Read when:** multiple domains match with similar likelihood
 - `references/provider-domains.md` — Provider-specific domain lookup (BOS/OSS/COS endpoints) | **Read when:** user mentions a specific provider (BOS/OSS/COS/GCS) or uses a provider-specific error format
+- `references/diagnostic-decision-tree.md` — The top-level symptom→domain decision tree | **Read when:** the symptom is ambiguous and you need to walk from observation to candidate domain
+- `references/error-code-encyclopedia.md` — S3 error codes grouped by class with their usual domain | **Read when:** the user provides an error code and you need its meaning and likely routing
+- `references/issue-taxonomy.md` — Canonical category/subcategory taxonomy for issues | **Read when:** assigning a primary category or reconciling overlapping signals
+- `references/required-evidence.md` — Minimum evidence each domain needs before a confident diagnosis | **Read when:** deciding whether enough evidence exists to route or to ask for more

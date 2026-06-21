@@ -90,9 +90,10 @@
 ## Known Issues with Cross-Tool Access
 
 1. **rclone multipart ETag mismatch:** OSS computes multipart ETags differently
-   from AWS S3 (MD5 of part ETags vs MD5 of part MD5s). rclone may report
-   `corrupted on transfer` even when data is intact. Fix: `--s3-use-multipart-etag=false`
-   or use rclone's native `alibaba` backend.
+   from AWS S3 (the exact OSS algorithm is **unverified** — verify against a real
+   ETag rather than assuming a formula). rclone may report `corrupted on transfer`
+   even when data is intact. Fix: `--s3-use-multipart-etag=false` or use rclone's
+   native `alibaba` backend.
 
 2. **ListObjectsV2 not supported:** rclone defaults to `list_version = 2`.
    For OSS remotes, set `list_version = 1` to avoid failures.
