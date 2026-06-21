@@ -111,22 +111,19 @@ If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-network-endpoint-access
-**Layer**: DNS | TCP | TLS | proxy | MTU | VPC-endpoint
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[dns|tcp|tls|proxy|mtu|vpc-endpoint], affected_layer=[dns|tcp|tls|proxy|routing]
+**Primary Diagnosis**: root_cause_type=[dns|tcp|tls|proxy|mtu|vpc-endpoint|transport], affected_layer=[dns|tcp|tls|proxy|routing]
 
-## Evidence
-- Endpoint: [sanitized URL]
-- Error: [exact error message]
+## Key Evidence
+- Endpoint: [sanitized URL]; error: [exact error message]
 - Environment: [public/private subnet, VPC endpoint details]
+- Which network layer and why: [finding]
 
-## Root Cause
-[Which network layer and why]
-
-## Recommendations
+## Remediation
 1. **[fix]** (manual-only) — [specific network change]
 2. **[diagnostic command]** — [to verify the fix]
 

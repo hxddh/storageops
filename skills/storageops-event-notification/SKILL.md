@@ -101,25 +101,26 @@ If the notification chain appears correct but events are still missing, ask the 
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-event-notification
-**Failure point**: no-config | event-type-mismatch | filter-mismatch | iam-gap | lambda-throttle | target-policy
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[type], affected_layer=[rule|target_policy|filter|event_type]
+**Primary Diagnosis**: root_cause_type=[no-config|event-type-mismatch|filter-mismatch|iam-gap|lambda-throttle|target-policy], affected_layer=[rule|target_policy|filter|event_type]
 
-## Evidence
+## Key Evidence
 - Bucket notification config: [present? event types? filters?]
-- Target type: [Lambda/SQS/SNS/EventBridge]
-- Error logs: [from CloudWatch/SQS DLQ]
+- Target type: [Lambda/SQS/SNS/EventBridge]; error logs: [CloudWatch/SQS DLQ]
+- Chain trace: notification config [OK/missing] → target resource policy [OK/missing — principal:s3.amazonaws.com] → Lambda concurrency [OK/throttled]
 
-## Permission Chain Trace
-1. Notification config: [OK/missing — details]
-2. Target resource policy: [OK/missing — check principal:s3.amazonaws.com]
-3. Lambda concurrency: [OK/throttled — check metrics]
-
-## Recommendations
+## Remediation
 1. **[fix]** (manual-only)
+
+## What Would Falsify This
+- [config, target-policy, or delivery evidence that would overturn the diagnosis]
+
+## Risks / Open Questions
+- [non-AWS event model differences, missing target policy/logs, EventBridge mode]
 ```
 
 ## Examples

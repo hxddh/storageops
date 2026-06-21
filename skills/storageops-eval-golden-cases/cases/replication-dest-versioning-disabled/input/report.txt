@@ -1,0 +1,11 @@
+CRR is configured but objects are not appearing in the destination bucket.
+
+- Source bucket: app-prod (us-east-1), versioning ENABLED, replication rule "all"
+  status Enabled, prefix "" (whole bucket), IAM role attached.
+- Destination bucket: app-dr (eu-west-1).
+- New objects written to the source do not show up in app-dr. No replication
+  metrics, and the objects' replication status shows FAILED.
+- aws s3api get-bucket-versioning --bucket app-dr  ->  (empty output)
+
+The IAM role has s3:GetObjectVersionForReplication on the source and
+s3:ReplicateObject on the destination. What is blocking replication?

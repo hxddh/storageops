@@ -117,24 +117,19 @@ If the root cause is still unclear after Step 5:
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-data-consistency
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
 **Primary Diagnosis**: root_cause_type=[client-cache|mount-cache|cdn-cache|multipart-not-completed|concurrent-write|etag-format|sse-kms-etag], affected_layer=[client|mount|cdn|object-store]
 
-## Timeline
-- Write: [timestamp]
-- Read attempt: [timestamp]
-- Stale data observed: [yes/no, timestamp]
+## Key Evidence
+- Timeline: write [ts] → read attempt [ts] → stale observed [yes/no, ts]
+- Cache layers identified: [layer] — [TTL state]
+- Explanation with evidence: [finding]
 
-## Cache Layers Identified
-1. [layer] — [TTL state]
-
-## Root Cause
-[Explanation with evidence]
-
-## Recommendations
+## Remediation
 1. **[fix]** — [cache invalidation, versioning enable, conditional write pattern]
 
 ## What Would Falsify This

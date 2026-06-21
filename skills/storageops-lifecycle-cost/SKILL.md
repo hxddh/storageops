@@ -95,26 +95,29 @@ Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantif
 ## Output Contract — include these fields
 
 ```markdown
-# Cost Analysis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-lifecycle-cost
 **Confidence**: high | medium | low (depends on inventory completeness)
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[type], affected_layer=[lifecycle|storage_class|request|multipart]
+**Primary Diagnosis**: root_cause_type=[min-billable-size|premature-transition|orphaned-multipart|noncurrent-bloat|rule-conflict], affected_layer=[lifecycle|storage_class|request|multipart]
 
-## Current State
-- Objects: [count], Total: [size]
-- Storage class distribution: [breakdown]
-- Versioning: [enabled/disabled], Noncurrent: [count]
+## Key Evidence
+- Objects: [count], total: [size]; storage-class distribution: [breakdown]
+- Versioning: [enabled/disabled], noncurrent: [count]
+- Amplification found: **[issue]** — [structural factor, e.g. Nx min-billable-size penalty / wasted days], expressed in days/bytes/multipliers (never money)
 
-## Cost Amplification Found
-1. **[issue]** — costs [amount]/month
-2. ...
-
-## Recommended Lifecycle
+## Remediation
 1. Rule: [transition STANDARD→IA after X days]
 2. Rule: [transition IA→ARCHIVE after Y days]
 3. Rule: [delete incomplete multipart after 7 days]
 4. ...
+
+## What Would Falsify This
+- [inventory/age/size evidence that would overturn the amplification finding]
+
+## Risks / Open Questions
+- [incomplete inventory, provider-specific min-billable/min-duration differences, versioning blast radius]
 ```
 
 ## Examples

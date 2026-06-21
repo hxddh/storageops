@@ -82,34 +82,24 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-security-iam-policy
-**Root cause type**: explicit-deny | missing-allow | cross-account-gap | kms | vpc-endpoint | public-access-block | credential-leak
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[type], affected_layer=[identity|bucket-policy|kms|network-policy|credential]
+**Primary Diagnosis**: root_cause_type=[explicit-deny|missing-allow|cross-account-gap|kms|vpc-endpoint|public-access-block|credential-leak], affected_layer=[identity|bucket-policy|kms|network-policy|credential]
 
-## Evidence
+## Key Evidence
 - Error: [code + message excerpt]
 - Principal: [ARN if known]
 - Action: [S3 action]
+- Permission chain trace: Explicit Deny [found/none] → IAM [allow/deny] → Bucket Policy [allow/deny] → Block Public Access [on/off] → **Blocked at**: [layer]
+- Credential scan: [scan_secrets findings, if any]
 
-## Permission Chain Trace
-1. Explicit Deny: [none found / found: statement ID...]
-2. IAM Policy: [allow/deny for this action?]
-3. Bucket Policy: [allow/deny?]
-4. Block Public Access: [enabled/disabled]
-→ **Blocked at**: [layer]
-
-## Recommendations
+## Remediation
 1. **[fix]** (manual-only) — [policy change needed]
 2. **[workaround]** — [if applicable]
-
-## Credential Scan
-[scan_secrets findings, if any]
-
-## Validation Steps
-- [read-only policy simulator, identity check, or scoped test to confirm]
+- Validation: [read-only policy simulator, identity check, or scoped test to confirm]
 
 ## What Would Falsify This
 - [policy, KMS, or credential evidence that would overturn the diagnosis]
