@@ -63,10 +63,10 @@ Match against the decision tree above. If multiple domains match, note all with 
 `detect_domain` also reports a best-effort `provider` (aws/bos/oss/cos/gcs/azure/obs/minio) detected from the endpoint, vendor headers, or CLI — even when the user never names it. When it reports a non-AWS provider, carry that into routing and tell the specialist to apply that provider's quirks (e.g. `provider_quirks_ref`); object-storage misdiagnosis most often comes from applying AWS assumptions to a non-AWS provider. Treat the detected provider as a hint to verify (endpoints can be proxied/CNAME'd), not a fact.
 
 ### Step 3: Evidence Completeness Check
-Assess what evidence is present and what's missing for the target specialist skill:
-- **Sufficient**: user provided error message + tool + command + timestamps → route immediately
-- **Partial**: error message only, no tool/version → ask for tool + version, then route
-- **Insufficient**: vague description → ask clarifying questions from `references/triage-questions.md`
+Assess what evidence is present and what's missing for the target specialist skill. Run `python3 scripts/evidence_completeness_checker.py --domain <domain> --stdin` (piping the user's text) to get a deterministic present/missing list and a readiness score against `references/required-evidence.md`, then act on its verdict:
+- **ready** (≥0.8): route immediately
+- **partial** (0.5–0.8): route but ask for the specific missing items it lists
+- **insufficient** (<0.5): ask the missing items / clarifying questions from `references/triage-questions.md` before routing
 
 ### Step 4: Severity Assessment
 | Severity | Criteria |
@@ -145,3 +145,4 @@ After Step 6: if re-triaging, note what changed — new evidence? new symptom? d
 - `references/error-code-encyclopedia.md` — S3 error codes grouped by class with their usual domain | **Read when:** the user provides an error code and you need its meaning and likely routing
 - `references/issue-taxonomy.md` — Canonical category/subcategory taxonomy for issues | **Read when:** assigning a primary category or reconciling overlapping signals
 - `references/required-evidence.md` — Minimum evidence each domain needs before a confident diagnosis | **Read when:** deciding whether enough evidence exists to route or to ask for more
+- `scripts/evidence_completeness_checker.py` — Deterministic present/missing + readiness score for a domain's required evidence; run `python3 scripts/evidence_completeness_checker.py --domain <domain> --stdin` | **Run when:** deciding in Step 3 whether to route now or ask for more evidence

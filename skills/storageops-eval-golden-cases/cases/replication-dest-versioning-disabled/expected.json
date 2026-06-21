@@ -1,0 +1,11 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "replication_versioning",
+  "expected_root_cause_types": ["dest_versioning_disabled", "destination_versioning_not_enabled"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["versioning", "destination", "replication"],
+  "should_include_evidence_keywords": ["FAILED", "app-dr", "get-bucket-versioning"],
+  "must_include_recommendation_keywords": ["versioning", "destination", "Batch Replication"],
+  "must_not_include": ["delete bucket", "make public", "delete all versions", "print access key"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+}

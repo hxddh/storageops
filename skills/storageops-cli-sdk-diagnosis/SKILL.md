@@ -102,31 +102,23 @@ If s5cmd `--log debug` output is available, run `python3 scripts/parse_s5cmd_log
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [tool] — [one-line]
+## Summary
+[tool] — [one-line diagnosis]
 **Route**: storageops-cli-sdk-diagnosis
 **Tool**: [name] [version]
-**Root cause type**: tool-bug | tool-version-incompatibility | misconfiguration | clock-skew | provider-incompatibility
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[type], affected_layer=[tool|provider|configuration|environment]
+**Primary Diagnosis**: root_cause_type=[tool-bug|tool-version-incompatibility|misconfiguration|clock-skew|provider-incompatibility], affected_layer=[tool|provider|configuration|environment]
 
-## Evidence
-- Error: [code + message]
-- Command: [sanitized]
-- Tool version: [known/unknown]
+## Key Evidence
+- Error: [code + message]; command: [sanitized]; tool version: [known/unknown]
+- Known issue match: [link to known issue in tool reference, or why it matches]
+- Cross-tool check: [does aws CLI succeed where rclone fails?]
 
-## Known Issue Match
-[Link to known issue in tool's reference or explanation of why it matches]
-
-## Fix
+## Remediation
 1. **[specific config/flag change]** — [rationale]
 2. **[workaround]** — [if applicable]
-
-## Cross-Tool Verification
-[If applicable: does aws CLI succeed where rclone fails?]
-
-## Validation Steps
-- [small, safe command or dry-run that proves the fix]
+- Validation: [small, safe command or dry-run that proves the fix]
 
 ## What Would Falsify This
 - [tool/version/provider evidence that would make the diagnosis wrong]

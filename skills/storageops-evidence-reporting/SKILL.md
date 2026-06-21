@@ -61,7 +61,7 @@ Apply consistent confidence scoring across all findings:
 See `references/reporting-best-practices.md` for scoring methodology.
 
 ### Step 5: Quality Gates
-Before finalizing: every recommendation marked manual-only if destructive, no credentials in report, confidence matches evidence quality, report matches audience needs.
+Before finalizing: every recommendation marked manual-only if destructive, no credentials in report, confidence matches evidence quality, report matches audience needs. Run `python3 scripts/report_contract_validator.py --file <draft.md>` for a deterministic check that the required sections are present, a confidence value is well-formed, no credentials leak, and no destructive/unsafe recommendation slipped in — fix anything it flags before delivering.
 
 ### Step 6: Feedback Loop
 Before delivering any report, run `scan_secrets` on the full report text. If credentials are found: **"⚠️ CREDENTIAL_LEAK: The report contains credentials that MUST be redacted before sharing."** — do not deliver the report until redacted. After report generation, ask: **"Does this report match your audience and format expectations? Would you like me to regenerate with a different template?"** If the report is for a customer and contains technical speculation: go back to Step 2 and switch to Customer Report template.
@@ -99,7 +99,7 @@ Varies by template. Core Diagnosis Report structure:
 1. **Primary** (confidence: X%): [explanation + supporting evidence IDs]
 2. **Alternative** (confidence: Y%): [explanation — if applicable]
 
-## Recommendations
+## Remediation
 1. **[action]** (manual-only | safe) — Risk: [low/medium/high]
 2. ...
 
@@ -127,6 +127,7 @@ Varies by template. Core Diagnosis Report structure:
 
 ## References
 - `references/reporting-best-practices.md` — Confidence scoring methodology, evidence rules | **Read when:** computing confidence scores or evaluating evidence quality
+- `scripts/report_contract_validator.py` — Deterministic Output-Contract check (required sections, confidence, redaction, no destructive recommendations); run `python3 scripts/report_contract_validator.py --file <draft.md>` | **Run when:** finalizing a report in Step 5, before delivery
 - `templates/customer-report.md` — Customer-facing report template | **Read when:** audience is external/customer, need non-technical summary
 - `templates/internal-engineering-note.md` — Internal engineering note template | **Read when:** audience is internal engineering team, need full technical details
 - `templates/reproduction-checklist.md` — Reproduction checklist template | **Read when:** QA or engineering needs exact step-by-step reproduction steps

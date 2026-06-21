@@ -94,27 +94,22 @@ If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_de
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-performance-diagnosis
-**Bottleneck**: client | network | service-throttling | multipart | small-files | prefix-hotspot
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[type], affected_layer=[client|network|provider|workload]
+**Primary Diagnosis**: root_cause_type=[client|network|service-throttling|multipart|small-files|prefix-hotspot], affected_layer=[client|network|provider|workload]
 
-## Evidence
-- Error codes: [list with count]
-- Timing profile: [TTFB, transfer rate, concurrency level]
+## Key Evidence
+- Error codes: [list with count]; timing profile: [TTFB, transfer rate, concurrency]
 - Workload: [file count × avg size = total]
+- What's happening and why it causes the symptom: [finding]
 
-## Root Cause
-[What's happening and why it causes the symptom]
-
-## Recommendations
+## Remediation
 1. **[action]** (manual-only | safe) — [expected effect]
 2. ...
-
-## Validation Steps
-- [read-only or low-risk experiment that can confirm the bottleneck]
+- Validation: [read-only or low-risk experiment that can confirm the bottleneck]
 
 ## What Would Falsify This
 - [evidence that would make the diagnosis unlikely]

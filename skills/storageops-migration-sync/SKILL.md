@@ -105,30 +105,29 @@ Run `python3 scripts/migration_cost_estimator.py` with object count and size to 
 ## Output Contract — include these fields
 
 ```markdown
-# Migration Plan: [one-line]
+## Summary
+[one-line migration plan / diagnosis]
 **Route**: storageops-migration-sync
 **Strategy**: server-side-copy | direct-transfer | offline-transfer
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[strategy-mismatch | etag-incompatibility | metadata-loss | throughput-shortfall | destructive-sync], affected_layer=[source | destination | transfer-tool | provider-protocol]
+**Primary Diagnosis**: root_cause_type=[strategy-mismatch|etag-incompatibility|metadata-loss|throughput-shortfall|destructive-sync], affected_layer=[source|destination|transfer-tool|provider-protocol]
 **Estimated time**: [hours/days]
-**Estimated cost**: [amount]
 
-## Migration Profile
-- Source: [provider/region], [object count] × [total size]
-- Bandwidth: [available Mbps/Gbps]
+## Key Evidence
+- Source: [provider/region], [object count] × [total size]; bandwidth: [Mbps/Gbps]
 - File distribution: [P50/P90 file sizes]
+- Compatibility issues found: **[issue]** — [mitigation]
 
-## Recommended Tools
-- rclone with flags: `[specific flags for this migration]`
+## Remediation
+- Recommended tool/flags: rclone `[specific flags for this migration]`
+- Post-migration verification: object count (`rclone size` source vs dest), then an explicit checksum on a sample (never cross-provider raw multipart ETags)
 
-## Compatibility Issues Found
-1. **[issue]** — [mitigation]
+## What Would Falsify This
+- [size/checksum/metadata evidence that would overturn the diagnosis]
 
-## Post-Migration Verification
-1. Object count: `rclone size` on source vs destination
-2. Checksum: sample N random objects
-3. ...
+## Risks / Open Questions
+- [destructive-sync blast radius, cross-provider ETag/metadata differences, throughput assumptions]
 ```
 
 ## What Would Falsify This

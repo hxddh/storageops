@@ -126,24 +126,21 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 ## Output Contract — include these fields
 
 ```markdown
-# Access Log Analysis: [one-line summary]
+## Summary
+[one-line summary]
 **Route**: storageops-access-log-analysis
 **Provider**: AWS S3 | BOS | OSS | COS
-**Time Range**: YYYY-MM-DD HH:MM — YYYY-MM-DD HH:MM UTC
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
 **Primary Diagnosis**: root_cause_type=[error-spike|access-pattern|anomaly|cost-attribution], affected_layer=[requester|credential|operation-mix|traffic-volume]
 
-## Key Metrics
-- Total requests: [N]
-- Error rate: [X%] (4xx: [N], 5xx: [N])
-- Top requester IP: [sanitized]
-- Top operation: [GET/PUT/LIST/DELETE] ([N]%)
+## Key Evidence
+- Time range: [start — end UTC]
+- Total requests: [N]; error rate: [X%] (4xx: [N], 5xx: [N])
+- Top requester: [sanitized]; top operation: [GET/PUT/LIST/DELETE] ([N]%)
+- What the log reveals about the user's question: [finding]
 
-## Root Cause
-[What the log analysis reveals about the user's question]
-
-## Recommendations
+## Remediation
 1. **[category]** (manual-only) — [specific action]
 2. **[category]** — [diagnostic or validation command]
 

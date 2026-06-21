@@ -104,23 +104,19 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-s3-protocol-compatibility
-**Root cause**: sigv2-vs-v4 | clock-skew | header-reordering | missing-api | xml-format | chunked-encoding | provider-quirk
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[signature-mismatch | clock-skew | header-reordering | missing-api | xml-format | chunked-encoding | payload-hash | provider-quirk], affected_layer=[client-sdk | proxy | request-encoding | provider-protocol]
+**Primary Diagnosis**: root_cause_type=[signature-mismatch|clock-skew|header-reordering|missing-api|xml-format|chunked-encoding|payload-hash|provider-quirk], affected_layer=[client-sdk|proxy|request-encoding|provider-protocol]
 
-## Evidence
-- Error: [code + message]
-- Signature version: [v2/v4, if known]
-- Provider: [AWS/BOS/OSS/COS/GCS]
-- Endpoint URL: [sanitized]
+## Key Evidence
+- Error: [code + message]; signature version: [v2/v4, if known]
+- Provider: [AWS/BOS/OSS/COS/GCS]; endpoint URL: [sanitized]
+- Protocol analysis: [StringToSign or CanonicalRequest analysis if available]
 
-## Protocol Analysis
-[StringToSign or CanonicalRequest analysis if available]
-
-## Recommendations
+## Remediation
 1. **[fix]** (manual-only) — [config change or SDK upgrade]
 2. **[workaround]** — [alternative API or SDK]
 ```

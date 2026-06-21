@@ -110,22 +110,19 @@ If the diagnosis points to a committer issue:
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-bigdata-pipeline
-**Committer**: [type]
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
 **Primary Diagnosis**: root_cause_type=[committer-race|partition-discovery|small-files|connection-pool|table-format|s3guard], affected_layer=[committer|metadata|filesystem-client|table-format]
 
-## Evidence
-- Engine: [Spark 3.x / Hive 3.x]
-- Committer: [V1 / magic / staging / partitioning]
+## Key Evidence
+- Engine: [Spark 3.x / Hive 3.x]; committer: [V1 / magic / staging / partitioning]
 - Table format: [plain / Iceberg / Delta / Hudi]
+- Explanation with config evidence: [finding]
 
-## Root Cause
-[Explanation with config evidence]
-
-## Recommendations
+## Remediation
 1. **[config change]** — `fs.s3a.committer.name=magic` (manual-only, test in staging)
 2. ...
 

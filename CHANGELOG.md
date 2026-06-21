@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-06-21 — v0.7.0: Unify & Complete (major iteration)
+
+A major iteration that closes the last structural gaps rather than adding features.
+Three tracks, all on-philosophy (deterministic, progressive disclosure, no
+LLM-judgment gates, no pricing), each locked by a new gate.
+
+### Track A — Output-Contract unification
+The eval corpus grades reports by section heading (`Summary` / `Key Evidence` /
+`Remediation`), but every `SKILL.md` Output Contract used its own divergent
+vocabulary (`Evidence`, `Recommendations`, `Fix`, `Root Cause`, …) — so a model that
+faithfully followed a skill emitted sections the benchmark did not credit. All 13
+diagnostic skills are now standardized to the canonical `Summary / Key Evidence /
+Remediation` (+ the existing `What Would Falsify This` / `Risks / Open Questions`
+floor); triage keeps `Routing / Evidence Gaps`; evidence-reporting aligned. Redundant
+double-encoded fields (`Root cause type:` / `Subsystem:` / `Failure point:`) were
+folded into the single `Primary Diagnosis: root_cause_type=…, affected_layer=…` line.
+New gate `contract_check.py` (CI) enforces the canonical vocabulary so it can't drift.
+
+### Track B — complete the deterministic-helper principle
+The two previously script-less skills get their first helpers:
+- triage → `evidence_completeness_checker.py`: deterministic present/missing +
+  readiness score against `required-evidence.md`, turning the "enough evidence?" step
+  into a structural check.
+- evidence-reporting → `report_contract_validator.py`: deterministic Output-Contract
+  check (required sections, well-formed confidence, redaction, no destructive
+  recommendations) — the same rules the eval applies, available before delivery.
+Both unit-tested; every skill now has at least one deterministic helper.
+
+### Track C — complete eval coverage
+- Authored the **15 missing baselines** (8 diagnosis + 7 routing cases): every one of
+  the now-48 golden cases has a reference output, so the regression gate exercises
+  100% of the corpus (was ~68%).
+- Added a 3rd `replication-versioning` case (`replication-dest-versioning-disabled`),
+  the thinnest data-loss-adjacent skill.
+- New gate `coverage_check.py` (CI): every baseline-enabled category must keep ≥2
+  golden cases and ≥1 baseline reference.
+
+Validation: 11 gates green (incl. the 2 new); 235 pytest (+16) + 21 extension tests;
+**48/48 baselines 100% PASS**. Version 0.6.8 → 0.7.0.
+
 ## 2026-06-21 — v0.6.8: Routing robustness, continued — constrain the last over-broad signals
 
 Finishes the routing-robustness pass started in v0.6.7 by constraining the three

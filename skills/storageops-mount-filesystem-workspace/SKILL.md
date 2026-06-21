@@ -103,26 +103,22 @@ After tuning, ask the user to test: **"Run the same operation that was slow befo
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-mount-filesystem-workspace
 **Mount type**: [tool + version]
-**Root cause**: metadata-amplification | posix-mismatch | cache-coherence | tool-bug
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[metadata-amplification | posix-mismatch | cache-coherence | tool-bug], affected_layer=[fuse-client | mount-cache | object-store-api | workload]
+**Primary Diagnosis**: root_cause_type=[metadata-amplification|posix-mismatch|cache-coherence|tool-bug], affected_layer=[fuse-client|mount-cache|object-store-api|workload]
 
-## Evidence
-- Mount command: [sanitized]
-- Failing operation: [e.g., git status, npm install]
+## Key Evidence
+- Mount command: [sanitized]; failing operation: [e.g. git status, npm install]
 - Latency observed: [operation → time]
+- Stat amplification: [N files × HEAD/GET per operation]; POSIX mismatch: [unsupported op]
 
-## Analysis
-- Stat amplification: [N files × HEAD/GET per operation]
-- POSIX mismatch: [specific operation that's unsupported]
-
-## Recommendations
+## Remediation
 1. **[mount option change]** — [expected effect]
-2. **[workflow change]** — [e.g., use object storage SDK for writes, mount for reads]
+2. **[workflow change]** — [e.g. object-storage SDK for writes, mount for reads]
 3. **[alternative tool]** — [JuiceFS for POSIX-heavy workloads]
 ```
 

@@ -98,22 +98,19 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 ## Output Contract — include these fields
 
 ```markdown
-# Diagnosis: [one-line]
+## Summary
+[one-line diagnosis]
 **Route**: storageops-replication-versioning
-**Subsystem**: replication-rule | replication-lag | delete-marker | versioning | object-lock
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[rule-misconfig | dest-versioning-disabled | delete-marker-not-replicated | replication-lag | versioning-state | object-lock-retention], affected_layer=[source-bucket | dest-bucket | iam-role | replication-pipeline]
+**Primary Diagnosis**: root_cause_type=[rule-misconfig|dest-versioning-disabled|delete-marker-not-replicated|replication-lag|versioning-state|object-lock-retention], affected_layer=[source-bucket|dest-bucket|iam-role|replication-pipeline]
 
-## Evidence
+## Key Evidence
 - Source bucket: [versioning state, replication rules]
-- Destination bucket: [versioning state, region]
-- IAM role: [permissions summary]
+- Destination bucket: [versioning state, region]; IAM role: [permissions summary]
+- Explanation with config evidence: [finding]
 
-## Root Cause
-[Explanation with config evidence]
-
-## Recommendations
+## Remediation
 1. **[config fix]** (manual-only) — [expected effect]
 2. **[retroactive fix]** — [S3 Batch Replication for existing objects]
 ```
