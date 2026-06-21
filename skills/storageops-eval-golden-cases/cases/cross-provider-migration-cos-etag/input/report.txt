@@ -1,0 +1,18 @@
+Migration verification fails after copying from AWS S3 to Tencent COS.
+
+We are migrating a bucket from AWS S3 to Tencent Cloud Object Storage (COS) with
+rclone sync. The transfer reports success, but our post-migration verification step
+flags hundreds of large objects as mismatched:
+
+  $ rclone check s3:prod-archive cos:prod-archive --size-only   -> 0 differences
+  $ rclone check s3:prod-archive cos:prod-archive               -> 412 differences
+       (hash/ETag comparison)
+
+Spot check of one flagged object (datasets/shard-0007.parquet, 880 MiB, multipart):
+  AWS S3 ETag:  "7e3a1c0b9d2f48a6b5c4d3e2f1a09b8c-14"   (14 parts)
+  COS ETag:     "2f9b8c7d6e5a4b3c2d1e0f9a8b7c6d5e-14"   (different hex, same -14)
+  object size:  identical on both sides
+  Only the small/single-part objects verify clean; every multipart object differs.
+
+Is the data corrupted in transit, or is this a provider ETag difference? How do we
+verify this cross-provider migration correctly?

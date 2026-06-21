@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-06-21 — v0.6.5: Thicken non-AWS provider depth
+
+Continues the multi-provider rebalancing (v0.6.4) by deepening the actual content a
+non-AWS diagnosis loads. The `provider-quirks/` files were already solid; the gap was
+the cross-provider/compat references, which were ~440–490 byte stubs. Docs + one
+golden case; no new scripts.
+
+- **Deepened 3 cross-provider stub references to gold-standard depth** (modeled on
+  `security-iam-policy/references/provider-differences.md`, with honest "verify
+  before asserting" hedges):
+  - migration-sync `cross-provider-compatibility.md`: the four things that differ
+    (ETag/checksum, metadata header prefixes `x-amz`/`x-bce`/`x-oss`/`x-cos`,
+    ACL/ownership, storage class) and a provider-safe verification method; cross-links
+    the ETag matrix + `multipart_etag_calculator.py`.
+  - event-notification `provider-compatibility.md`: events are a provider-native
+    subsystem, not a wire feature; the AWS validators are `"model":"aws"` only;
+    split rule-match vs target-permission on the provider's own model.
+  - bigdata-pipeline `provider-compatibility.md`: concrete S3A config for non-AWS
+    endpoints (`fs.s3a.endpoint`, `fs.s3a.path.style.access`, signing region,
+    credentials provider) and what breaks committers/listings.
+- **Added a non-AWS migration golden case** `cross-provider-migration-cos-etag`
+  (AWS→Tencent COS: multipart ETag differs, single-part objects verify clean,
+  `--size-only` shows 0 diffs → not corruption → migration-sync), with a baseline.
+  Raises the under-covered migration-sync skill and exercises the deepened reference.
+
+Validation: all gates green; 211 pytest + 21 extension tests; 31/31 baselines 100%
+PASS; routing-corpus recalls the new case. Version 0.6.4 → 0.6.5.
+
 ## 2026-06-21 — v0.6.4: Multi-provider rebalancing
 
 StorageOps serves *all* S3-compatible object storage, not only AWS. A self-review
