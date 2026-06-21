@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-06-21 — v0.6.7: Routing robustness
+
+Closes the routing gaps flagged in the v0.6.2 audit and deferred since. Changes are
+to `detect_domain` only, guarded by the routing-corpus (every golden case must still
+recall its skill top-2) and the negative-corpus (false positives must not route).
+
+- **Constrained the bare `cost` signature.** `[/cost/i]` matched "cost center", "at
+  all costs", "cost of downtime" and misrouted unrelated text to lifecycle-cost. It
+  now requires a storage-cost neighbour token (storage/request/egress/transition/
+  tier/bill/lifecycle/retrieval/IA/Glacier/Archive/GB/TB) — mirroring the already-
+  guarded `sync`/`transfer` patterns. Two negative-corpus cases lock it.
+- **Added a `transport` signal to network-endpoint-access**: `RequestTimeout`,
+  `connection reset` / `reset by peer`, `broken pipe`, `ECONNRESET`, `EPIPE`,
+  `unexpected EOF` — common mid-transfer failures that previously matched no
+  signature and so did not route.
+- **New golden case** `network-connection-reset-upload` (large multipart PUTs reset
+  by a new firewall/NAT middlebox; small PUTs and downloads fine → network transport,
+  not auth), with a baseline — exercises and locks the new `transport` signal.
+
+Deliberately not changed: `NoSuchKey`/`NoSuchBucket` were left unsignalled — they are
+genuinely ambiguous (consistency vs CLI vs protocol) and a hard signal would risk
+misrouting; that is better handled by triage context than a bare regex.
+
+Validation: all gates green; 219 pytest + 21 extension tests (incl. the 2 new
+negative-corpus cases); 32/32 baselines 100% PASS. Version 0.6.6 → 0.6.7.
+
 ## 2026-06-21 — v0.6.6: Correctness hardening (helper bug-fix release)
 
 A focused bug-fix release. A correctness audit of the deterministic helpers (the
