@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-06-21 — v0.6.8: Routing robustness, continued — constrain the last over-broad signals
+
+Finishes the routing-robustness pass started in v0.6.7 by constraining the three
+remaining bare signatures the v0.6.2 audit flagged. `detect_domain` only, guarded by
+routing-corpus (every golden case still recalls its skill top-2) and negative-corpus.
+
+- **`Unauthorized`** (security): `[/Unauthorized/i]` matched any prose use
+  ("unauthorized change to the wiki"). Now requires `401 Unauthorized` or an
+  access/request/operation/credential/signature neighbour.
+- **`KMS`** (security): `[/KMS/i]` matched any mention. Now requires the `kms:` action
+  form or a crypto neighbour (key/encrypt/decrypt/SSE/cipher/CMK/GenerateDataKey), so
+  an unrelated "KMS team roadmap" no longer routes to security.
+- **`mismatch`** (data-consistency): `[/mismatch/i]` matched "version mismatch",
+  "schema mismatch". Now requires a data neighbour (etag/checksum/hash/md5/content/
+  object/data/digest/size/byte), so a "firmware version mismatch" no longer routes to
+  data-consistency.
+- Three negative-corpus cases lock the new guards; verified the real forms still fire
+  (`401 Unauthorized`, `kms:GenerateDataKey`, `ETag mismatch`) and the dependent
+  golden cases (`kms-denied-encrypt`, `multipart-etag-rechunk-mismatch`) still route.
+
+Validation: all gates green; 219 pytest + 21 extension tests (incl. 3 new
+negative-corpus cases); 32/32 baselines 100% PASS. Version 0.6.7 → 0.6.8.
+
 ## 2026-06-21 — v0.6.7: Routing robustness
 
 Closes the routing gaps flagged in the v0.6.2 audit and deferred since. Changes are

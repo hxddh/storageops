@@ -144,8 +144,8 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
     [/403\s*(?:Forbidden|Access\s*Denied)/i, "access_denied"],
     [/AccessDenied/i, "access_denied_api"],
     [/InvalidAccessKeyId/i, "invalid_key"],
-    [/KMS/i, "kms_error"],
-    [/Unauthorized/i, "unauthorized"],
+    [/kms:\w|\bKMS\b.*\b(key|encrypt|decrypt|SSE|cipher|grant|CMK|GenerateDataKey)\b|\b(key|encrypt|decrypt|SSE|cipher|CMK)\b.*\bKMS\b/i, "kms_error"],
+    [/401\s*Unauthorized|\bUnauthorized\b.*\b(request|access|operation|principal|credential|token|user|role|perform|API|HTTP|header|signature)\b|\b(request|access|operation|principal|credential|token|HTTP|API|signature)\b.*\bUnauthorized\b/i, "unauthorized"],
     [/AssumeRole|sts:/i, "role_error"],
     [/权限|无权限|鉴权|拒绝访问|访问被拒/i, "access_denied_cjk"],
   ],
@@ -213,7 +213,7 @@ const DOMAIN_SIGNATURES: Record<string, Array<[RegExp, string]>> = {
   "storageops-data-consistency": [
     [/consistenc|一致性/i, "consistency"],
     [/stale|陈旧/i, "stale"],
-    [/mismatch/i, "mismatch"],
+    [/\bmismatch\b.*\b(etag|checksum|hash|md5|sha|content|object|data|digest|size|byte)\b|\b(etag|checksum|hash|md5|sha|content|object|data|digest)\b.*\bmismatch\b/i, "mismatch"],
     [/checksum|ETag/i, "checksum"],
   ],
   "storageops-bigdata-pipeline": [

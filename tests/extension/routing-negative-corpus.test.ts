@@ -60,6 +60,21 @@ const NEGATIVE_CASES: NegativeCase[] = [
     text: "We must keep the service available at all costs during the migration window.",
     forbidden: [["storageops-lifecycle-cost", "cost"]],
   },
+  {
+    name: "unauthorized wiki edit is not a security access denial",
+    text: "An unauthorized change to the internal wiki page was reverted by the editor.",
+    forbidden: [["storageops-security-iam-policy", "unauthorized"]],
+  },
+  {
+    name: "firmware version mismatch is not data-consistency",
+    text: "The release notes flag a firmware version mismatch between the two appliances.",
+    forbidden: [["storageops-data-consistency", "mismatch"]],
+  },
+  {
+    name: "bare KMS acronym without crypto context is not a kms error",
+    text: "The KMS team will present the quarterly knowledge-management-system roadmap.",
+    forbidden: [["storageops-security-iam-policy", "kms_error"]],
+  },
 ];
 
 test("routing negative corpus blocks known bare-substring false positives", () => {
