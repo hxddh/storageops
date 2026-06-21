@@ -1,0 +1,11 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "migration_sync",
+  "expected_root_cause_types": ["cross_provider_etag_mismatch_not_corruption", "multipart_etag_provider_difference"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["migration", "COS", "multipart", "ETag"],
+  "should_include_evidence_keywords": ["size-only", "single-part", "rclone"],
+  "must_include_recommendation_keywords": ["checksum", "verify", "ETag"],
+  "must_not_include": ["delete destination", "re-migrate everything", "make the bucket public", "corrupted, re-copy"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+}
