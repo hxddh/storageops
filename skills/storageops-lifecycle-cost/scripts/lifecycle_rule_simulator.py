@@ -203,7 +203,10 @@ def analyze(rules: list, age_days, avg_size, object_count, start_class: str) -> 
                 "orphaned/incomplete multipart parts remain billable"
             )
 
-    events.sort(key=lambda e: e[0])
+    # Deterministic tiebreak: when a transition and an expiration land on the same
+    # day, S3 gives expiration precedence (the transition does not happen), so sort
+    # expire before transition rather than relying on insertion order.
+    events.sort(key=lambda e: (e[0], 0 if e[1] == "expire" else 1))
 
     # Walk the timeline to determine class residency windows. A class entered at
     # day D and left at day L bills for max(L-D, min_duration_days). If the

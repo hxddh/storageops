@@ -5,7 +5,7 @@ compute penalty, estimate savings from consolidation.
 CSV columns (required header): key,size_bytes,storage_class
 Output: JSON {ok, summary, class_breakdown, recommendations, details}"""
 
-import argparse, csv, json, sys
+import argparse, csv, json, re, sys
 
 # Minimum billable object size (bytes) per storage class family
 _MIN_BILLABLE = {
@@ -23,7 +23,11 @@ _MIN_BILLABLE = {
 
 
 def _min_billable(storage_class: str) -> int:
-    upper = storage_class.upper()
+    # Normalise spelling so "GLACIER IR" / "Glacier Instant Retrieval" / "glacier-ir"
+    # all match GLACIER_IR rather than falling through to plain GLACIER.
+    upper = re.sub(r"[ \-]+", "_", storage_class.upper())
+    if "INSTANT" in upper and "GLACIER" in upper:
+        upper = "GLACIER_IR"
     for marker in sorted(_MIN_BILLABLE, key=len, reverse=True):
         if marker in upper:
             return _MIN_BILLABLE[marker]

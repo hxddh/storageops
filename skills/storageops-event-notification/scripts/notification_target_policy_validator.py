@@ -64,10 +64,22 @@ def _statements(policy: dict) -> list:
     return [s for s in _as_list(policy.get("Statement")) if isinstance(s, dict)]
 
 
-def _principal_is_s3(stmt: dict) -> bool:
+def _principal_is_wildcard(stmt: dict) -> bool:
     principal = stmt.get("Principal")
     if principal == "*":
-        return False
+        return True
+    if isinstance(principal, dict):
+        return "*" in _as_list(principal.get("AWS")) or "*" in _as_list(principal.get("Service"))
+    return False
+
+
+def _principal_is_s3(stmt: dict) -> bool:
+    # A wildcard principal ("*", {"AWS":"*"}) DOES allow s3.amazonaws.com to invoke
+    # the target — over-broad, but it permits delivery, so it must not be reported
+    # as "no S3 grant" (false "delivery blocked").
+    if _principal_is_wildcard(stmt):
+        return True
+    principal = stmt.get("Principal")
     if isinstance(principal, str):
         return principal == S3_SERVICE
     if isinstance(principal, dict):
@@ -190,7 +202,13 @@ def validate(policy: dict, target_type: Optional[str], bucket_arn: Optional[str]
 
     policy_ok = not missing
 
+    overbroad = policy_ok and any(_principal_is_wildcard(s) for s in action_stmts)
     if policy_ok:
+        wildcard_note = (
+            " Note: the grant uses a wildcard Principal (\"*\"), which permits delivery but is "
+            "over-broad — scope it to Principal Service s3.amazonaws.com with an aws:SourceArn "
+            "condition." if overbroad else ""
+        )
         summary = (
             f"Target resource policy permits S3 delivery: an Allow statement grants "
             f"{action} to Principal {S3_SERVICE}"
@@ -200,6 +218,7 @@ def validate(policy: dict, target_type: Optional[str], bucket_arn: Optional[str]
             "Policy is correct. If events still are not delivered, the target policy is not "
             "the cause — check the bucket notification rule (event type + prefix/suffix filter) "
             "with notification_config_analyzer.py, and confirm CloudTrail shows the event was emitted."
+            + wildcard_note
         )
     elif sourcearn_mismatch:
         summary = (

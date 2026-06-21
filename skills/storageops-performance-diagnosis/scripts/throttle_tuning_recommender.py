@@ -72,11 +72,11 @@ def parse_size(value: Optional[str]) -> Optional[int]:
         raise ValueError(f"unparseable size: {value!r}")
     num = float(m.group(1))
     unit = m.group(2).lower()
-    binary = bool(m.group(3))
-    factor = {"": 1, "k": 1, "m": 2, "g": 3, "t": 4}[unit]
-    base = 1024 if binary or unit else 1000
+    binary = bool(m.group(3))  # the 'i' in MiB/GiB selects 1024, not the unit letter
     if unit == "":
-        base = 1
+        return int(num)
+    factor = {"k": 1, "m": 2, "g": 3, "t": 4}[unit]
+    base = 1024 if binary else 1000
     return int(num * (base ** factor))
 
 
