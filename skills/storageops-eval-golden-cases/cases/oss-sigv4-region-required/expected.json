@@ -1,0 +1,11 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "s3_protocol_compatibility",
+  "expected_root_cause_types": ["oss_sigv4_region_mismatch", "sigv4_signing_region_mismatch"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["OSS", "SignatureDoesNotMatch", "region", "cn-hangzhou"],
+  "should_include_evidence_keywords": ["us-east-1", "credential scope", "SigV4"],
+  "must_include_recommendation_keywords": ["region", "signing", "endpoint"],
+  "must_not_include": ["delete bucket", "make the bucket public", "rotate the access key", "disable signature"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+}

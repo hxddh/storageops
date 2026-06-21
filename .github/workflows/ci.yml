@@ -29,6 +29,9 @@ jobs:
       - name: Check reference scope
         run: python scripts/reference_scope_check.py
 
+      - name: Check provider scope
+        run: python scripts/provider_scope_check.py
+
       - name: Validate golden cases
         run: python skills/storageops-eval-golden-cases/scripts/golden_case_validator.py skills/storageops-eval-golden-cases/cases
 

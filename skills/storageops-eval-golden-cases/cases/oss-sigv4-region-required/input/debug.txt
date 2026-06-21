@@ -1,0 +1,15 @@
+awscli against Alibaba OSS returns SignatureDoesNotMatch — works fine on AWS S3.
+
+$ aws s3 ls s3://my-oss-bucket/ \
+    --endpoint-url https://oss-cn-hangzhou.aliyuncs.com
+An error occurred (SignatureDoesNotMatch) when calling the ListObjectsV2
+operation: The request signature we calculated does not match the signature you
+provided. Check your key and signing method.
+
+Client debug (redacted, credential omitted):
+  SigV4 signing algorithm: AWS4-HMAC-SHA256
+  SigV4 credential scope:  20260621/us-east-1/s3/aws4_request   (region = us-east-1)
+  Endpoint:                oss-cn-hangzhou.aliyuncs.com          (region in host = cn-hangzhou)
+
+Same credentials and a HEAD on a known object also fail with SignatureDoesNotMatch.
+The access key/secret are correct (verified in the OSS console). What is wrong?

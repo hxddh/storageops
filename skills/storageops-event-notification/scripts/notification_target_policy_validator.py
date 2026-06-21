@@ -8,6 +8,12 @@ error to the caller when the target rejects the delivery, so this check is the
 deterministic way to catch a missing or wrong allow statement.
 
 Deterministic and offline: parses the policy JSON, never contacts AWS.
+
+AWS-specific: this validator models the AWS event-notification permission system
+(`s3.amazonaws.com` invoking Lambda / SQS / SNS). Baidu BOS, Alibaba OSS and
+Tencent COS use different function-compute / message-queue targets and permission
+models — see storageops-security-iam-policy/references/provider-differences.md.
+Every result carries "model": "aws" to make that scope explicit.
 """
 
 from __future__ import annotations
@@ -258,10 +264,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                               "SQS/SNS Policy attribute value).",
             "suggested_statement": {},
         }
+        result["model"] = "aws"
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0
 
     result = validate(policy, args.target_type, args.source_bucket_arn)
+    result["model"] = "aws"
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 

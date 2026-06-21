@@ -137,7 +137,7 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 
 ## References
 - `scripts/policy_analyzer.py` — Offline analyzer for a single IAM/bucket policy (explicit Deny, broad actions, public access); run `python3 scripts/policy_analyzer.py --file <policy.json>` | **Run when:** the user shares one policy document to audit
-- `scripts/cross_account_access_validator.py` — Offline AND-chain evaluator across the caller IAM policy + bucket policy (+ optional KMS key policy); reports the broken link | **Run when:** a cross-account 403 and both the identity and resource policies are available
+- `scripts/cross_account_access_validator.py` — Offline AND-chain evaluator across the caller IAM policy + bucket policy (+ optional KMS key policy); reports the broken link; **AWS IAM model** (emits `"model":"aws"`; OSS RAM / COS CAM differ — see `references/provider-differences.md`) | **Run when:** a cross-account 403 and both the identity and resource policies are available
 - `references/policy-evaluation.md` — Full permission evaluation order with examples | **Read when:** user reports 403/401 and has IAM/bucket policy documents to share
 - `references/cross-account.md` — Cross-account setup patterns | **Read when:** user mentions multiple AWS accounts, cross-account access, or ARNs from different account IDs
 - `references/kms-permissions.md` — KMS key policy requirements | **Read when:** user mentions KMS, encryption keys, kms:Decrypt, or server-side encryption errors

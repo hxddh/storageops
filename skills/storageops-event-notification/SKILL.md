@@ -151,8 +151,8 @@ If the notification chain appears correct but events are still missing, ask the 
 - **Non-AWS providers** (BOS/OSS/COS): event-trigger permission models differ; `--target-type` heuristics assume AWS action names — confirm provider semantics via `references/provider-compatibility.md`.
 
 ## References
-- `scripts/notification_config_analyzer.py` — Offline notification-config matcher (event type + prefix/suffix filter vs an object key) | **Run when:** events are not delivered and you have the notification configuration JSON
-- `scripts/notification_target_policy_validator.py` — Offline target resource-policy validator (Lambda/SQS/SNS allow for `s3.amazonaws.com`) | **Run when:** the rule would fire but events still are not delivered, and you have the target's resource policy JSON
+- `scripts/notification_config_analyzer.py` — Offline notification-config matcher (event type + prefix/suffix filter vs an object key); **AWS model** (emits `"model":"aws"`) | **Run when:** events are not delivered and you have the notification configuration JSON
+- `scripts/notification_target_policy_validator.py` — Offline target resource-policy validator (Lambda/SQS/SNS allow for `s3.amazonaws.com`); **AWS model** — for BOS/OSS/COS targets see `references/notification-configuration.md` | **Run when:** the rule would fire but events still are not delivered, and you have the target's resource policy JSON
 - `references/notification-configuration.md` — Full notification schema, event types | **Read when:** user provides notification config XML/JSON or asks about event type matching
 - `references/lambda-integration.md` — Lambda resource policy, concurrency, DLQ | **Read when:** target is Lambda, or user reports Lambda not being invoked
 - `references/sqs-integration.md` — SQS queue policy, message attributes | **Read when:** target is SQS, queue is empty despite notifications configured
