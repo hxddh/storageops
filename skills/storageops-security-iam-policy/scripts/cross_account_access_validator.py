@@ -15,6 +15,11 @@ Deny); it does NOT resolve SCPs, permission boundaries, session policies, ABAC
 condition values, or wildcards beyond simple ARN prefixes — those are surfaced as
 open questions rather than silently assumed. Offline; never contacts AWS.
 
+AWS-specific: this models the AWS IAM evaluation chain. Alibaba OSS (RAM), Tencent
+COS (CAM) and Baidu BOS use different identity systems and policy semantics — see
+storageops-security-iam-policy/references/provider-differences.md. Every result
+carries "model": "aws" to make that scope explicit.
+
 Emits a single JSON object. On bad/empty input it emits {"ok": false, ...}.
 """
 
@@ -315,7 +320,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         bucket_policy = _load_policy(args.bucket_policy)
         kms_key_policy = _load_policy(args.kms_key_policy)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
-        print(json.dumps({"ok": False, "error": f"could not load policy: {exc}"}, indent=2))
+        print(json.dumps({"ok": False, "model": "aws", "error": f"could not load policy: {exc}"}, indent=2))
         return 0
 
     result = validate(
@@ -327,6 +332,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         kms_key_policy=kms_key_policy,
         resource_account=args.resource_account,
     )
+    result["model"] = "aws"
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 

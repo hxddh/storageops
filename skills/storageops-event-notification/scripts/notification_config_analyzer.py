@@ -6,6 +6,12 @@ does a notification rule actually match a given object event, or is it excluded 
 event type or prefix/suffix filter? Deterministic and offline — parses the
 notification JSON (e.g. `aws s3api get-bucket-notification-configuration` output),
 never contacts a bucket.
+
+AWS-specific: this models AWS S3 event-notification configuration (event types,
+prefix/suffix filters, destination ARNs). BOS/OSS/COS expose similar but not
+identical event taxonomies — see
+storageops-event-notification/references/notification-configuration.md. Results
+carry "model": "aws" to make the scope explicit.
 """
 
 from __future__ import annotations
@@ -142,6 +148,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     result = analyze(config, args.key, args.event)
+    result["model"] = "aws"
     if args.json:
         print(json.dumps(result, indent=2, ensure_ascii=False))
     else:

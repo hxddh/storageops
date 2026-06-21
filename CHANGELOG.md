@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-06-21 — v0.6.4: Multi-provider rebalancing
+
+StorageOps serves *all* S3-compatible object storage, not only AWS. A self-review
+found the recent deterministic helpers leaning AWS-specific (the IAM/notification
+validators) while the multi-provider scaffolding stayed intact. This release
+corrects the lean and adds a guardrail so it can't grow back silently.
+
+- **New deterministic gate — `provider_scope_check.py` (wired into CI).** Flags any
+  helper that hardcodes AWS-only identifiers (`amazonaws.com` / `arn:aws:iam`)
+  without being provider-parameterised (`--provider`) and without declaring an
+  explicit `AWS-specific` scope. Turns silent AWS-lock into a CI failure — the same
+  lever used for orphan references. Unit-tested.
+- **Scoped the three AWS-locked helpers honestly.** `notification_config_analyzer.py`,
+  `notification_target_policy_validator.py`, and `cross_account_access_validator.py`
+  now declare `AWS-specific` in their docstrings, **emit `"model": "aws"`** in every
+  result, and point at the provider-differences reference (OSS RAM / COS CAM / BOS
+  differ). Their SKILL.md "Run when" lines note the AWS model too. The honest move is
+  to scope them, not to fake BOS/OSS/COS support we cannot verify.
+- **Rebalanced the eval corpus with non-AWS cases** so the regression gate stops
+  over-fitting AWS phrasing: `bos-multipart-etag-leading-dash` (BOS leading-dash
+  multipart ETag mistaken for corruption → data-consistency) and
+  `oss-sigv4-region-required` (Alibaba OSS SigV4 signing-region mismatch →
+  s3-protocol-compatibility), each with a baseline.
+
+Validation: all gates green (incl. the new provider-scope gate); 211 pytest + 21
+extension tests; 30/30 baselines 100% PASS; routing-corpus recalls both non-AWS
+cases. Version 0.6.3 → 0.6.4.
+
 ## 2026-06-20 — v0.6.3: Quality hardening — orphan-reference gate, factual fixes, re-armed safety gate
 
 Driven by a comprehensive four-part audit (SKILL.md correctness, analyzer

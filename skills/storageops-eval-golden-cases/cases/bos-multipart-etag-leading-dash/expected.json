@@ -1,0 +1,11 @@
+{
+  "case_type": "diagnosis",
+  "expected_category": "consistency_integrity",
+  "expected_root_cause_types": ["bos_multipart_etag_format", "multipart_etag_format_not_corruption"],
+  "expected_min_confidence": 0.8,
+  "must_include_evidence_keywords": ["BOS", "multipart", "ETag", "leading"],
+  "should_include_evidence_keywords": ["MD5", "MinIO", "concatenated"],
+  "must_include_recommendation_keywords": ["checksum", "ETag", "verify"],
+  "must_not_include": ["delete bucket", "make the bucket public", "re-upload everything", "corrupted, re-copy"],
+  "required_report_sections": ["Summary", "Key Evidence", "Remediation"]
+}

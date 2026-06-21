@@ -1,0 +1,17 @@
+Integrity check on Baidu BOS flags an object as corrupted — is it really?
+
+We multipart-uploaded a 400 MiB file to Baidu Object Storage (BOS) and our
+verifier compares the returned ETag against the local MD5:
+
+  object:      datasets/train-04.tar
+  provider:    Baidu BOS (bcebos.com endpoint)
+  size:        419430400 bytes  (matches local file exactly)
+  local md5:   9f2a1d4e6a7b8c901122334455667788
+  BOS ETag:    "-3b1c9f0ad28e5f6471a2b3c4d5e6f708"   <-- note the LEADING dash
+
+Our verifier marks it corrupted because the ETag != local md5 and it does not
+match the AWS multipart pattern `<hex>-N` either. The same pipeline works fine
+against AWS S3 and MinIO.
+
+Is the object actually corrupted, or is the BOS ETag just formatted differently?
+How should we verify integrity on BOS?
