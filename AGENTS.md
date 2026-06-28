@@ -50,3 +50,31 @@ Every skill should keep:
 - references with `Read when:` guidance.
 
 Use `docs/skill-quality-guide.md` and `docs/skill-taxonomy.md` as the source of truth for quality expectations.
+
+## Cursor Cloud specific instructions
+
+This is a CLI/skill-pack product — there is no long-running server or GUI. "Running
+the app" means the `storageops` CLI plus the offline quality gates. Standard
+commands live in the `## Validation Commands` section above, `Makefile`, and
+`README.md`; the notes below are only the non-obvious cloud gotchas.
+
+- **Console scripts are in `~/.local/bin`.** The update script installs with
+  `pip install -e '.[dev]'`, which puts `storageops` and `pytest` in
+  `~/.local/bin`. That dir is added to `PATH` via `~/.bashrc`; if a command says
+  `storageops: not found`, run `export PATH="$HOME/.local/bin:$PATH"`.
+- **Two Node versions exist; the default is too old for Pi.** `node` resolves to
+  `/exec-daemon/node` (v22.14.0), which is **below** Pi's required 22.19+. To run
+  `storageops install` or launch Pi, put the nvm Node first:
+  `export PATH="$HOME/.nvm/versions/node/v22.22.2/bin:$PATH"` (or `nvm use 22`).
+  The extension tests (`make extension-tests`) use `node --experimental-strip-types`
+  and work on either Node, so plain `make validate-full` is fine without switching.
+- **Pi, httpmon, and skills are already deployed** to `~/.storageops/` (via
+  `storageops install`, persisted in the snapshot). `storageops doctor` should
+  report everything `ok` except the API key. If `~/.storageops` is ever missing,
+  re-run `storageops install` with the nvm Node on `PATH` (needs network for the
+  npm Pi install).
+- **Offline vs. live.** All gates and `storageops eval --baselines` /
+  `storageops eval --list` run fully offline and need no key. A **live diagnosis**
+  (`storageops --print '...'`) and `storageops smoke` require a model provider key
+  (`ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` / `OPENAI_API_KEY`, etc.), which is not
+  configured in this environment.
