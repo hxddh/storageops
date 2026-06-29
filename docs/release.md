@@ -26,15 +26,8 @@ Trusted Publisher.
 2. Run the local quality gates:
 
    ```bash
-   .venv/bin/python -m pytest
-   make validate
-   .venv/bin/python scripts/package_check.py
-   python3 scripts/repo_size_gate.py
-   python3 scripts/routing_contract_check.py
-   python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
-     --cases skills/storageops-eval-golden-cases/cases \
-     --outputs skills/storageops-eval-golden-cases/baseline-outputs \
-     --only-with-outputs
+   make ci-local
+   make package-check   # optional; wheel build + package_check.py
    ```
 
 3. Merge the release PR to `main`.

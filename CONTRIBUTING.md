@@ -7,9 +7,19 @@ StorageOps is mostly a skill pack plus a thin installer. Good contributions keep
 ```bash
 git clone https://github.com/hxddh/storageops.git
 cd storageops
+make dev
+```
+
+`make dev` runs `scripts/dev_setup.sh`: creates `.venv`, installs `pip install -e '.[dev]'`,
+ensures Node.js >= 22.19 (prefers nvm when the default `node` is too old), runs
+`storageops install --force`, and prints `storageops doctor`.
+
+Manual setup (equivalent):
+
+```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[dev]'
-storageops install --force
+storageops install --force   # needs Node >= 22.19 and network for Pi/npm
 ```
 
 ## Common Changes
@@ -76,7 +86,16 @@ Edit `storageops_cli/__init__.py`. Be careful with:
 
 ## Validation
 
-Run these from the repository root:
+Run these from the repository root before opening a PR:
+
+```bash
+make ci-local          # mirrors CI validate job (offline)
+make package-check     # wheel build + package_check.py (needs network once)
+```
+
+`make ci-local` runs skill gates, provider/contract/coverage checks, golden-case
+validation, pytest, extension tests, size/routing gates, and baseline eval.
+Individual scripts (for targeted debugging):
 
 ```bash
 python3 scripts/skill_integrity_check.py
@@ -88,9 +107,15 @@ python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
   --cases skills/storageops-eval-golden-cases/cases \
   --outputs skills/storageops-eval-golden-cases/baseline-outputs \
   --only-with-outputs
-python3 scripts/package_check.py
-make validate
 .venv/bin/python -m pytest
+```
+
+Optional live diagnosis smoke (needs a model provider API key; CI uses
+`STORAGEOPS_MODEL_KEY` — see `.github/workflows/ci.yml` `diagnosis-smoke` job):
+
+```bash
+storageops configure --provider deepseek --model deepseek-v4-pro --api-key
+storageops smoke --provider deepseek --model deepseek-v4-pro
 ```
 
 ## Pull Request Checklist

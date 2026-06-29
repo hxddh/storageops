@@ -291,6 +291,52 @@ def _node_too_old() -> tuple[bool, str]:
     return nv < MIN_NODE_VERSION, ".".join(str(p) for p in nv)
 
 
+def _suggest_node_path() -> str | None:
+    """Return a PATH prefix for Node >= MIN_NODE_VERSION when discoverable (e.g. nvm)."""
+    nvm_root = Path.home() / ".nvm" / "versions" / "node"
+    if not nvm_root.is_dir():
+        return None
+    candidates: list[tuple[tuple[int, int, int], Path]] = []
+    for entry in nvm_root.iterdir():
+        if not entry.is_dir():
+            continue
+        node_bin = entry / "bin" / "node"
+        if not node_bin.is_file():
+            continue
+        ver = _parse_version_triple(entry.name)
+        if ver and ver >= MIN_NODE_VERSION:
+            candidates.append((ver, entry / "bin"))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return str(candidates[0][1])
+
+
+def _node_doctor_detail(s: dict) -> str:
+    """Human-readable Node row for doctor, with PATH hint when too old."""
+    nv = s["node_triple"]
+    label = ".".join(str(p) for p in nv) if nv else "not found"
+    if s["node_ok"]:
+        return label
+    min_node = ".".join(str(p) for p in MIN_NODE_VERSION)
+    detail = f"{label}  -- need >= {min_node}"
+    hint = _suggest_node_path()
+    if hint:
+        detail += f"; try: export PATH=\"{hint}:$PATH\""
+    return detail
+
+
+def _node_readiness_action(s: dict) -> str:
+    """Next action when Node or Pi is not ready."""
+    if not s["node_ok"]:
+        hint = _suggest_node_path()
+        if hint:
+            return f'export PATH="{hint}:$PATH" && storageops install --force'
+        min_node = ".".join(str(p) for p in MIN_NODE_VERSION)
+        return f"upgrade Node to >= {min_node}, then run storageops install --force"
+    return "fix Node/Pi, then run storageops install --force"
+
+
 def _ensure_pi() -> str:
     """
     Ensure Pi Coding Agent is available; return the pi executable path.
@@ -1002,7 +1048,7 @@ def _doctor_readiness(s: dict) -> tuple[bool, str]:
     if not s["key_source"]:
         return False, "storageops configure --provider deepseek --model deepseek-v4-pro --api-key"
     if not s["pi_ok"] or not s["node_ok"]:
-        return False, "fix Node/Pi, then run storageops install --force"
+        return False, _node_readiness_action(s)
     return True, "storageops --print 'hello'"
 
 
@@ -1017,6 +1063,7 @@ def _doctor_report(s: dict, ready: bool, next_action: str) -> dict:
         "pi_ok": s["pi_ok"],
         "node_version": ".".join(str(p) for p in nv) if nv else None,
         "node_ok": s["node_ok"],
+        "node_path_hint": _suggest_node_path(),
         "install_mode": "independent" if s["independent"] else "merged" if s["merged"] else "not_installed",
         "agent_dir": str(s["active_agent"]),
         "skill_count": s["skill_count"],
@@ -1053,7 +1100,7 @@ def cmd_doctor(as_json: bool = False) -> int:
         _doctor_row("PyPI", "warn", f"newer version available: {latest}")
     else:
         _doctor_row("PyPI", "ok", latest or "version check unavailable")
-    _doctor_row("Node", "ok" if s["node_ok"] else "warn", node_label)
+    _doctor_row("Node", "ok" if s["node_ok"] else "warn", _node_doctor_detail(s))
     pi_detail = f"{s['pi_ver']} ({s['pi_path']})"
     pi_latest = s["pi_latest"]
     if s["pi_ok"] and pi_latest and _is_newer_version(pi_latest, s["pi_ver"]):

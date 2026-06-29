@@ -29,14 +29,16 @@ Packaging is the most fragile part of this repo. `storageops_cli.__init__._packa
 
 ```bash
 make validate        # fast skill/extension/doc gates (greps the extension only)
-make validate-full   # + pytest, extension behavioral tests, size/routing gates
+make ci-local        # mirror CI validate job (offline; run before PR)
+make validate-full   # alias for ci-local
+make dev             # one-shot dev setup (venv, Node, storageops install)
 ```
 
 `make validate` does not exercise the TypeScript extension — the routing,
 provider, and trace logic is only covered by the extension behavioral tests, so
-run `make validate-full` (or `make extension-tests`) when touching
-`storageops_cli/extensions/storageops.ts`. `package_check.py`, `install-smoke`,
-and `diagnosis-smoke` run in CI (wheel build / network) — see `docs/release.md`.
+run `make ci-local` (or `make extension-tests`) when touching
+`storageops_cli/extensions/storageops.ts`. `make package-check`, `install-smoke`,
+and `diagnosis-smoke` need a wheel build or network/model key — see `docs/release.md`.
 
 ## Editing Skills
 
@@ -73,8 +75,10 @@ commands live in the `## Validation Commands` section above, `Makefile`, and
   report everything `ok` except the API key. If `~/.storageops` is ever missing,
   re-run `storageops install` with the nvm Node on `PATH` (needs network for the
   npm Pi install).
-- **Offline vs. live.** All gates and `storageops eval --baselines` /
-  `storageops eval --list` run fully offline and need no key. A **live diagnosis**
+- **Offline vs. live.** All gates and `make ci-local` / `storageops eval --baselines`
+  run fully offline and need no key. A **live diagnosis**
   (`storageops --print '...'`) and `storageops smoke` require a model provider key
   (`ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` / `OPENAI_API_KEY`, etc.), which is not
   configured in this environment.
+- **PR gate.** Run `make ci-local` before opening a PR; it mirrors the CI `validate`
+  job. Use `make dev` for first-time setup (`scripts/dev_setup.sh`).

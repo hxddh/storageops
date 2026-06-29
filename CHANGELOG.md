@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — Dev ergonomics (ci-local, dev_setup, doctor Node hints)
+
+- **`make ci-local`** mirrors the CI `validate` job offline (provider/contract/coverage
+  gates, golden-case validation, pytest, extension tests, baseline eval). `make validate-full`
+  is now an alias.
+- **`make dev` / `scripts/dev_setup.sh`** one-shot setup: venv, editable install, Node
+  >= 22.19 (nvm fallback), `storageops install --force`, and `storageops doctor`.
+- **`make package-check`** builds a wheel and runs `package_check.py` locally.
+- **`storageops doctor`** suggests an nvm Node `PATH` prefix when the active Node is
+  < 22.19 (`node_path_hint` in `--json` output).
+
 ## 2026-06-21 — v0.7.0: Unify & Complete (major iteration)
 
 A major iteration that closes the last structural gaps rather than adding features.

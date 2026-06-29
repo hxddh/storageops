@@ -2,7 +2,12 @@ import json
 import subprocess
 
 import storageops_cli
-from storageops_cli import _default_model_label
+from storageops_cli import (
+    _default_model_label,
+    _node_doctor_detail,
+    _node_readiness_action,
+    _suggest_node_path,
+)
 
 
 def _clear_provider_env(monkeypatch):
@@ -145,6 +150,31 @@ def test_doctor_exit_code_reflects_not_ready(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 1
     assert "Next: storageops configure" in out
+
+
+def test_suggest_node_path_picks_newest_nvm(tmp_path, monkeypatch):
+    nvm_root = tmp_path / ".nvm" / "versions" / "node"
+    for ver in ("v22.19.0", "v22.22.2", "v20.10.0"):
+        bindir = nvm_root / ver / "bin"
+        bindir.mkdir(parents=True)
+        (bindir / "node").write_text("")
+    monkeypatch.setattr(storageops_cli.Path, "home", lambda: tmp_path)
+    assert _suggest_node_path() == str(nvm_root / "v22.22.2" / "bin")
+
+
+def test_doctor_node_detail_includes_path_hint(monkeypatch):
+    monkeypatch.setattr(storageops_cli, "_suggest_node_path", lambda: "/opt/node22/bin")
+    s = {"node_triple": (22, 14, 0), "node_ok": False}
+    detail = _node_doctor_detail(s)
+    assert "22.14.0" in detail
+    assert "22.19" in detail
+    assert 'export PATH="/opt/node22/bin:$PATH"' in detail
+
+
+def test_node_readiness_action_prefers_nvm_hint(monkeypatch):
+    monkeypatch.setattr(storageops_cli, "_suggest_node_path", lambda: "/opt/node22/bin")
+    action = _node_readiness_action({"node_ok": False})
+    assert action.startswith('export PATH="/opt/node22/bin:$PATH"')
 
 
 def test_smoke_runs_pi_with_selected_agent_and_model(tmp_path, monkeypatch, capsys):
