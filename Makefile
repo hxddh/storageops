@@ -1,17 +1,20 @@
-.PHONY: help validate validate-full extension-tests test install
+.PHONY: help validate validate-full ci-local extension-tests test install dev package-check
 
 help:
 	@echo "StorageOps — Pi Coding Agent extension + skill pack"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make validate       Fast skill/extension/doc gates (no tests run)"
+	@echo "  make ci-local       Mirror CI validate job (offline; run before PR)"
+	@echo "  make validate-full  Alias for ci-local"
 	@echo "  make extension-tests Run the TypeScript extension behavioral tests"
-	@echo "  make validate-full  Everything runnable offline: validate + pytest + extension tests + size/routing gates"
 	@echo "  make test           Run pytest, extension tests, and validation"
-	@echo "  make install        Install thin CLI shim"
+	@echo "  make install        Install thin CLI shim (pip install -e .)"
+	@echo "  make dev            One-shot dev setup (venv, Node, storageops install)"
+	@echo "  make package-check  Build wheel and run package_check.py (needs network once)"
 	@echo ""
-	@echo "  Note: package_check.py, install-smoke, and diagnosis-smoke run in CI"
-	@echo "        (they need a wheel build / network) — see docs/release.md."
+	@echo "  Note: install-smoke and diagnosis-smoke run in CI only"
+	@echo "        (wheel install / model key) — see docs/release.md."
 
 validate:
 	@echo "=== Validating skills ==="
@@ -30,14 +33,23 @@ validate:
 extension-tests:
 	@bash scripts/run_extension_tests.sh
 
-# Everything that can run offline, mirroring the deterministic CI gates. Grepping
-# the extension is not enough — the routing/provider/trace logic lives in
-# TypeScript and is only covered by extension-tests.
-validate-full: validate
+# Mirrors .github/workflows/ci.yml validate job (everything offline).
+ci-local: validate
+	python3 scripts/provider_scope_check.py
+	python3 scripts/contract_check.py
+	python3 scripts/coverage_check.py
+	python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
+		skills/storageops-eval-golden-cases/cases
 	python3 -m pytest
 	$(MAKE) extension-tests
 	python3 scripts/repo_size_gate.py
 	python3 scripts/routing_contract_check.py
+	python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
+		--cases skills/storageops-eval-golden-cases/cases \
+		--outputs skills/storageops-eval-golden-cases/baseline-outputs \
+		--only-with-outputs
+
+validate-full: ci-local
 
 test:
 	python3 -m pytest
@@ -46,3 +58,12 @@ test:
 
 install:
 	pip install -e .
+
+dev:
+	@bash scripts/dev_setup.sh
+
+package-check:
+	python3 -m pip install --upgrade pip build
+	python3 scripts/prepare_httpmon_vendor.py
+	python3 -m build --wheel
+	python3 scripts/package_check.py
