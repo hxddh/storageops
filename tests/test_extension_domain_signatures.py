@@ -1,9 +1,14 @@
 from pathlib import Path
 
 
-def test_domain_signatures_use_skill_names_and_cover_routing_domains():
+def _extension_sources() -> str:
     root = Path(__file__).resolve().parents[1]
-    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+    ext_dir = root / "storageops_cli" / "extensions"
+    return "\n".join(p.read_text() for p in sorted(ext_dir.glob("*.ts")))
+
+
+def test_domain_signatures_use_skill_names_and_cover_routing_domains():
+    extension = _extension_sources()
 
     for skill in [
         "storageops-s3-protocol-compatibility",
@@ -19,8 +24,7 @@ def test_domain_signatures_use_skill_names_and_cover_routing_domains():
 
 
 def test_domain_confidence_has_single_signal_floor():
-    root = Path(__file__).resolve().parents[1]
-    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+    extension = _extension_sources()
 
     assert "0.5 + info.score * 0.15" in extension
     assert "recommended_skill: domain" in extension
@@ -29,8 +33,7 @@ def test_domain_confidence_has_single_signal_floor():
 
 
 def test_secret_scanner_deduplicates_overlapping_matches_by_range():
-    root = Path(__file__).resolve().parents[1]
-    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+    extension = _extension_sources()
 
     assert "const ranges: Array<[number, number]>" in extension
     assert "start < rangeEnd && end > rangeStart" in extension
@@ -39,8 +42,7 @@ def test_secret_scanner_deduplicates_overlapping_matches_by_range():
 
 
 def test_secret_scanner_findings_do_not_return_raw_secret_previews():
-    root = Path(__file__).resolve().parents[1]
-    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+    extension = _extension_sources()
 
     assert "fingerprint" in extension
     assert "secretFingerprint(value)" in extension
@@ -50,8 +52,7 @@ def test_secret_scanner_findings_do_not_return_raw_secret_previews():
 
 
 def test_memory_search_scores_and_redacts_snippets():
-    root = Path(__file__).resolve().parents[1]
-    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+    extension = _extension_sources()
 
     assert "searchTokens" in extension
     assert "scoreText" in extension
@@ -62,8 +63,7 @@ def test_memory_search_scores_and_redacts_snippets():
 
 
 def test_capture_http_trace_is_registered_as_bounded_safe_tool():
-    root = Path(__file__).resolve().parents[1]
-    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+    extension = _extension_sources()
 
     assert 'name: "capture_http_trace"' in extension
     assert "validateTraceCommand" in extension
@@ -81,8 +81,7 @@ def test_capture_http_trace_is_registered_as_bounded_safe_tool():
 
 
 def test_capture_http_trace_does_not_expose_raw_httpmon_artifacts():
-    root = Path(__file__).resolve().parents[1]
-    extension = (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+    extension = _extension_sources()
 
     assert '"--format", "json", "--filter", filterHost' in extension
     assert '"--record"' not in extension

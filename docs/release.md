@@ -93,6 +93,6 @@ Locally (after `storageops configure --api-key` or exporting a provider env var)
 make live-smoke
 ```
 
-The script runs `storageops smoke` plus live `--print` diagnosis + eval for three
+The script runs `storageops smoke` plus live `--print` diagnosis + eval for five
 golden cases: `throttling-hot-prefix`, `access-denied-cross-account`,
-`signature-clock-skew`.
+`signature-clock-skew`, `cors-preflight-failed`, and `kms-denied-encrypt`.

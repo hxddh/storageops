@@ -1,0 +1,19 @@
+Browser console (PUT upload):
+Access to fetch at 'https://uploads.example-bucket.s3.amazonaws.com/incoming/report.csv'
+from origin 'https://dashboard.example.com' has been blocked by CORS policy:
+Response to preflight request doesn't pass access control check: Method PUT is not
+allowed by Access-Control-Allow-Methods in preflight response.
+
+OPTIONS preflight response headers:
+  Access-Control-Allow-Origin: https://dashboard.example.com
+  Access-Control-Allow-Methods: GET, HEAD
+  Access-Control-Allow-Headers: content-type
+
+Direct GET from curl without Origin succeeds (200 OK).
+
+Current CORS configuration excerpt:
+  AllowedOrigin: https://dashboard.example.com
+  AllowedMethod: GET, HEAD
+  AllowedHeader: *
+
+User goal: browser JavaScript PUT upload from dashboard.example.com

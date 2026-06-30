@@ -1,0 +1,30 @@
+{
+  "expected_category": "cors_configuration",
+  "expected_root_cause_types": [
+    "cors_method_not_allowed",
+    "missing_allowed_method",
+    "cors_configuration_incomplete"
+  ],
+  "expected_min_confidence": 0.85,
+  "must_include_evidence_keywords": [
+    "CORS",
+    "PUT",
+    "Access-Control-Allow-Methods",
+    "preflight"
+  ],
+  "must_include_recommendation_keywords": [
+    "AllowedMethod",
+    "PUT",
+    "put-bucket-cors"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make bucket public",
+    "disable SSL"
+  ],
+  "required_report_sections": [
+    "Summary",
+    "Key Evidence",
+    "Remediation"
+  ]
+}

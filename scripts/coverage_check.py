@@ -23,7 +23,7 @@ CASES = CORPUS / "cases"
 BASELINES = CORPUS / "baseline-outputs"
 TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
 
-MIN_CASES = 2  # per baseline-enabled category
+MIN_CASES = 3  # per baseline-enabled category
 
 
 def main() -> int:

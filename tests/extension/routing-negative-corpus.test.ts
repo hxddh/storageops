@@ -75,6 +75,11 @@ const NEGATIVE_CASES: NegativeCase[] = [
     text: "The KMS team will present the quarterly knowledge-management-system roadmap.",
     forbidden: [["storageops-security-iam-policy", "kms_error"]],
   },
+  {
+    name: "cors workshop agenda is not a bucket cors failure",
+    text: "The quarterly CORS policy workshop for frontend engineers is on Tuesday.",
+    forbidden: [["storageops-s3-protocol-compatibility", "cors"]],
+  },
 ];
 
 test("routing negative corpus blocks known bare-substring false positives", () => {

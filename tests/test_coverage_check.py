@@ -20,4 +20,4 @@ def test_repo_passes_coverage():
 
 def test_min_cases_floor_is_set():
     m = load()
-    assert m.MIN_CASES >= 2
+    assert m.MIN_CASES >= 3
