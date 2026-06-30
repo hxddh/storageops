@@ -79,10 +79,9 @@ commands live in the `## Validation Commands` section above, `Makefile`, and
   report everything `ok` except the API key. If `~/.storageops` is ever missing,
   re-run `storageops install` with the nvm Node on `PATH` (needs network for the
   npm Pi install).
-- **Offline vs. live.** All gates and `make ci-local` / `storageops eval --baselines`
-  run fully offline and need no key. **Live diagnosis** needs install + Node/Pi + API key;
-  check `storageops doctor --json` field `live_diagnosis_available`, then run
-  `make live-smoke` (3 golden cases + model smoke).
+- **Offline vs. live.** All gates and `make ci-local` run fully offline. **Live
+  diagnosis** needs install + Node/Pi + API key; check `live_diagnosis_available`
+  in `storageops doctor --json`, then run `make live-smoke` (5 golden cases).
 - **Devcontainer.** Open in VS Code / Codespaces with `.devcontainer/devcontainer.json`
   (Python 3.12 + Node 22; postCreate runs `dev_setup.sh --persist-path`).
 - **PR gate.** Run `make ci-local` before opening a PR. Use `make dev` for first-time

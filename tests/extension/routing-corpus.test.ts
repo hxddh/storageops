@@ -32,6 +32,7 @@ const EXPECT_TOP1 = new Set([
   "routing-migration-checksum",
   "routing-slow-mount-vs-throughput",
   "routing-spark-committer",
+  "routing-triage-vague-evidence",
   "signature-clock-skew",
   "throttling-hot-prefix",
   "versioned-delete-marker",

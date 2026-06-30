@@ -13,7 +13,7 @@ help:
 	@echo "  make extension-tests Run the TypeScript extension behavioral tests"
 	@echo "  make install        Install thin CLI shim (pip install -e .)"
 	@echo "  make dev            One-shot dev setup (scripts/dev_setup.sh; DEV_SETUP_FLAGS=...)"
-	@echo "  make live-smoke     Model smoke + 3 golden-case live diagnoses (needs API key)"
+	@echo "  make live-smoke     Model smoke + 5 golden-case live diagnoses (needs API key)"
 	@echo "  make package-check  Build wheel and run package_check.py (needs network once)"
 	@echo ""
 	@echo "  Note: install-smoke and diagnosis-smoke run in CI when configured"

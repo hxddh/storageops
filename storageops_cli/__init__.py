@@ -737,12 +737,17 @@ def _write_install_marker(data: Path, target_agent: Path, merge: bool) -> None:
 
 
 def _copy_extension(data: Path, dst_agent: Path) -> None:
-    """Copy the StorageOps Pi extension to the target agent directory."""
-    ext_src = data / "extensions" / "storageops.ts"
-    ext_dst = dst_agent / "extensions" / "storageops.ts"
-    ext_dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(ext_src, ext_dst)
-    print(f"  [ok] storageops.ts  -> {ext_dst}")
+    """Copy all StorageOps Pi extension modules to the target agent directory."""
+    ext_src = data / "extensions"
+    ext_dst = dst_agent / "extensions"
+    ext_dst.mkdir(parents=True, exist_ok=True)
+    ts_files = sorted(ext_src.glob("*.ts"))
+    if not any(p.name == "storageops.ts" for p in ts_files):
+        print("  [fail] storageops.ts not found in package extensions/")
+        sys.exit(1)
+    for src in ts_files:
+        shutil.copy2(src, ext_dst / src.name)
+    print(f"  [ok] extension ({len(ts_files)} files) -> {ext_dst}")
 
 
 def _copy_skills(data: Path, dst_agent: Path) -> None:

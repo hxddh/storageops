@@ -1,15 +1,16 @@
 from pathlib import Path
 
 
-def _extension() -> str:
+def _extension_sources() -> str:
     root = Path(__file__).resolve().parents[1]
-    return (root / "storageops_cli" / "extensions" / "storageops.ts").read_text()
+    ext_dir = root / "storageops_cli" / "extensions"
+    return "\n".join(p.read_text() for p in sorted(ext_dir.glob("*.ts")))
 
 
 def test_search_memory_scans_scope_subdirectories():
     # Recall must walk scope subdirs (e.g. sessions/<scope>/<id>.jsonl), not just
     # the top level — locks the v0.4.29 recursive-recall fix.
-    ext = _extension()
+    ext = _extension_sources()
     assert "collectSessionJsonl" in ext
     assert "MAX_SESSION_SCAN_DEPTH" in ext
     assert ".endsWith(\".jsonl\")" in ext
@@ -17,14 +18,14 @@ def test_search_memory_scans_scope_subdirectories():
 
 def test_search_tokens_handle_cjk_queries():
     # CJK queries must produce tokens (bigrams) so Chinese memory search recalls.
-    ext = _extension()
+    ext = _extension_sources()
     assert "一-鿿" in ext
     assert "run.slice(i, i + 2)" in ext
 
 
 def test_http_trace_allowlist_covers_skill_read_only_ops():
     # The CORS / lifecycle / multipart / tagging skills rely on these read-only ops.
-    ext = _extension()
+    ext = _extension_sources()
     for op in [
         "head-bucket",
         "get-bucket-cors",
@@ -40,7 +41,7 @@ def test_http_trace_allowlist_covers_skill_read_only_ops():
 def test_scan_secrets_covers_presigned_and_multicloud_keys():
     # Presigned URL material is extremely common in rclone/aws/s5cmd debug logs;
     # GCP/Azure are documented domains. The scanner must redact all of these.
-    ext = _extension()
+    ext = _extension_sources()
     for label in [
         "PRESIGNED_SIGNATURE",
         "PRESIGNED_AWS_PARAM",
@@ -56,13 +57,13 @@ def test_scan_secrets_covers_presigned_and_multicloud_keys():
 
 
 def test_search_memory_dedupes_per_session():
-    ext = _extension()
+    ext = _extension_sources()
     assert "bestBySession" in ext
 
 
 def test_detect_domain_has_cjk_parity_for_core_domains():
     # Chinese inputs to these domains previously matched nothing.
-    ext = _extension()
+    ext = _extension_sources()
     for term in ["访问被拒", "限速", "连接", "损坏", "签名"]:
         assert term in ext
 

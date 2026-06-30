@@ -1,0 +1,25 @@
+{
+  "case_type": "routing",
+  "expected_category": "triage",
+  "expected_root_cause_types": ["insufficient_evidence", "unknown_root_cause"],
+  "expected_min_confidence": 0.7,
+  "must_include_evidence_keywords": [
+    "evidence",
+    "logs",
+    "request"
+  ],
+  "must_include_recommendation_keywords": [
+    "collect",
+    "error",
+    "route"
+  ],
+  "must_not_include": [
+    "delete bucket",
+    "make public",
+    "disable TLS"
+  ],
+  "required_report_sections": [
+    "Routing",
+    "Evidence Gaps"
+  ]
+}

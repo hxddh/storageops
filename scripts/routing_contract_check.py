@@ -14,7 +14,13 @@ TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
 REGISTRY = ROOT / "skill-registry.yaml"
 CASES = ROOT / "skills" / "storageops-eval-golden-cases" / "cases"
 BASELINES = ROOT / "skills" / "storageops-eval-golden-cases" / "baseline-outputs"
-EXTENSION = ROOT / "storageops_cli" / "extensions" / "storageops.ts"
+EXTENSION_DIR = ROOT / "storageops_cli" / "extensions"
+
+
+def extension_source_text() -> str:
+    return "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted(EXTENSION_DIR.glob("*.ts"))
+    )
 
 
 def load_json(path: Path) -> dict:
@@ -90,7 +96,7 @@ def validate_baselines(taxonomy: dict, cases: dict[str, str]) -> list[str]:
 
 
 def validate_extension_coverage(taxonomy: dict) -> list[str]:
-    text = EXTENSION.read_text(encoding="utf-8")
+    text = extension_source_text()
     compact_extension = normalize(text)
     errors = []
     for category, entry in sorted(taxonomy.get("categories", {}).items()):

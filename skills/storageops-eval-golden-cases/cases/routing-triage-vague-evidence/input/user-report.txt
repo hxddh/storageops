@@ -1,0 +1,9 @@
+Subject: object storage uploads failing intermittently
+
+Our application team reports object storage upload problems this week from the
+production dashboard. We do not have error logs, HTTP status codes, or request IDs
+yet — only user reports that uploads sometimes fail mid-transfer.
+
+We use a private bucket in us-east-1. No vendor support ticket has been opened.
+
+Please classify the issue domain and tell us what evidence to collect next.

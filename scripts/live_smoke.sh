@@ -38,6 +38,8 @@ CASES=(
   throttling-hot-prefix
   access-denied-cross-account
   signature-clock-skew
+  cors-preflight-failed
+  kms-denied-encrypt
 )
 
 for case_name in "${CASES[@]}"; do

@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-06-29 — v0.8.0: Extension modules, eval depth, live smoke rotation
+
+### Track A — Extension modularization
+Split `storageops_cli/extensions/storageops.ts` into focused modules with zero
+behavior change (21 extension tests unchanged):
+- `secrets.ts`, `routing.ts`, `memory.ts`, `trace.ts`, plus a thin `storageops.ts`
+  entry/re-export barrel.
+- `storageops install` now deploys **all** `extensions/*.ts` modules.
+
+### Track B — Eval & routing depth
+- New golden cases: `cors-method-put-blocked` (3rd `cors_configuration` diagnosis),
+  `routing-triage-vague-evidence` (triage routing without deep diagnosis).
+- Baseline output for `cors-method-put-blocked`.
+- `detect_domain` triage signatures for vague first-contact reports.
+- Negative corpus case: CORS workshop text must not route to protocol CORS.
+- `coverage_check` floor raised to **≥3 cases per baseline category**.
+
+### Track C — Live eval rotation
+- `make live-smoke` / CI `diagnosis-smoke` now runs **5** golden cases:
+  throttling, access-denied, signature-clock-skew, cors-preflight, kms-denied.
+
 ## 2026-06-29 — v0.7.2: Live diagnosis smoke & devcontainer
 
 - **`make live-smoke` / `scripts/live_smoke.sh`** — model round-trip plus live
@@ -8,7 +29,7 @@
   API key; reads `STORAGEOPS_MODEL_KEY` or provider env vars when set.
 - **`storageops doctor`** — adds `Live diagnosis` row and `live_diagnosis_available`
   in `--json` output when install, Node, Pi, and API key are ready.
-- **CI `diagnosis-smoke`** — calls `scripts/live_smoke.sh` (3 cases) when
+- **CI `diagnosis-smoke`** — calls `scripts/live_smoke.sh` when
   `STORAGEOPS_MODEL_KEY` is configured.
 - **`.devcontainer/devcontainer.json`** — Python 3.12 + Node 22; postCreate runs
   `dev_setup.sh --persist-path`.
