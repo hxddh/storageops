@@ -156,10 +156,19 @@ v...` value before relying on the deployed skills.
 ## 6. Validate a Checkout
 
 ```bash
-python3 scripts/skill_integrity_check.py
-python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
-  skills/storageops-eval-golden-cases/cases
-make validate
+make ci-local
+```
+
+For a faster edit loop while iterating on tests or the extension:
+
+```bash
+make test-fast
+```
+
+Before a release, also run:
+
+```bash
+make ci-full
 ```
 
 ## Troubleshooting

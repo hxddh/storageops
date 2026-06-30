@@ -1,15 +1,21 @@
 # Changelog
 
-## Unreleased — Dev ergonomics (ci-local, dev_setup, doctor Node hints)
+## 2026-06-29 — v0.7.1: Dev ergonomics & CI alignment
 
-- **`make ci-local`** mirrors the CI `validate` job offline (provider/contract/coverage
-  gates, golden-case validation, pytest, extension tests, baseline eval). `make validate-full`
-  is now an alias.
+- **`make ci-local`** mirrors the offline PR gate (provider/contract/coverage checks,
+  golden-case validation, pytest, extension tests, size/routing gates, baseline eval).
+  `make validate-full` and **`make test`** are aliases.
+- **`make test-fast`** for a quicker loop (pytest + extension tests + fast `validate`).
+- **`make ci-full`** runs `ci-local` plus `make package-check` (pre-release).
 - **`make dev` / `scripts/dev_setup.sh`** one-shot setup: venv, editable install, Node
   >= 22.19 (nvm fallback), `storageops install --force`, and `storageops doctor`.
-- **`make package-check`** builds a wheel and runs `package_check.py` locally.
 - **`storageops doctor`** suggests an nvm Node `PATH` prefix when the active Node is
   < 22.19 (`node_path_hint` in `--json` output).
+- **CI `validate` job** now runs `make ci-local` with Node 22 (drops duplicate
+  `check-extension` and `tool-tests` jobs; extension grep + behavioral tests live in
+  `make ci-local`).
+- **Docs** unified to recommend `make ci-local` / `make dev` in getting-started,
+  skill-quality-guide, and quick-reference.
 
 ## 2026-06-21 — v0.7.0: Unify & Complete (major iteration)
 

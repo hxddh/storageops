@@ -59,17 +59,16 @@ recompute — never by re-issuing the write. Live tracing stays read-only.
 
 ## Validation
 
-Run:
+Run before opening a PR:
 
 ```bash
-python3 scripts/skill_integrity_check.py
-python3 scripts/no_hardcoded_pricing.py
-python3 scripts/reference_scope_check.py
-python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
-  skills/storageops-eval-golden-cases/cases
-python3 scripts/routing_contract_check.py
-make validate
-.venv/bin/python -m pytest
+make ci-local
+```
+
+For a faster loop while editing tests or the extension:
+
+```bash
+make test-fast
 ```
 
 ## Golden Cases

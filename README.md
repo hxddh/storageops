@@ -184,15 +184,18 @@ Run quality gates from a checkout:
 
 ```bash
 make validate        # fast skill/extension/doc gates (greps the extension)
-make ci-local        # mirror CI validate job (offline; run before PR)
+make ci-local        # offline PR gate (mirrors CI validate job)
 make validate-full   # alias for ci-local
+make test            # alias for ci-local
+make test-fast       # faster loop while editing
+make ci-full         # pre-release: ci-local + package-check
 make dev             # one-shot dev setup (venv, Node, storageops install)
 ```
 
 `make validate` only *greps* the TypeScript extension; the routing, provider, and
 trace behavior is covered by the extension tests, so run `make ci-local`
 (or `make test`) before changing `storageops_cli/extensions/storageops.ts`.
-`make package-check`, `install-smoke`, and `diagnosis-smoke` need a wheel build
+`make ci-full`, `install-smoke`, and `diagnosis-smoke` need a wheel build
 or network/model key — see [Release](docs/release.md).
 
 ## Documentation Map

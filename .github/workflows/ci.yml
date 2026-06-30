@@ -7,6 +7,7 @@ on:
     branches: [main]
 
 jobs:
+  # Single offline gate entry point — same as local `make ci-local`.
   validate:
     runs-on: ubuntu-latest
 
@@ -17,46 +18,15 @@ jobs:
         with:
           python-version: "3.11"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install test dependencies
         run: python -m pip install -e '.[dev]'
 
-      - name: Validate skills
-        run: python scripts/skill_integrity_check.py
-
-      - name: Check hardcoded pricing
-        run: python scripts/no_hardcoded_pricing.py
-
-      - name: Check reference scope
-        run: python scripts/reference_scope_check.py
-
-      - name: Check provider scope
-        run: python scripts/provider_scope_check.py
-
-      - name: Check output contract
-        run: python scripts/contract_check.py
-
-      - name: Check eval coverage floor
-        run: python scripts/coverage_check.py
-
-      - name: Validate golden cases
-        run: python skills/storageops-eval-golden-cases/scripts/golden_case_validator.py skills/storageops-eval-golden-cases/cases
-
-      - name: Validate routing contract
-        run: python scripts/routing_contract_check.py
-
-      - name: Check repository size gates
-        run: python scripts/repo_size_gate.py
-
-      - name: Evaluate baseline outputs
-        run: |
-          python skills/storageops-eval-golden-cases/scripts/eval_all.py \
-            --cases skills/storageops-eval-golden-cases/cases \
-            --outputs skills/storageops-eval-golden-cases/baseline-outputs \
-            --only-with-outputs \
-            --json-out /tmp/storageops-eval.json
-
-      - name: Run tests
-        run: python -m pytest
+      - name: Run offline quality gates (make ci-local)
+        run: make ci-local
 
   package:
     runs-on: ubuntu-latest
@@ -73,37 +43,6 @@ jobs:
 
       - name: Validate wheel and sdist contents
         run: python scripts/package_check.py
-
-  check-extension:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate extension
-        run: |
-          echo "=== Checking extension file ==="
-          if [ ! -f storageops_cli/extensions/storageops.ts ]; then
-            echo "ERROR: Extension file not found at storageops_cli/extensions/storageops.ts"
-            exit 1
-          fi
-          if ! grep -q "scan_secrets" storageops_cli/extensions/storageops.ts; then
-            echo "ERROR: scan_secrets tool not found in extension"
-            exit 1
-          fi
-          if ! grep -q "detect_domain" storageops_cli/extensions/storageops.ts; then
-            echo "ERROR: detect_domain tool not found in extension"
-            exit 1
-          fi
-          if ! grep -q "search_memory" storageops_cli/extensions/storageops.ts; then
-            echo "ERROR: search_memory tool not found in extension"
-            exit 1
-          fi
-          if ! grep -q "capture_http_trace" storageops_cli/extensions/storageops.ts; then
-            echo "ERROR: capture_http_trace tool not found in extension"
-            exit 1
-          fi
-          echo "Extension validated."
 
   check-docs:
     runs-on: ubuntu-latest
@@ -212,21 +151,3 @@ jobs:
           # missing required evidence, or forbidden/unsafe output).
           python skills/storageops-eval-golden-cases/scripts/eval_runner.py \
             --case "$CASE" --output /tmp/diag.md
-
-  # Behavioral unit tests for the 4 extension tools. Runs the real functions via
-  # node:test. The extension's only runtime import is `typebox` (used solely
-  # inside the default export, which these tests do not call), so a one-line local
-  # stub satisfies the import without any external dependency.
-  tool-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Behavioral tests for extension tools
-        run: |
-          mkdir -p node_modules/typebox
-          printf '{"name":"typebox","version":"0.0.0","type":"module","exports":"./index.js"}' > node_modules/typebox/package.json
-          printf 'export const Type = {};\n' > node_modules/typebox/index.js
-          node --experimental-strip-types --test tests/extension/*.test.ts
