@@ -27,7 +27,7 @@ Trusted Publisher.
 
    ```bash
    make ci-local
-   make package-check   # optional; wheel build + package_check.py
+   make ci-full   # optional pre-release: + package-check
    ```
 
 3. Merge the release PR to `main`.

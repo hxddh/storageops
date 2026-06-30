@@ -89,12 +89,13 @@ Edit `storageops_cli/__init__.py`. Be careful with:
 Run these from the repository root before opening a PR:
 
 ```bash
-make ci-local          # mirrors CI validate job (offline)
-make package-check     # wheel build + package_check.py (needs network once)
+make ci-local          # offline PR gate (mirrors CI validate job)
+make ci-full           # optional pre-release: ci-local + package-check
 ```
 
-`make ci-local` runs skill gates, provider/contract/coverage checks, golden-case
-validation, pytest, extension tests, size/routing gates, and baseline eval.
+`make test` is an alias for `make ci-local`. Use `make test-fast` for a quicker
+edit loop (pytest + extension tests + fast `validate` only).
+
 Individual scripts (for targeted debugging):
 
 ```bash

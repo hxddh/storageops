@@ -1,14 +1,16 @@
-.PHONY: help validate validate-full ci-local extension-tests test install dev package-check
+.PHONY: help validate validate-full ci-local ci-full extension-tests test-fast test install dev package-check
 
 help:
 	@echo "StorageOps — Pi Coding Agent extension + skill pack"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make validate       Fast skill/extension/doc gates (no tests run)"
-	@echo "  make ci-local       Mirror CI validate job (offline; run before PR)"
+	@echo "  make ci-local       Offline PR gate (mirrors CI validate job; run before PR)"
 	@echo "  make validate-full  Alias for ci-local"
+	@echo "  make ci-full        ci-local + package-check (pre-release)"
+	@echo "  make test           Alias for ci-local"
+	@echo "  make test-fast      pytest + extension tests + fast validate only"
 	@echo "  make extension-tests Run the TypeScript extension behavioral tests"
-	@echo "  make test           Run pytest, extension tests, and validation"
 	@echo "  make install        Install thin CLI shim (pip install -e .)"
 	@echo "  make dev            One-shot dev setup (venv, Node, storageops install)"
 	@echo "  make package-check  Build wheel and run package_check.py (needs network once)"
@@ -51,10 +53,15 @@ ci-local: validate
 
 validate-full: ci-local
 
-test:
+test: ci-local
+
+test-fast:
 	python3 -m pytest
 	$(MAKE) extension-tests
 	$(MAKE) validate
+
+ci-full: ci-local
+	$(MAKE) package-check
 
 install:
 	pip install -e .

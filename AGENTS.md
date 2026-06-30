@@ -29,15 +29,18 @@ Packaging is the most fragile part of this repo. `storageops_cli.__init__._packa
 
 ```bash
 make validate        # fast skill/extension/doc gates (greps the extension only)
-make ci-local        # mirror CI validate job (offline; run before PR)
+make ci-local        # offline PR gate (mirrors CI validate job)
 make validate-full   # alias for ci-local
+make test            # alias for ci-local
+make test-fast       # pytest + extension tests + fast validate
+make ci-full         # ci-local + package-check (pre-release)
 make dev             # one-shot dev setup (venv, Node, storageops install)
 ```
 
 `make validate` does not exercise the TypeScript extension — the routing,
 provider, and trace logic is only covered by the extension behavioral tests, so
-run `make ci-local` (or `make extension-tests`) when touching
-`storageops_cli/extensions/storageops.ts`. `make package-check`, `install-smoke`,
+run `make ci-local` (or `make test`) when touching
+`storageops_cli/extensions/storageops.ts`. `make ci-full`, `install-smoke`,
 and `diagnosis-smoke` need a wheel build or network/model key — see `docs/release.md`.
 
 ## Editing Skills
