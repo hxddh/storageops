@@ -75,3 +75,24 @@ source repository.
 Use the workflow's manual `workflow_dispatch` preflight before the first real
 release, or whenever release plumbing changes. Manual runs build and validate
 the package but never publish to PyPI.
+
+## Live diagnosis smoke (optional CI)
+
+The `diagnosis-smoke` job in `.github/workflows/ci.yml` runs `scripts/live_smoke.sh`
+when a model key is configured. Without the secret it skips cleanly (job still passes).
+
+| GitHub setting | Purpose |
+| --- | --- |
+| Secret `STORAGEOPS_MODEL_KEY` | Model provider API key (required to enable live smoke) |
+| Var `STORAGEOPS_PROVIDER` | Optional; default `deepseek` |
+| Var `STORAGEOPS_MODEL` | Optional; default `deepseek-v4-pro` |
+
+Locally (after `storageops configure --api-key` or exporting a provider env var):
+
+```bash
+make live-smoke
+```
+
+The script runs `storageops smoke` plus live `--print` diagnosis + eval for three
+golden cases: `throttling-hot-prefix`, `access-denied-cross-account`,
+`signature-clock-skew`.

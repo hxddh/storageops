@@ -6,6 +6,11 @@ cd "$(dirname "$0")/.."
 
 USE_VENV=1
 SKIP_INSTALL=0
+PERSIST_PATH=0
+VERIFY=0
+NVM_BIN=""
+PYTHON_BIN_PREFIX=""
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --user)
@@ -16,10 +21,20 @@ while [[ $# -gt 0 ]]; do
       SKIP_INSTALL=1
       shift
       ;;
+    --persist-path)
+      PERSIST_PATH=1
+      shift
+      ;;
+    --verify)
+      VERIFY=1
+      shift
+      ;;
     -h|--help)
-      echo "Usage: bash scripts/dev_setup.sh [--user] [--skip-storageops-install]"
-      echo "  --user                   pip install -e '.[dev]' to user site (~/.local/bin)"
+      echo "Usage: bash scripts/dev_setup.sh [OPTIONS]"
+      echo "  --user                     pip install -e '.[dev]' to user site (~/.local/bin)"
       echo "  --skip-storageops-install  skip storageops install --force (offline only)"
+      echo "  --persist-path             append PATH hints to ~/.bashrc (idempotent)"
+      echo "  --verify                   run make ci-local after setup"
       exit 0
       ;;
     *)
@@ -31,6 +46,16 @@ done
 
 min_node_major=22
 min_node_minor=19
+STORAGEOPS_PATH_MARKER="# storageops-dev-setup"
+
+persist_path_line() {
+  local line="$1"
+  touch "$HOME/.bashrc"
+  if ! grep -Fq "$line" "$HOME/.bashrc" 2>/dev/null; then
+    echo "$line  $STORAGEOPS_PATH_MARKER" >> "$HOME/.bashrc"
+    echo "[ok] persisted: $line"
+  fi
+}
 
 node_triple() {
   node --version 2>/dev/null | sed -n 's/^v\?\([0-9]*\)\.\([0-9]*\)\.\([0-9]*\).*/\1 \2 \3/p'
@@ -63,6 +88,7 @@ prepend_nvm_node() {
     fi
   done
   if [[ -n "$best" ]]; then
+    NVM_BIN="$best"
     export PATH="$best:$PATH"
     return 0
   fi
@@ -81,11 +107,13 @@ if [[ "$USE_VENV" == 1 ]]; then
   source .venv/bin/activate
   python -m pip install -U pip
   python -m pip install -e '.[dev]'
-  export PATH="$(pwd)/.venv/bin:$PATH"
+  PYTHON_BIN_PREFIX="$(pwd)/.venv/bin"
+  export PATH="${PYTHON_BIN_PREFIX}:$PATH"
 else
   python3 -m pip install -U pip
   python3 -m pip install -e '.[dev]'
-  export PATH="$HOME/.local/bin:$PATH"
+  PYTHON_BIN_PREFIX="$HOME/.local/bin"
+  export PATH="${PYTHON_BIN_PREFIX}:$PATH"
 fi
 
 echo "=== Node.js (need >= ${min_node_major}.${min_node_minor}) ==="
@@ -101,6 +129,16 @@ else
   echo "[ok] Node $(node --version)"
 fi
 
+if [[ "$PERSIST_PATH" == 1 ]]; then
+  echo "=== Persist PATH hints ==="
+  if [[ -n "$PYTHON_BIN_PREFIX" ]]; then
+    persist_path_line "export PATH=\"${PYTHON_BIN_PREFIX}:\$PATH\""
+  fi
+  if [[ -n "$NVM_BIN" ]]; then
+    persist_path_line "export PATH=\"${NVM_BIN}:\$PATH\""
+  fi
+fi
+
 if [[ "$SKIP_INSTALL" != 1 ]]; then
   echo "=== storageops install --force ==="
   storageops install --force
@@ -111,6 +149,13 @@ fi
 echo "=== storageops doctor ==="
 storageops doctor || true
 
+if [[ "$VERIFY" == 1 ]]; then
+  echo "=== make ci-local (--verify) ==="
+  make ci-local
+fi
+
 echo
 echo "Dev setup complete. Before opening a PR, run:"
 echo "  make ci-local"
+echo "With a model key configured, also run:"
+echo "  make live-smoke"
