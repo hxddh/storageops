@@ -14,6 +14,14 @@ make dev
 ensures Node.js >= 22.19 (prefers nvm when the default `node` is too old), runs
 `storageops install --force`, and prints `storageops doctor`.
 
+Optional flags via `DEV_SETUP_FLAGS`:
+
+```bash
+make dev DEV_SETUP_FLAGS="--persist-path --verify"
+```
+
+VS Code / Codespaces: use `.devcontainer/devcontainer.json` (runs `dev_setup.sh --persist-path`).
+
 Manual setup (equivalent):
 
 ```bash
@@ -111,13 +119,16 @@ python3 skills/storageops-eval-golden-cases/scripts/eval_all.py \
 .venv/bin/python -m pytest
 ```
 
-Optional live diagnosis smoke (needs a model provider API key; CI uses
-`STORAGEOPS_MODEL_KEY` — see `.github/workflows/ci.yml` `diagnosis-smoke` job):
+Optional live diagnosis smoke (needs a model provider API key):
 
 ```bash
 storageops configure --provider deepseek --model deepseek-v4-pro --api-key
-storageops smoke --provider deepseek --model deepseek-v4-pro
+make live-smoke
 ```
+
+CI runs the same script when the repo secret **`STORAGEOPS_MODEL_KEY`** is set
+(optional vars: **`STORAGEOPS_PROVIDER`**, **`STORAGEOPS_MODEL`**) — see
+`.github/workflows/ci.yml` `diagnosis-smoke` job and `docs/release.md`.
 
 ## Pull Request Checklist
 

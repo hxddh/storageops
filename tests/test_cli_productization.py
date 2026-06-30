@@ -139,6 +139,7 @@ def test_doctor_json_is_redacted_and_actionable(tmp_path, monkeypatch, capsys):
     assert report["next_action"] == "storageops --print 'hello'"
     assert report["install_mode"] == "independent"
     assert report["api_key_source"] == "environment variable: DEEPSEEK_API_KEY"
+    assert report["live_diagnosis_available"] is True
     # The raw key value must never appear in the machine-readable report.
     assert "sk-supersecretvalue-should-not-leak" not in out
 
@@ -150,6 +151,16 @@ def test_doctor_exit_code_reflects_not_ready(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 1
     assert "Next: storageops configure" in out
+    assert "Live diagnosis" in out
+
+
+def test_doctor_json_live_diagnosis_false_without_key(tmp_path, monkeypatch, capsys):
+    _ready_doctor_env(tmp_path, monkeypatch, key_source=None)
+    rc = storageops_cli.cmd_doctor(as_json=True)
+    report = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert report["live_diagnosis_available"] is False
+    assert report["ready"] is False
 
 
 def test_suggest_node_path_picks_newest_nvm(tmp_path, monkeypatch):

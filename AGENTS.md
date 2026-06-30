@@ -35,6 +35,7 @@ make test            # alias for ci-local
 make test-fast       # pytest + extension tests + fast validate
 make ci-full         # ci-local + package-check (pre-release)
 make dev             # one-shot dev setup (venv, Node, storageops install)
+make live-smoke      # live model smoke + 3 golden-case diagnoses (needs API key)
 ```
 
 `make validate` does not exercise the TypeScript extension — the routing,
@@ -79,9 +80,10 @@ commands live in the `## Validation Commands` section above, `Makefile`, and
   re-run `storageops install` with the nvm Node on `PATH` (needs network for the
   npm Pi install).
 - **Offline vs. live.** All gates and `make ci-local` / `storageops eval --baselines`
-  run fully offline and need no key. A **live diagnosis**
-  (`storageops --print '...'`) and `storageops smoke` require a model provider key
-  (`ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` / `OPENAI_API_KEY`, etc.), which is not
-  configured in this environment.
-- **PR gate.** Run `make ci-local` before opening a PR; it mirrors the CI `validate`
-  job. Use `make dev` for first-time setup (`scripts/dev_setup.sh`).
+  run fully offline and need no key. **Live diagnosis** needs install + Node/Pi + API key;
+  check `storageops doctor --json` field `live_diagnosis_available`, then run
+  `make live-smoke` (3 golden cases + model smoke).
+- **Devcontainer.** Open in VS Code / Codespaces with `.devcontainer/devcontainer.json`
+  (Python 3.12 + Node 22; postCreate runs `dev_setup.sh --persist-path`).
+- **PR gate.** Run `make ci-local` before opening a PR. Use `make dev` for first-time
+  setup (`scripts/dev_setup.sh`; optional `DEV_SETUP_FLAGS="--persist-path --verify"`).

@@ -1052,6 +1052,16 @@ def _doctor_readiness(s: dict) -> tuple[bool, str]:
     return True, "storageops --print 'hello'"
 
 
+def _live_diagnosis_available(s: dict) -> bool:
+    """True when a live model diagnosis can run (install + Node/Pi + API key)."""
+    return bool(
+        (s["independent"] or s["merged"])
+        and s["pi_ok"]
+        and s["node_ok"]
+        and s["key_source"]
+    )
+
+
 def _doctor_report(s: dict, ready: bool, next_action: str) -> dict:
     """Machine-readable, redacted readiness report (never the raw key value)."""
     nv = s["node_triple"]
@@ -1074,6 +1084,7 @@ def _doctor_report(s: dict, ready: bool, next_action: str) -> dict:
         "api_key_conflict": s["conflict"],
         "default_model": s["default_model"],
         "ready": ready,
+        "live_diagnosis_available": _live_diagnosis_available(s),
         "next_action": next_action,
     }
 
@@ -1119,6 +1130,12 @@ def cmd_doctor(as_json: bool = False) -> int:
     _doctor_row("API key", "ok" if key_source else "warn", key_source or "not configured")
     if s["conflict"]:
         _doctor_row("Key conflict", "warn", s["conflict"])
+    live_ok = _live_diagnosis_available(s)
+    _doctor_row(
+        "Live diagnosis",
+        "ok" if live_ok else "warn",
+        "available (make live-smoke)" if live_ok else "needs install + Node/Pi + API key",
+    )
     _doctor_row("Default model", "ok", s["default_model"])
     if marker:
         _doctor_row("Deployed", "ok", f"v{marker.get('package_version', 'unknown')} from {marker.get('package_path', 'unknown')}")

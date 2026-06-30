@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-06-29 — v0.7.2: Live diagnosis smoke & devcontainer
+
+- **`make live-smoke` / `scripts/live_smoke.sh`** — model round-trip plus live
+  diagnosis + eval for three golden cases (`throttling-hot-prefix`,
+  `access-denied-cross-account`, `signature-clock-skew`). Requires a configured
+  API key; reads `STORAGEOPS_MODEL_KEY` or provider env vars when set.
+- **`storageops doctor`** — adds `Live diagnosis` row and `live_diagnosis_available`
+  in `--json` output when install, Node, Pi, and API key are ready.
+- **CI `diagnosis-smoke`** — calls `scripts/live_smoke.sh` (3 cases) when
+  `STORAGEOPS_MODEL_KEY` is configured.
+- **`.devcontainer/devcontainer.json`** — Python 3.12 + Node 22; postCreate runs
+  `dev_setup.sh --persist-path`.
+- **`dev_setup.sh`** — new `--persist-path` (idempotent `~/.bashrc` PATH hints) and
+  `--verify` (runs `make ci-local` after setup).
+
 ## 2026-06-29 — v0.7.1: Dev ergonomics & CI alignment
 
 - **`make ci-local`** mirrors the offline PR gate (provider/contract/coverage checks,

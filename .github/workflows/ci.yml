@@ -132,22 +132,10 @@ jobs:
           python -m build --wheel
           pip install dist/*.whl
           storageops install
-      - name: Run a diagnosis and evaluate it
+      - name: Run live diagnosis smoke (3 golden cases)
         if: steps.gate.outputs.present == 'true'
         env:
-          MODEL_KEY: ${{ secrets.STORAGEOPS_MODEL_KEY }}
-          PROVIDER: ${{ vars.STORAGEOPS_PROVIDER }}
-          MODEL: ${{ vars.STORAGEOPS_MODEL }}
-        run: |
-          set -e
-          CASE=skills/storageops-eval-golden-cases/cases/throttling-hot-prefix
-          INPUT=$(ls "$CASE"/input/* | head -1)
-          storageops --provider "${PROVIDER:-deepseek}" --model "${MODEL:-deepseek-v4-pro}" \
-            --api-key "$MODEL_KEY" --print @"$INPUT" \
-            'Diagnose the root cause and safe next steps' > /tmp/diag.md
-          echo "----- diagnosis output (head) -----"; head -40 /tmp/diag.md
-          test -s /tmp/diag.md
-          # eval_runner exits non-zero on HARD_FAIL (wrong category, low confidence,
-          # missing required evidence, or forbidden/unsafe output).
-          python skills/storageops-eval-golden-cases/scripts/eval_runner.py \
-            --case "$CASE" --output /tmp/diag.md
+          STORAGEOPS_MODEL_KEY: ${{ secrets.STORAGEOPS_MODEL_KEY }}
+          STORAGEOPS_PROVIDER: ${{ vars.STORAGEOPS_PROVIDER }}
+          STORAGEOPS_MODEL: ${{ vars.STORAGEOPS_MODEL }}
+        run: bash scripts/live_smoke.sh

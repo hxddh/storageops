@@ -190,6 +190,7 @@ make test            # alias for ci-local
 make test-fast       # faster loop while editing
 make ci-full         # pre-release: ci-local + package-check
 make dev             # one-shot dev setup (venv, Node, storageops install)
+make live-smoke      # live model smoke + 3 golden-case diagnoses (needs API key)
 ```
 
 `make validate` only *greps* the TypeScript extension; the routing, provider, and
@@ -197,6 +198,9 @@ trace behavior is covered by the extension tests, so run `make ci-local`
 (or `make test`) before changing `storageops_cli/extensions/storageops.ts`.
 `make ci-full`, `install-smoke`, and `diagnosis-smoke` need a wheel build
 or network/model key — see [Release](docs/release.md).
+
+Reproducible dev environment: open `.devcontainer/devcontainer.json` in VS Code
+or Codespaces (`make dev` with `--persist-path` on postCreate).
 
 ## Documentation Map
 

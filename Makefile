@@ -1,4 +1,4 @@
-.PHONY: help validate validate-full ci-local ci-full extension-tests test-fast test install dev package-check
+.PHONY: help validate validate-full ci-local ci-full extension-tests test-fast test install dev live-smoke package-check
 
 help:
 	@echo "StorageOps — Pi Coding Agent extension + skill pack"
@@ -12,11 +12,12 @@ help:
 	@echo "  make test-fast      pytest + extension tests + fast validate only"
 	@echo "  make extension-tests Run the TypeScript extension behavioral tests"
 	@echo "  make install        Install thin CLI shim (pip install -e .)"
-	@echo "  make dev            One-shot dev setup (venv, Node, storageops install)"
+	@echo "  make dev            One-shot dev setup (scripts/dev_setup.sh; DEV_SETUP_FLAGS=...)"
+	@echo "  make live-smoke     Model smoke + 3 golden-case live diagnoses (needs API key)"
 	@echo "  make package-check  Build wheel and run package_check.py (needs network once)"
 	@echo ""
-	@echo "  Note: install-smoke and diagnosis-smoke run in CI only"
-	@echo "        (wheel install / model key) — see docs/release.md."
+	@echo "  Note: install-smoke and diagnosis-smoke run in CI when configured"
+	@echo "        (wheel install / STORAGEOPS_MODEL_KEY) — see docs/release.md."
 
 validate:
 	@echo "=== Validating skills ==="
@@ -67,7 +68,10 @@ install:
 	pip install -e .
 
 dev:
-	@bash scripts/dev_setup.sh
+	@bash scripts/dev_setup.sh $(DEV_SETUP_FLAGS)
+
+live-smoke:
+	@bash scripts/live_smoke.sh
 
 package-check:
 	python3 -m pip install --upgrade pip build
