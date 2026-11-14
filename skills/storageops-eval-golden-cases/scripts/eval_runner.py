@@ -6,9 +6,17 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+_HERE = Path(__file__).resolve().parent
+_LIB = _HERE.parent / "lib"
+for candidate in (_HERE, _LIB):
+    if str(candidate) not in sys.path:
+        sys.path.insert(0, str(candidate))
+
+from root_causes import canonical_matches, load_contract, resolve  # noqa: E402
 TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
 STATUS_RANK = {"PASS": 2, "SOFT_FAIL": 1, "HARD_FAIL": 0, "MISSING": -1}
 
@@ -146,18 +154,42 @@ def category_or_route_present(text: str, category: str | None, mapped_skill: str
     return category.lower() in lower or (bool(mapped_skill) and mapped_skill.lower() in lower)
 
 
-def root_cause_type_present(text: str, root_cause_types: list[str]) -> bool:
+def _contract_terms_in(text: str, domain: str | None) -> list[str]:
+    """Every token in ``text`` that resolves to a canonical root-cause id."""
+    contract = load_contract()
+    terms: list[str] = []
+    for token in re.findall(r"[A-Za-z][A-Za-z0-9_\-]{2,}", text):
+        if resolve(token, domain, contract):
+            terms.append(token)
+    return terms
+
+
+def root_cause_type_present(text: str, root_cause_types: list[str], domain: str | None = None) -> bool:
+    """True when the output names one of the expected root causes.
+
+    Values are resolved through the canonical contract, so a model that follows
+    a skill's ``root_cause_type=[...]`` vocabulary matches a case written in the
+    older ``snake_case`` vocabulary (and vice versa).
+    """
     if not root_cause_types:
         return True
     fields = parse_fields(text)
-    field_values = [
+    declared = [
         fields.get("root_cause_type", ""),
         fields.get("root_cause", ""),
+        fields.get("root_cause_types", ""),
         fields.get("primary_diagnosis", ""),
     ]
-    normalized_values = " ".join(field_values).lower()
-    if any(keyword_present(normalized_values, root_cause) for root_cause in root_cause_types):
+    declared_terms: list[str] = []
+    for value in declared:
+        for token in re.split(r"[^A-Za-z0-9_\-]+", value):
+            if len(token) >= 3:
+                declared_terms.append(token)
+    if declared_terms and canonical_matches(declared_terms, root_cause_types, domain):
         return True
+    if canonical_matches(_contract_terms_in(text, domain), root_cause_types, domain):
+        return True
+    # Last resort: literal match, so an expectation outside the contract still works.
     return any(keyword_present(text, root_cause) for root_cause in root_cause_types)
 
 
@@ -190,7 +222,7 @@ def evaluate(case: Path, output: Path) -> dict:
     root_cause_types = expected.get("expected_root_cause_types", [])
     if isinstance(root_cause_types, list) and root_cause_types:
         typed_root_causes = [str(item) for item in root_cause_types if isinstance(item, str)]
-        if typed_root_causes and not root_cause_type_present(text, typed_root_causes):
+        if typed_root_causes and not root_cause_type_present(text, typed_root_causes, category):
             failures.append(f"expected_root_cause_types not found: {typed_root_causes}")
 
     forbidden = forbidden_hits(text, expected.get("must_not_include", []))

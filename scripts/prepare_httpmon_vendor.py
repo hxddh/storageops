@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VENDOR_DIR = ROOT / "storageops_cli" / "_vendor" / "httpmon"
 DOWNLOAD_TIMEOUT_SECONDS = "60"
-BUNDLED_ASSET_NAMES = {"httpmon-v1.0.2-linux-amd64"}
+BUNDLED_ASSET_NAMES = {"httpmon-v1.4.1-linux-amd64"}
 
 
 def _metadata() -> tuple[str, dict[tuple[str, str], tuple[str, str]]]:

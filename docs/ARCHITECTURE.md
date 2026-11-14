@@ -1,118 +1,124 @@
 # Architecture
 
-StorageOps v0.8.0 is a Pi Coding Agent extension and skill pack.
+StorageOps v2.0.0 is a Pi Coding Agent extension, skill pack, and read-only
+evidence toolkit.
 
 ## Components
 
 ```text
 storageops command
-  -> storageops_cli/__init__.py
-     -> installs files or execs pi
-        -> Pi runtime
-           -> storageops.ts extension
-           -> skills/*.SKILL.md
+  -> storageops_cli/__init__.py       launcher + installer (no agent loop)
+     -> installs the extension package and skills, then execs pi with:
+        --no-builtin-tools --tools +read,+grep,+find,+ls
+        -> Pi 1.x runtime
+           -> extensions/storageops/index.ts  (9 tools + 4 hooks)
+           -> skills/*/SKILL.md               (16 packs)
+           -> contract/root-causes.json       (shared vocabulary)
 ```
 
 ## Python Layer
 
-`storageops_cli/__init__.py` is intentionally thin. It:
+`storageops_cli/__init__.py` is intentionally thin. It checks the Pi version,
+installs the extension directory and skills, prepares the `httpmon` helper,
+manages independent vs merge installs, injects model keys from the environment,
+`auth.json`, or `api-key`, and execs `pi` with the diagnosis tool policy. It does
+not implement an agent loop and never talks to object storage itself.
 
-- checks Pi version,
-- installs extension and skills,
-- manages independent vs merge install paths,
-- injects model provider keys from environment, `auth.json`, or `api-key`,
-- sets `PI_CODING_AGENT_DIR`,
-- execs `pi`.
+## Extension
 
-It does not implement an agent loop.
+`storageops_cli/extensions/storageops/` is one multi-file extension. Pi treats
+every top-level `*.ts` under `extensions/` as its own entry point, so the modules
+live in a subdirectory with `index.ts`; shipping them flat made Pi reject the
+extension and refuse to start (v0.8.0).
 
-## TypeScript Extension
-
-`storageops_cli/extensions/storageops.ts` registers four Pi tools:
-
-| Tool | Purpose |
+| Module | Responsibility |
 | --- | --- |
-| `scan_secrets` | Detect credential-shaped text, redact sensitive values, and return safe fingerprints. |
-| `detect_domain` | Rank likely diagnostic domains, matched signals, and the recommended skill. |
-| `search_memory` | Search prior Pi session metadata/JSONL with scored, redacted snippets. |
-| `capture_http_trace` | Run one bounded command through httpmon (known commands must be read-only; unknown ones run as bounded observation) and return a sanitized HTTP summary. |
+| `index.ts` | Tool registration, runtime guards, persona. |
+| `probe.ts` | Endpoint / bucket / capability probes; XML → facts. |
+| `sigv4.ts` | SigV4 signing and credential resolution (env or `~/.aws/credentials`). |
+| `diagnosis.ts` | Diagnosis schema, validation, canonical rendering. |
+| `evidence.ts` | Session evidence registry (`ev_N` ids). |
+| `cases.ts` | Redacted case store and search. |
+| `trace.ts` | Bounded httpmon wrapper (HTTP/2, trailers, timing). |
+| `secrets.ts` | Credential redaction. |
+| `routing.ts` | Domain and provider hints. |
+| `memory.ts` | Legacy transcript search (system entries are skipped). |
+| `contract.generated.ts` | Generated from `contract/root-causes.json`; do not edit. |
 
-The first three tools run fully inline in Pi's TypeScript runtime. They are
-bounded and credential-averse: secret scanning caps large inputs, memory search
-redacts returned snippets, and domain detection returns routing hints rather
-than executing any workflow.
-`capture_http_trace` may invoke the external `httpmon` binary, but only through
-a narrow wrapper: no shell, no mutating commands, no body capture, no HAR/record
-files, and no replay. Its validator keeps hard rejections small: explicit write
-methods, clear mutating operation positions, presigned material, and unsafe
-execution wrappers are blocked. Unclassified clients or operations fall back to
-bounded metadata observation with smaller request/time caps instead of being
-rejected merely because StorageOps lacks a dedicated adapter. Host mismatch is
-surfaced as a warning rather than a hard rejection, because endpoint aliases and
-redirects are common in object-storage diagnosis.
+### Tools
 
-The tool *executes* the wrapped command, so it only guarantees no side effects
-for commands it can prove read-only; that is why mutating operations are not
-traced. Write-side failures (a failing PUT/copy, e.g. `BadDigest` or
-`SignatureDoesNotMatch`) are diagnosed from the request's evidence — the server
-error body, the client's own debug dump, and offline recompute — never by
-re-issuing the write. A rejected write trace returns `guidance` pointing at that
-evidence ladder. Read-only trace use is unchanged.
+| Tool | Effect |
+| --- | --- |
+| `probe_endpoint` | DNS, TCP, TLS, HTTP HEAD, latency, clock skew. |
+| `probe_bucket` | Signed GET/HEAD of bucket configuration → structured facts. |
+| `probe_capabilities` | Classifies each S3 API as ok / denied / not configured / unsupported. |
+| `run_analyzer` | Runs one allowlisted Python analyzer, argv only. |
+| `capture_http_trace` | One bounded read-only command through httpmon. |
+| `detect_domain`, `scan_secrets`, `search_cases` | Routing, redaction, case recall. |
+| `submit_diagnosis` | Validates and renders the final diagnosis; records a case. |
 
-`storageops install` automatically prepares a verified `httpmon` helper in
-`~/.storageops/bin/httpmon`. Release wheels carry the gzip-compressed Linux
-amd64 helper used by common cloud VMs; other supported platforms and source
-checkouts can still fall back to a bounded download. The extension also looks in
-the managed location, so merged Pi installs do not need users to edit `PATH`.
+Every probe is GET/HEAD. `probe_bucket` signs with credentials read from the
+environment or the standard shared credentials file and returns only a redacted
+identity label. Nothing in the extension declares a write operation.
 
-## Skills
+### Runtime guards
 
-`skills/` contains 15 `storageops-*` skill packs (13 diagnostic, plus triage and evidence-reporting) plus 1 eval skill pack. Each skill directory has:
+- `input`: credential-shaped values are redacted before the model sees them.
+- `tool_result`: redaction for `read`, `grep`, probes, analyzers, and traces.
+- `tool_call`: blocks `bash`/`edit`/`write` and reads of credential stores when
+  `STORAGEOPS_ENFORCE_READONLY=1` (the launcher sets it).
+- `before_agent_start`: adds the StorageOps persona and evidence-first rule when
+  `STORAGEOPS_MODE=diagnose`.
 
-```text
-SKILL.md
-references/
-scripts/
-templates/
-```
+## Diagnosis Contract
 
-Not every skill has every subdirectory. `SKILL.md` is the runtime instruction contract. References contain compact domain knowledge. Scripts are deterministic helpers used for offline parsing or read-only diagnostics.
+`contract/root-causes.json` is the single source of truth: 15 domains, 106
+root-cause ids, each with aliases for older vocabulary. Skills emit its ids; the
+eval resolves legacy case terms through the same aliases; `submit_diagnosis`
+rejects ids outside the route's domain; `scripts/gen_contract.py` generates the
+extension table and `scripts/root_cause_contract_check.py` fails CI when the four
+copies drift.
+
+`submit_diagnosis` also rejects uncited claims (evidence ids must exist in the
+session), missing falsifiers, and any remediation with `apply_by=agent`.
+
+## Triage Is Advisory
+
+`detect_domain` remains a deterministic hint (signals, provider, allowed root
+causes). The model routes by skill descriptions and is checked by the eval; the
+regex is no longer the only router.
+
+## Quality System
+
+1. `contract/` — one vocabulary for skills, eval, and runtime.
+2. `docs/skill-taxonomy.json` — stable eval categories → primary skills.
+3. `scripts/*_check.py` — contract, output-contract, provider scope, references,
+   version, size, routing gates.
+4. `skills/storageops-eval-golden-cases/` — 50 cases, 49 baselines, scored
+   through the contract resolver.
+5. `scripts/e2e_mock_test.sh` — packaged wheel → install → Pi 1.5.2 with a mock
+   provider: extension loads, tool surface is read-only, a cited diagnosis is
+   accepted, a case is recorded.
 
 ## Install Layout
-
-Independent install:
 
 ```text
 ~/.storageops/
 ├── agent/
 │   ├── settings.json
 │   ├── api-key
-│   ├── extensions/storageops.ts
+│   ├── extensions/storageops/{index.ts,probe.ts,...}
 │   └── sessions/
-└── skills/
+├── skills/                 (16 packs)
+├── cases/                  (recorded diagnoses, 0600)
+├── bin/httpmon             (v1.4.1)
+└── install.json
 ```
-
-Merge install:
-
-```text
-~/.pi/
-├── agent/
-│   ├── settings.json
-│   ├── settings.json.storageops-backup
-│   ├── extensions/storageops.ts
-│   └── sessions/
-└── skills/
-```
-
-## Quality System
-
-The quality system has four layers:
-
-1. `skill-registry.yaml` keeps skill metadata centralized.
-2. `docs/skill-taxonomy.json` maps stable eval categories to primary skills.
-3. `scripts/skill_integrity_check.py` validates metadata, links, tools, taxonomy, golden cases, and size budgets.
-4. `skills/storageops-eval-golden-cases/` stores compact regression cases and eval scripts.
 
 ## Packaging Risk
 
-The source tree keeps canonical skills at repository root and exposes them through `storageops_cli/skills -> ../skills` for packaging. Installer code expects packaged data to expose `skills` next to `storageops_cli`. Any release workflow must verify wheel contents and run `storageops install` from the built distribution.
+The source tree keeps canonical skills at repository root and exposes them to
+packaging through `storageops_cli/skills -> ../skills`; the root-cause contract
+is exposed the same way (`storageops_cli/contract -> ../contract`). Any
+distribution change must rebuild the wheel and run `scripts/package_check.py`,
+which now also fails on loose modules in `extensions/` and on a missing contract.

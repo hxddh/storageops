@@ -1,0 +1,668 @@
+{
+  "version": "2.0",
+  "note": "Single source of truth for root-cause vocabulary. Skills emit these ids in their Output Contract; golden cases accept any listed alias; submit_diagnosis validates against them. scripts/gen_contract.py generates the extension's TS table from this file.",
+  "domains": {
+    "access_log_analysis": {
+      "skill": "storageops-access-log-analysis",
+      "root_causes": [
+        {
+          "id": "error-spike",
+          "aliases": []
+        },
+        {
+          "id": "access-pattern",
+          "aliases": []
+        },
+        {
+          "id": "anomaly",
+          "aliases": []
+        },
+        {
+          "id": "cost-attribution",
+          "aliases": []
+        },
+        {
+          "id": "delete-storm",
+          "aliases": [
+            "delete_storm",
+            "cleanup_job_misconfiguration"
+          ]
+        },
+        {
+          "id": "requester-attribution",
+          "aliases": [
+            "requester_attribution"
+          ]
+        },
+        {
+          "id": "hot-prefix-throttling",
+          "aliases": [
+            "hot_prefix_throttling",
+            "prefix_request_concentration"
+          ]
+        }
+      ]
+    },
+    "bigdata_pipeline": {
+      "skill": "storageops-bigdata-pipeline",
+      "root_causes": [
+        {
+          "id": "committer-race",
+          "aliases": [
+            "committer_race"
+          ]
+        },
+        {
+          "id": "rename-not-atomic",
+          "aliases": [
+            "rename_not_atomic"
+          ]
+        },
+        {
+          "id": "partition-discovery",
+          "aliases": []
+        },
+        {
+          "id": "small-files",
+          "aliases": [
+            "small_file_amplification"
+          ]
+        },
+        {
+          "id": "metadata-overhead",
+          "aliases": [
+            "metadata_overhead"
+          ]
+        },
+        {
+          "id": "connection-pool",
+          "aliases": []
+        },
+        {
+          "id": "table-format",
+          "aliases": []
+        },
+        {
+          "id": "s3guard",
+          "aliases": []
+        }
+      ]
+    },
+    "cli_sdk_behavior": {
+      "skill": "storageops-cli-sdk-diagnosis",
+      "root_causes": [
+        {
+          "id": "tool-bug",
+          "aliases": []
+        },
+        {
+          "id": "tool-version-incompatibility",
+          "aliases": [
+            "tool_sdk_incompatibility"
+          ]
+        },
+        {
+          "id": "misconfiguration",
+          "aliases": []
+        },
+        {
+          "id": "clock-skew",
+          "aliases": [
+            "clock_skew"
+          ]
+        },
+        {
+          "id": "provider-incompatibility",
+          "aliases": [
+            "provider_etag_incompatibility"
+          ]
+        },
+        {
+          "id": "path-mismatch",
+          "aliases": [
+            "wrong_key_path",
+            "object_not_found",
+            "path_mismatch"
+          ]
+        },
+        {
+          "id": "etag-format",
+          "aliases": [
+            "multipart_etag_not_md5",
+            "multipart_etag_format_not_corruption"
+          ]
+        }
+      ]
+    },
+    "consistency_integrity": {
+      "skill": "storageops-data-consistency",
+      "root_causes": [
+        {
+          "id": "client-cache",
+          "aliases": []
+        },
+        {
+          "id": "mount-cache",
+          "aliases": []
+        },
+        {
+          "id": "cdn-cache",
+          "aliases": [
+            "cdn_cache_stale",
+            "cache_layer"
+          ]
+        },
+        {
+          "id": "multipart-not-completed",
+          "aliases": []
+        },
+        {
+          "id": "concurrent-write",
+          "aliases": []
+        },
+        {
+          "id": "etag-format",
+          "aliases": [
+            "multipart_etag_not_md5",
+            "bos_multipart_etag_format",
+            "multipart_etag_format_not_corruption"
+          ]
+        },
+        {
+          "id": "sse-kms-etag",
+          "aliases": []
+        },
+        {
+          "id": "verification-method",
+          "aliases": [
+            "verification_method_error"
+          ]
+        },
+        {
+          "id": "multipart-etag-rechunk",
+          "aliases": [
+            "multipart_etag_rechunk",
+            "etag_format_not_corruption"
+          ]
+        }
+      ]
+    },
+    "cors_configuration": {
+      "skill": "storageops-s3-protocol-compatibility",
+      "root_causes": [
+        {
+          "id": "signature-mismatch",
+          "aliases": [
+            "oss_sigv4_region_mismatch",
+            "sigv4_signing_region_mismatch",
+            "signature_auth",
+            "canonical_request_mismatch"
+          ]
+        },
+        {
+          "id": "clock-skew",
+          "aliases": [
+            "clock_skew"
+          ]
+        },
+        {
+          "id": "header-reordering",
+          "aliases": []
+        },
+        {
+          "id": "missing-api",
+          "aliases": []
+        },
+        {
+          "id": "xml-format",
+          "aliases": []
+        },
+        {
+          "id": "chunked-encoding",
+          "aliases": []
+        },
+        {
+          "id": "payload-hash",
+          "aliases": [
+            "payload_hash_mismatch",
+            "content_encoding_mismatch"
+          ]
+        },
+        {
+          "id": "provider-quirk",
+          "aliases": []
+        },
+        {
+          "id": "cors-rule-missing",
+          "aliases": [
+            "cors_configuration_missing",
+            "missing_cors_configuration",
+            "no_cors_configuration",
+            "cors_rule_missing"
+          ]
+        },
+        {
+          "id": "cors-method-not-allowed",
+          "aliases": [
+            "cors_method_not_allowed",
+            "missing_allowed_method",
+            "cors_configuration_incomplete"
+          ]
+        },
+        {
+          "id": "preflight-denied",
+          "aliases": [
+            "preflight_denied"
+          ]
+        }
+      ]
+    },
+    "s3_protocol_compatibility": {
+      "skill": "storageops-s3-protocol-compatibility",
+      "root_causes": [
+        {
+          "id": "signature-mismatch",
+          "aliases": [
+            "oss_sigv4_region_mismatch",
+            "sigv4_signing_region_mismatch",
+            "signature_auth",
+            "canonical_request_mismatch"
+          ]
+        },
+        {
+          "id": "clock-skew",
+          "aliases": [
+            "clock_skew"
+          ]
+        },
+        {
+          "id": "header-reordering",
+          "aliases": []
+        },
+        {
+          "id": "missing-api",
+          "aliases": []
+        },
+        {
+          "id": "xml-format",
+          "aliases": []
+        },
+        {
+          "id": "chunked-encoding",
+          "aliases": []
+        },
+        {
+          "id": "payload-hash",
+          "aliases": [
+            "payload_hash_mismatch",
+            "content_encoding_mismatch"
+          ]
+        },
+        {
+          "id": "provider-quirk",
+          "aliases": []
+        },
+        {
+          "id": "cors-rule-missing",
+          "aliases": [
+            "cors_configuration_missing",
+            "missing_cors_configuration",
+            "no_cors_configuration",
+            "cors_rule_missing"
+          ]
+        },
+        {
+          "id": "cors-method-not-allowed",
+          "aliases": [
+            "cors_method_not_allowed",
+            "missing_allowed_method",
+            "cors_configuration_incomplete"
+          ]
+        },
+        {
+          "id": "preflight-denied",
+          "aliases": [
+            "preflight_denied"
+          ]
+        }
+      ]
+    },
+    "event_notification": {
+      "skill": "storageops-event-notification",
+      "root_causes": [
+        {
+          "id": "no-config",
+          "aliases": []
+        },
+        {
+          "id": "event-type-mismatch",
+          "aliases": [
+            "event_type_mismatch"
+          ]
+        },
+        {
+          "id": "filter-mismatch",
+          "aliases": [
+            "notification_filter_mismatch",
+            "prefix_mismatch"
+          ]
+        },
+        {
+          "id": "iam-gap",
+          "aliases": []
+        },
+        {
+          "id": "lambda-throttle",
+          "aliases": []
+        },
+        {
+          "id": "target-policy",
+          "aliases": [
+            "target_policy_missing_s3_invoke",
+            "missing_target_permission",
+            "destination_permission"
+          ]
+        }
+      ]
+    },
+    "lifecycle_cost": {
+      "skill": "storageops-lifecycle-cost",
+      "root_causes": [
+        {
+          "id": "min-billable-size",
+          "aliases": [
+            "small_object_ia_size_penalty",
+            "small_object_cost"
+          ]
+        },
+        {
+          "id": "premature-transition",
+          "aliases": [
+            "premature_transition"
+          ]
+        },
+        {
+          "id": "minimum-duration",
+          "aliases": [
+            "minimum_duration_penalty",
+            "minimum_duration_risk"
+          ]
+        },
+        {
+          "id": "orphaned-multipart",
+          "aliases": []
+        },
+        {
+          "id": "noncurrent-bloat",
+          "aliases": []
+        },
+        {
+          "id": "rule-conflict",
+          "aliases": []
+        }
+      ]
+    },
+    "migration_sync": {
+      "skill": "storageops-migration-sync",
+      "root_causes": [
+        {
+          "id": "strategy-mismatch",
+          "aliases": []
+        },
+        {
+          "id": "etag-incompatibility",
+          "aliases": [
+            "cross_provider_etag_mismatch_not_corruption",
+            "multipart_etag_provider_difference",
+            "cross_provider_checksum",
+            "multipart_etag_difference"
+          ]
+        },
+        {
+          "id": "metadata-loss",
+          "aliases": [
+            "metadata_not_preserved",
+            "content_type_mismatch"
+          ]
+        },
+        {
+          "id": "throughput-shortfall",
+          "aliases": []
+        },
+        {
+          "id": "destructive-sync",
+          "aliases": []
+        }
+      ]
+    },
+    "mount_filesystem_workspace": {
+      "skill": "storageops-mount-filesystem-workspace",
+      "root_causes": [
+        {
+          "id": "metadata-amplification",
+          "aliases": [
+            "metadata_amplification"
+          ]
+        },
+        {
+          "id": "posix-mismatch",
+          "aliases": [
+            "posix_semantics"
+          ]
+        },
+        {
+          "id": "cache-coherence",
+          "aliases": [
+            "cache_configuration"
+          ]
+        },
+        {
+          "id": "tool-bug",
+          "aliases": []
+        }
+      ]
+    },
+    "network_endpoint_access": {
+      "skill": "storageops-network-endpoint-access",
+      "root_causes": [
+        {
+          "id": "dns",
+          "aliases": []
+        },
+        {
+          "id": "tcp",
+          "aliases": []
+        },
+        {
+          "id": "tls",
+          "aliases": [
+            "tls_handshake",
+            "tls_certificate_expired",
+            "ssl_verification_failure"
+          ]
+        },
+        {
+          "id": "ca-bundle",
+          "aliases": [
+            "outdated_ca_bundle"
+          ]
+        },
+        {
+          "id": "proxy",
+          "aliases": []
+        },
+        {
+          "id": "mtu",
+          "aliases": []
+        },
+        {
+          "id": "vpc-endpoint",
+          "aliases": [
+            "vpc_endpoint_route_missing",
+            "vpc_endpoint_dns_misconfiguration"
+          ]
+        },
+        {
+          "id": "transport",
+          "aliases": [
+            "middlebox_transport_reset",
+            "connection_reset_path_issue"
+          ]
+        }
+      ]
+    },
+    "performance_throughput": {
+      "skill": "storageops-performance-diagnosis",
+      "root_causes": [
+        {
+          "id": "client",
+          "aliases": [
+            "single_threaded_transfer"
+          ]
+        },
+        {
+          "id": "network",
+          "aliases": [
+            "high_rtt_wan_latency",
+            "tcp_window_too_small"
+          ]
+        },
+        {
+          "id": "service-throttling",
+          "aliases": [
+            "service_side_throttling",
+            "excessive_concurrency",
+            "s3_request_rate_exceeded"
+          ]
+        },
+        {
+          "id": "hot-prefix-throttling",
+          "aliases": [
+            "hot_prefix_throttling",
+            "prefix-hotspot",
+            "prefix_request_concentration"
+          ]
+        },
+        {
+          "id": "multipart",
+          "aliases": []
+        },
+        {
+          "id": "small-files",
+          "aliases": []
+        }
+      ]
+    },
+    "replication_versioning": {
+      "skill": "storageops-replication-versioning",
+      "root_causes": [
+        {
+          "id": "rule-misconfig",
+          "aliases": []
+        },
+        {
+          "id": "dest-versioning-disabled",
+          "aliases": [
+            "replication_destination_versioning_disabled",
+            "destination_versioning_not_enabled",
+            "versioning_not_enabled_destination",
+            "dest_versioning_disabled"
+          ]
+        },
+        {
+          "id": "delete-marker-not-replicated",
+          "aliases": []
+        },
+        {
+          "id": "delete-marker-masking",
+          "aliases": [
+            "delete_marker_masking_versions",
+            "accidental_delete_markers_created",
+            "versioned_delete_without_version_id"
+          ]
+        },
+        {
+          "id": "replication-lag",
+          "aliases": []
+        },
+        {
+          "id": "versioning-state",
+          "aliases": []
+        },
+        {
+          "id": "object-lock-retention",
+          "aliases": []
+        }
+      ]
+    },
+    "security_iam_policy": {
+      "skill": "storageops-security-iam-policy",
+      "root_causes": [
+        {
+          "id": "explicit-deny",
+          "aliases": []
+        },
+        {
+          "id": "missing-allow",
+          "aliases": []
+        },
+        {
+          "id": "cross-account-gap",
+          "aliases": [
+            "cross_account_missing_iam_allow",
+            "cross_account_missing_bucket_grant",
+            "missing_resource_policy_grant"
+          ]
+        },
+        {
+          "id": "kms",
+          "aliases": [
+            "kms_explicit_deny",
+            "cross_account_kms_access"
+          ]
+        },
+        {
+          "id": "vpc-endpoint",
+          "aliases": []
+        },
+        {
+          "id": "public-access-block",
+          "aliases": []
+        },
+        {
+          "id": "credential-leak",
+          "aliases": []
+        },
+        {
+          "id": "iam-policy",
+          "aliases": [
+            "iam_policy"
+          ]
+        },
+        {
+          "id": "bucket-policy",
+          "aliases": [
+            "bucket_policy"
+          ]
+        }
+      ]
+    },
+    "triage": {
+      "skill": "storageops-triage",
+      "root_causes": [
+        {
+          "id": "insufficient-evidence",
+          "aliases": [
+            "insufficient_evidence"
+          ]
+        },
+        {
+          "id": "unknown-root-cause",
+          "aliases": [
+            "unknown_root_cause"
+          ]
+        }
+      ]
+    }
+  }
+}

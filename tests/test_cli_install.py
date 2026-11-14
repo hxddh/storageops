@@ -221,8 +221,8 @@ def test_cmd_install_does_not_deploy_files_when_pi_is_too_old(tmp_path, monkeypa
 
 def _make_package_data(tmp_path):
     data = tmp_path / "pkg" / "storageops_cli"
-    (data / "extensions").mkdir(parents=True)
-    (data / "extensions" / "storageops.ts").write_text("// extension\n")
+    (data / "extensions" / "storageops").mkdir(parents=True)
+    (data / "extensions" / "storageops" / "index.ts").write_text("// extension\n")
     skill = data / "skills" / "storageops-demo"
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text("# demo\n")

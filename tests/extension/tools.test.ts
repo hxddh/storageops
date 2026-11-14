@@ -12,7 +12,7 @@ import {
   validateTraceCommand,
   traceRejectionGuidance,
   sanitizeResponseHeaders,
-} from "../../storageops_cli/extensions/storageops.ts";
+} from "../../storageops_cli/extensions/storageops/index.ts";
 
 test("redactText redacts AWS key, presigned signature, GCP and Azure keys", () => {
   const r = redactText(
@@ -199,17 +199,38 @@ test("validateTraceCommand rejects curl method variants without blocking host mi
   assert.ok(validateTraceCommand(["curl", "-T", "a.txt", "https://s3.example.com"], "s3.example.com", false).length > 0);
 });
 
-test("validateTraceCommand allows tightly bounded unknown client observation", () => {
-  assert.deepEqual(validateTraceCommand(["python", "check_s3.py", "--bucket", "b"], "s3.example.com", false), []);
-  assert.deepEqual(validateTraceCommand(["node", "probe.js", "--endpoint", "https://s3.example.com"], "s3.example.com", false), []);
-  assert.deepEqual(validateTraceCommand(["ossutil", "stat", "oss://bucket/key"], "oss.example.com", false), []);
-  assert.deepEqual(validateTraceCommand(["coscli", "ls", "cos://bucket/prefix"], "cos.example.com", false), []);
-  assert.deepEqual(validateTraceCommand(["python", "check_s3.py", "--key", "delete"], "s3.example.com", false), []);
-  assert.deepEqual(validateTraceCommand(["node", "probe.js", "https://other.example.com"], "s3.example.com", false), []);
-  assert.ok(validateTraceCommand(["python", "check_s3.py", "--method", "DELETE"], "s3.example.com", false).length > 0);
-  assert.ok(validateTraceCommand(["node", "probe.js", "-XPOST"], "s3.example.com", false).length > 0);
-  assert.deepEqual(validateTraceCommand(["node", "probe.js", "-x", "http://127.0.0.1:8080"], "s3.example.com", false), []);
+test("validateTraceCommand rejects unknown clients unless explicitly opted in", () => {
+  const python = ["python", "check_s3.py", "--bucket", "b"];
+  assert.ok(validateTraceCommand(python, "s3.example.com", false).length > 0, "unknown client rejected by default");
+
+  process.env.STORAGEOPS_ALLOW_UNKNOWN_TRACE = "1";
+  try {
+    assert.deepEqual(validateTraceCommand(python, "s3.example.com", false), []);
+    assert.deepEqual(validateTraceCommand(["node", "probe.js", "-x", "http://127.0.0.1:8080"], "s3.example.com", false), []);
+    assert.ok(validateTraceCommand(["python", "check_s3.py", "--method", "DELETE"], "s3.example.com", false).length > 0);
+    assert.ok(validateTraceCommand(["node", "probe.js", "-XPOST"], "s3.example.com", false).length > 0);
+  } finally {
+    delete process.env.STORAGEOPS_ALLOW_UNKNOWN_TRACE;
+  }
 });
+
+test("validateTraceCommand only allows known read-only client operations", () => {
+  // Read-only verbs are allowed.
+  assert.deepEqual(validateTraceCommand(["rclone", "about", "remote:"], "s3.example.com", false), []);
+  assert.deepEqual(validateTraceCommand(["mc", "du", "alias/bucket"], "s3.example.com", false), []);
+  // Anything outside the allowlist is now rejected instead of silently observed.
+  for (const cmd of [
+    ["rclone", "deletefile", "remote:bucket/key"],
+    ["s3cmd", "del", "s3://bucket/key"],
+    ["s3cmd", "setacl", "--acl-public", "s3://bucket/key"],
+    ["mc", "anonymous", "set", "public", "local/bucket"],
+    ["mc", "mirror", "--remove", "src/", "local/bucket"],
+    ["rclone", "sync", "remote:a", "remote:b"],
+  ]) {
+    assert.ok(validateTraceCommand(cmd, "s3.example.com", false).length > 0, `${cmd.join(" ")} must be rejected`);
+  }
+});
+
 
 test("validateTraceCommand downgrades unclassified known client commands to observation", () => {
   assert.deepEqual(validateTraceCommand(["rclone", "about", "remote:"], "s3.example.com", false), []);

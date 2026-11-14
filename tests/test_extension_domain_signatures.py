@@ -3,8 +3,8 @@ from pathlib import Path
 
 def _extension_sources() -> str:
     root = Path(__file__).resolve().parents[1]
-    ext_dir = root / "storageops_cli" / "extensions"
-    return "\n".join(p.read_text() for p in sorted(ext_dir.glob("*.ts")))
+    ext_dir = root / "storageops_cli" / "extensions" / "storageops"
+    return "\n".join(p.read_text() for p in sorted(ext_dir.rglob("*.ts")))
 
 
 def test_domain_signatures_use_skill_names_and_cover_routing_domains():

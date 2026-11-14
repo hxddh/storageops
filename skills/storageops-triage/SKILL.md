@@ -22,12 +22,25 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_endpoint
+  - probe_capabilities
+  - probe_bucket
+  - search_cases
 ---
 
 # Triage — First-Contact Classification
 
 Classify the problem domain, assess severity, check evidence completeness, and route to the correct specialist Skill. Do NOT attempt deep diagnosis here — that is for the specialist skill.
+
+## Read-only Evidence
+
+When the user supplies an endpoint or bucket, probe instead of guessing:
+
+- `probe_endpoint(target)` — reachability, TLS, clock skew; turns "network?" into a fact.
+- `probe_capabilities(endpoint, bucket)` — provider and implemented APIs.
+- `probe_bucket(bucket, ops=[...])` once a diagnosis path is plausible.
+
+Every probe returns an `evidence_id`; a later `submit_diagnosis` must cite the ids it relies on.
 
 ## Decision Tree
 
@@ -101,6 +114,7 @@ If the routed specialist skill fails to diagnose, the user may return with enhan
 **Domain**: [primary domain] (confidence: high/medium/low)
 **Severity**: critical | high | medium | low
 **Evidence**: sufficient | partial | insufficient
+**Root Cause Type**: root_cause_type=[insufficient-evidence|unknown-root-cause]
 
 ## Key Observations
 - [error code + tool + pattern]

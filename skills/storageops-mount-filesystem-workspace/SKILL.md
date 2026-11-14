@@ -27,7 +27,10 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_endpoint
+  - probe_bucket
+  - run_analyzer
+  - search_cases
 ---
 
 # Mount & Filesystem Workspace Diagnosis
@@ -35,6 +38,12 @@ recommended_tools:
 Object storage is NOT a POSIX filesystem. Almost every mount issue stems from a semantic mismatch: tools (git, compilers, IDEs) expect POSIX behaviors that object storage doesn't provide natively.
 
 > **Scope boundary:** this skill owns FUSE mount performance (stat/HEAD amplification, cache tuning) and POSIX semantic gaps (rename/lock/mmap/symlink). `storageops-performance-diagnosis` owns network-layer throughput (429/SlowDown, multipart, bandwidth saturation) — route a slow mount caused by raw throughput there. `storageops-data-consistency` owns cache-coherence *correctness* (is the data wrong?); this skill handles cache coherence only as a mount-tuning trade-off (is the data stale because the cache TTL is too high?).
+
+## Read-only Evidence
+
+- `probe_endpoint(target)` — latency and TLS before blaming the mount; a slow mount is often a slow path.
+- `probe_bucket(bucket, ops=["list_objects"])` — object count and size shape; metadata amplification needs the listing distribution.
+- `run_analyzer(analyzer="mount_workload_analyzer.py", ...)` for workload suitability.
 
 ## Decision Tree
 

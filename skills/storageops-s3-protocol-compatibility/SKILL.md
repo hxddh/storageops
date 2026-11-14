@@ -25,8 +25,11 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_endpoint
+  - probe_capabilities
+  - run_analyzer
   - capture_http_trace
+  - search_cases
 ---
 
 # S3 Protocol Compatibility Diagnosis
@@ -34,6 +37,13 @@ recommended_tools:
 Diagnose failures at the S3 wire protocol level. Most issues reduce to: signature mismatch, header encoding, XML body format, or missing API implementation.
 
 > **Scope boundary:** this skill owns the wire protocol — signature (SigV4/SigV2), canonical request and StringToSign, required headers, chunked encoding, XML body schema, CORS, and provider protocol quirks. `storageops-network-endpoint-access` owns DNS/TCP/TLS reachability (connection refused, cert errors, name resolution). `storageops-security-iam-policy` owns identity and permission failures (403/AccessDenied) — a *valid* signature that is *denied* is an IAM problem, not a protocol one.
+
+## Read-only Evidence
+
+- `probe_endpoint(target)` — clock skew (the top cause of `SignatureDoesNotMatch`/`RequestTimeTooSkewed`) and TLS state, measured rather than assumed.
+- `probe_capabilities(endpoint, bucket)` — separates "not permitted" (403) from "not implemented" (501 / `InvalidRequest`) and reports which APIs the endpoint actually serves.
+- `run_analyzer(analyzer="parse_sigv4_error.py", ...)` on saved error XML or debug output.
+- `capture_http_trace` wraps one read-only command only; a failing write is diagnosed from the server error body and the client's own debug dump.
 
 ## Decision Tree
 
@@ -109,7 +119,7 @@ If the root cause is unclear after scope analysis, ask the user: **"Can you prov
 **Route**: storageops-s3-protocol-compatibility
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[signature-mismatch|clock-skew|header-reordering|missing-api|xml-format|chunked-encoding|payload-hash|provider-quirk], affected_layer=[client-sdk|proxy|request-encoding|provider-protocol]
+**Primary Diagnosis**: root_cause_type=[signature-mismatch|clock-skew|header-reordering|missing-api|xml-format|chunked-encoding|payload-hash|provider-quirk|cors-rule-missing|cors-method-not-allowed|preflight-denied], affected_layer=[client-sdk|proxy|request-encoding|provider-protocol]
 
 ## Key Evidence
 - Error: [code + message]; signature version: [v2/v4, if known]

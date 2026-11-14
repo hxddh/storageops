@@ -23,7 +23,9 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_bucket
+  - run_analyzer
+  - search_cases
 ---
 
 # S3 Event Notification Diagnosis
@@ -31,6 +33,11 @@ recommended_tools:
 S3 events follow a chain: Object action → Notification rule match (event type + prefix/suffix filter) → IAM permissions → Target (Lambda/SQS/SNS/EventBridge). A break at any link stops delivery.
 
 > **Scope boundary:** this skill owns event *delivery* failures — notification rules, event-type/filter matching, and the target's own resource policy (Lambda/SQS/SNS allow for `s3.amazonaws.com`). Identity-side and bucket-policy permission errors (a caller's `AccessDenied`, principal/role/condition problems on the *bucket* policy) belong to `storageops-security-iam-policy`. Tool/SDK-version-specific behavior (an SDK default that suppresses events) routes to `storageops-cli-sdk-diagnosis`.
+
+## Read-only Evidence
+
+- `probe_bucket(bucket, ops=["notification"])` — the actual rules, event types, filters, and target ARNs; "the rule exists" and "the rule matches" are different claims.
+- `run_analyzer(analyzer="notification_config_analyzer.py", ...)` and `notification_target_policy_validator.py` once the rule and target policy are captured.
 
 ## Decision Tree
 

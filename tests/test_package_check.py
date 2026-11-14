@@ -48,7 +48,13 @@ def test_check_names_passes_on_complete_artifact(tmp_path, monkeypatch):
     names = [
         "storageops-a/SKILL.md",
         "storageops-b/SKILL.md",
-        "storageops_cli/extensions/storageops.ts",
+        "storageops_cli/extensions/storageops/index.ts",
+        "storageops_cli/extensions/storageops/probe.ts",
+        "storageops_cli/extensions/storageops/diagnosis.ts",
+        "storageops_cli/extensions/storageops/trace.ts",
+        "storageops_cli/extensions/storageops/secrets.ts",
+        "storageops_cli/extensions/storageops/routing.ts",
+        "storageops_cli/contract/root-causes.json",
         "storageops_cli/_vendor/httpmon/httpmon.tar.gz",
     ]
     assert mod.check_names(names, Path("pkg.whl")) == []
@@ -59,7 +65,13 @@ def test_check_names_flags_wrong_skill_count(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "EXPECTED_SKILLS", 3)
     names = [
         "storageops-a/SKILL.md",
-        "storageops_cli/extensions/storageops.ts",
+        "storageops_cli/extensions/storageops/index.ts",
+        "storageops_cli/extensions/storageops/probe.ts",
+        "storageops_cli/extensions/storageops/diagnosis.ts",
+        "storageops_cli/extensions/storageops/trace.ts",
+        "storageops_cli/extensions/storageops/secrets.ts",
+        "storageops_cli/extensions/storageops/routing.ts",
+        "storageops_cli/contract/root-causes.json",
         "storageops_cli/_vendor/httpmon/httpmon.tar.gz",
     ]
     errors = mod.check_names(names, Path("pkg.whl"))
@@ -74,7 +86,7 @@ def test_check_names_flags_missing_extension(tmp_path, monkeypatch):
         "storageops_cli/_vendor/httpmon/httpmon.tar.gz",
     ]
     errors = mod.check_names(names, Path("pkg.whl"))
-    assert any("missing" in e and "storageops.ts" in e for e in errors)
+    assert any("missing" in e and "storageops/index.ts" in e for e in errors)
 
 
 def test_check_names_flags_missing_httpmon_and_pyc(tmp_path, monkeypatch):
@@ -82,7 +94,13 @@ def test_check_names_flags_missing_httpmon_and_pyc(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "EXPECTED_SKILLS", 1)
     names = [
         "storageops-a/SKILL.md",
-        "storageops_cli/extensions/storageops.ts",
+        "storageops_cli/extensions/storageops/index.ts",
+        "storageops_cli/extensions/storageops/probe.ts",
+        "storageops_cli/extensions/storageops/diagnosis.ts",
+        "storageops_cli/extensions/storageops/trace.ts",
+        "storageops_cli/extensions/storageops/secrets.ts",
+        "storageops_cli/extensions/storageops/routing.ts",
+        "storageops_cli/contract/root-causes.json",
         "storageops_cli/__pycache__/mod.cpython.pyc",
     ]
     errors = mod.check_names(names, Path("pkg.whl"))

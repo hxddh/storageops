@@ -38,7 +38,7 @@ AGENT_DIR = ROOT / "agent"          # PI_CODING_AGENT_DIR
 BIN_DIR = ROOT / "bin"
 PI_DEFAULT = Path.home() / ".pi"
 PI_DEFAULT_AGENT = PI_DEFAULT / "agent"
-MIN_PI_VERSION = "0.78.0"
+MIN_PI_VERSION = "1.0.0"
 # Pi 0.78+ declares engines node >= 22.19.0; on older Node, npm installs an
 # incompatible legacy Pi that StorageOps rejects, so check Node before installing.
 MIN_NODE_VERSION = (22, 19, 0)
@@ -46,18 +46,18 @@ REQUIRED_API_KEYS = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"]
 PYPI_JSON_URL = "https://pypi.org/pypi/storageops/json"
 PI_NPM_PACKAGE = "@earendil-works/pi-coding-agent"
 PI_NPM_URL = "https://registry.npmjs.org/@earendil-works%2Fpi-coding-agent/latest"
-HTTPMON_VERSION = "v1.0.2"
+HTTPMON_VERSION = "v1.4.1"
 HTTPMON_BASE_URL = f"https://github.com/hxddh/https-traffic-inspector/releases/download/{HTTPMON_VERSION}"
 HTTPMON_ASSETS = {
-    ("linux", "x86_64"): ("httpmon-v1.0.2-linux-amd64", "0ff838fc6eb9fd19c10185d5ce789e54b972291723ed4077e7c8954c920d669c"),
-    ("linux", "amd64"): ("httpmon-v1.0.2-linux-amd64", "0ff838fc6eb9fd19c10185d5ce789e54b972291723ed4077e7c8954c920d669c"),
-    ("linux", "aarch64"): ("httpmon-v1.0.2-linux-arm64", "43dd49804ca3d235a339349a080eb32e9054a2daa1811fbdf002cc391a3a173d"),
-    ("linux", "arm64"): ("httpmon-v1.0.2-linux-arm64", "43dd49804ca3d235a339349a080eb32e9054a2daa1811fbdf002cc391a3a173d"),
-    ("darwin", "x86_64"): ("httpmon-v1.0.2-macos-amd64", "45fb0e2e97a4264ef4b0ce04b97acc6fdfb6f58d022261fd314d71e6141f1fde"),
-    ("darwin", "amd64"): ("httpmon-v1.0.2-macos-amd64", "45fb0e2e97a4264ef4b0ce04b97acc6fdfb6f58d022261fd314d71e6141f1fde"),
-    ("darwin", "arm64"): ("httpmon-v1.0.2-macos-arm64", "dc849b83fd7dd5e7336ad8d86944fa4b7cfccc2398733d8a8aae9e1f607d1874"),
-    ("windows", "amd64"): ("httpmon-v1.0.2-windows-amd64.exe", "c650807a927f96c5695272a1d0435e38d0ca9b37193324f59e24bb67cdf8fa88"),
-    ("windows", "x86_64"): ("httpmon-v1.0.2-windows-amd64.exe", "c650807a927f96c5695272a1d0435e38d0ca9b37193324f59e24bb67cdf8fa88"),
+    ("linux", "x86_64"): ("httpmon-v1.4.1-linux-amd64", "3c5605bbb594f88711bfb93df06ead5b20cf684f26807ef06a64c4158b3042c6"),
+    ("linux", "amd64"): ("httpmon-v1.4.1-linux-amd64", "3c5605bbb594f88711bfb93df06ead5b20cf684f26807ef06a64c4158b3042c6"),
+    ("linux", "aarch64"): ("httpmon-v1.4.1-linux-arm64", "0e1a02a319e6c03d77252239139f13f08f0eb7e6c8940cc459ed81183461f535"),
+    ("linux", "arm64"): ("httpmon-v1.4.1-linux-arm64", "0e1a02a319e6c03d77252239139f13f08f0eb7e6c8940cc459ed81183461f535"),
+    ("darwin", "x86_64"): ("httpmon-v1.4.1-macos-amd64", "01ff6e3ab91ba7a726c1ed470dba3517ee853fb2bfa9a0aa67a29ffe5ebc60f5"),
+    ("darwin", "amd64"): ("httpmon-v1.4.1-macos-amd64", "01ff6e3ab91ba7a726c1ed470dba3517ee853fb2bfa9a0aa67a29ffe5ebc60f5"),
+    ("darwin", "arm64"): ("httpmon-v1.4.1-macos-arm64", "887238e8ee9991ad4f7bb161836371131c6c9b93a282db5164cbd4604a80724f"),
+    ("windows", "amd64"): ("httpmon-v1.4.1-windows-amd64.exe", "bd4c17f69e9524cb1d34337f52689145e30cfcbb75999b45fa919544c7c5425d"),
+    ("windows", "x86_64"): ("httpmon-v1.4.1-windows-amd64.exe", "bd4c17f69e9524cb1d34337f52689145e30cfcbb75999b45fa919544c7c5425d"),
 }
 
 # Pi settings.json content
@@ -131,6 +131,19 @@ def find_httpmon() -> str | None:
         return str(managed)
     found = shutil.which("httpmon")
     return found
+
+
+def _httpmon_version(exe: str | None) -> str | None:
+    """Return the installed httpmon version label, or None when unknown."""
+    if not exe:
+        return None
+    try:
+        result = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=5)
+        text = (result.stdout + result.stderr).strip()
+        match = re.search(r"v?(\d+\.\d+\.\d+)", text)
+        return match.group(1) if match else (text.split()[0] if text else None)
+    except Exception:
+        return None
 
 
 def _httpmon_asset_for_platform() -> tuple[str, str] | None:
@@ -455,7 +468,7 @@ def is_installed(agent_dir: Path | None = None) -> bool:
     ad = agent_dir or AGENT_DIR
     return (
         (ad / "settings.json").exists()
-        and (ad / "extensions" / "storageops.ts").exists()
+        and (ad / "extensions" / "storageops" / "index.ts").exists()
         and _skills_dir_for_agent(ad).is_dir()
     )
 
@@ -737,17 +750,32 @@ def _write_install_marker(data: Path, target_agent: Path, merge: bool) -> None:
 
 
 def _copy_extension(data: Path, dst_agent: Path) -> None:
-    """Copy all StorageOps Pi extension modules to the target agent directory."""
-    ext_src = data / "extensions"
-    ext_dst = dst_agent / "extensions"
-    ext_dst.mkdir(parents=True, exist_ok=True)
-    ts_files = sorted(ext_src.glob("*.ts"))
-    if not any(p.name == "storageops.ts" for p in ts_files):
-        print("  [fail] storageops.ts not found in package extensions/")
+    """Copy the StorageOps extension package (a directory, not loose modules).
+
+    Pi treats every top-level ``*.ts`` in ``extensions/`` as its own extension
+    entry point, so a multi-module extension must live in a subdirectory with an
+    ``index.ts``. Shipping loose modules made Pi reject the whole extension and
+    refuse to start (v0.8.0).
+    """
+    ext_src = data / "extensions" / "storageops"
+    index_src = ext_src / "index.ts"
+    if not index_src.exists():
+        print("  [fail] extensions/storageops/index.ts not found in package")
         sys.exit(1)
-    for src in ts_files:
-        shutil.copy2(src, ext_dst / src.name)
-    print(f"  [ok] extension ({len(ts_files)} files) -> {ext_dst}")
+
+    ext_dst = dst_agent / "extensions" / "storageops"
+    if ext_dst.exists():
+        shutil.rmtree(ext_dst)
+    ext_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(ext_src, ext_dst)
+
+    # Remove the flat layout left by <=0.8.0 so Pi stops loading loose modules.
+    for stale in ("secrets.ts", "routing.ts", "memory.ts", "trace.ts", "storageops.ts"):
+        legacy = dst_agent / "extensions" / stale
+        if legacy.exists():
+            legacy.unlink()
+
+    print(f"  [ok] extension -> {ext_dst}")
 
 
 def _copy_skills(data: Path, dst_agent: Path) -> None:
@@ -1017,6 +1045,7 @@ def _runtime_status() -> dict:
         "expected_skills": _expected_skill_count(),
         "unexpected_skills": _unexpected_skills(skills_dir),
         "httpmon": find_httpmon(),
+        "httpmon_version": _httpmon_version(find_httpmon()),
         "key_source": _configured_key_source(active_agent),
         "conflict": _key_conflict(active_agent),
         "default_model": _default_model_label(active_agent),
@@ -1036,7 +1065,8 @@ def cmd_version():
     print(f"  deployed version    : {s['marker'].get('package_version') or 'unknown'}")
     print(f"  latest PyPI         : {s['latest'] or 'unknown'}")
     print(f"  default model       : {s['default_model']}")
-    print(f"  httpmon             : {s['httpmon'] or 'not found'}")
+    httpmon_version = s.get("httpmon_version")
+    print(f"  httpmon             : {s['httpmon'] or 'not found'}" + (f" (v{httpmon_version})" if httpmon_version else ""))
     print(f"  api key             : {s['key_source'] or 'not configured'}")
     print(f"  independent install : {'yes' if s['independent'] else 'no'}  ({AGENT_DIR})")
     print(f"  merged install      : {'yes' if s['merged'] else 'no'}  ({PI_DEFAULT_AGENT})")
@@ -1085,6 +1115,7 @@ def _doctor_report(s: dict, ready: bool, next_action: str) -> dict:
         "expected_skills": s["expected_skills"],
         "unexpected_skills": s.get("unexpected_skills") or [],
         "httpmon": s["httpmon"] or None,
+        "httpmon_version": s.get("httpmon_version"),
         "api_key_source": s["key_source"],
         "api_key_conflict": s["conflict"],
         "default_model": s["default_model"],
@@ -1131,7 +1162,14 @@ def cmd_doctor(as_json: bool = False) -> int:
     if unexpected:
         skills_detail += f"  -- stale: {', '.join(unexpected[:5])} (run storageops install --force)"
     _doctor_row("Skills", "ok" if skills_ok else "warn", skills_detail)
-    _doctor_row("httpmon", "ok" if s["httpmon"] else "warn", s["httpmon"] or "not found")
+    httpmon_version = s.get("httpmon_version")
+    httpmon_ok = bool(s["httpmon"]) and bool(httpmon_version) and _version_tuple(httpmon_version) >= (1, 4, 0)
+    httpmon_detail = s["httpmon"] or "not found"
+    if httpmon_version:
+        httpmon_detail += f" (v{httpmon_version})"
+    if s["httpmon"] and not httpmon_ok:
+        httpmon_detail += "  -- v1.4+ needed to see HTTP/2 trailers; run storageops install --force"
+    _doctor_row("httpmon", "ok" if httpmon_ok else "warn", httpmon_detail)
     _doctor_row("API key", "ok" if key_source else "warn", key_source or "not configured")
     if s["conflict"]:
         _doctor_row("Key conflict", "warn", s["conflict"])
@@ -1363,6 +1401,28 @@ def cmd_help():
     _no_key_hint(AGENT_DIR)
 
 
+def _has_tool_flag(args: list[str]) -> bool:
+    """True when the user chose their own tool set; StorageOps then stays out of it."""
+    for arg in args:
+        if arg in ("--tools", "-t", "--exclude-tools", "-xt", "--no-tools", "-nt", "--no-builtin-tools", "-nbt"):
+            return True
+        if arg.startswith(("--tools=", "--exclude-tools=")):
+            return True
+    return False
+
+
+def _diagnose_flags(args: list[str]) -> list[str]:
+    """Flags that make a diagnosis session read-only and StorageOps-shaped.
+
+    ``--no-builtin-tools`` drops bash/edit/write, ``+read,+grep,+find,+ls`` adds
+    the read-only built-ins back alongside the extension tools. The system prompt
+    is patched by the extension's ``before_agent_start`` hook.
+    """
+    if _has_tool_flag(args):
+        return []
+    return ["--no-builtin-tools", "--tools", "+read,+grep,+find,+ls"]
+
+
 def main():
     args = sys.argv[1:]
 
@@ -1415,5 +1475,7 @@ def main():
         print()
 
     os.environ["PI_CODING_AGENT_DIR"] = str(agent_dir)
+    os.environ.setdefault("STORAGEOPS_MODE", "diagnose")
+    os.environ.setdefault("STORAGEOPS_ENFORCE_READONLY", "1")
     _prepend_storageops_bin_to_path()
-    os.execvp(pi, [pi] + args)
+    os.execvp(pi, [pi] + _diagnose_flags(args) + args)

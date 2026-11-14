@@ -27,7 +27,9 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_bucket
+  - run_analyzer
+  - search_cases
 ---
 
 # Access Log Analysis
@@ -35,6 +37,11 @@ recommended_tools:
 Analyze object storage server access logs to identify error patterns, traffic profiles, anomaly spikes, and cost attribution. All major cloud providers deliver access logs in structured formats (CSV, JSON, or space-delimited).
 
 > **Scope boundary:** this skill owns log parsing and traffic/anomaly analysis. `storageops-security-iam-policy` owns 403/401 permission root-cause (policy/ACL evaluation); `storageops-lifecycle-cost` owns request- and storage-cost attribution. Surface the access-pattern evidence here, then route permission or cost decisions to those skills.
+
+## Read-only Evidence
+
+- `run_analyzer(analyzer="parse_access_log.py", args=["--by-prefix","3","<log>"])` — request/error/requester aggregation; never eyeball a large log or claim a percentage without the parser.
+- `probe_bucket(bucket, ops=["cors","lifecycle","versioning"])` when the log pattern points at configuration rather than traffic.
 
 ## Decision Tree
 
@@ -132,7 +139,7 @@ If the log analysis identifies a pattern but the root cause is unclear: **"Can y
 **Provider**: AWS S3 | BOS | OSS | COS
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[error-spike|access-pattern|anomaly|cost-attribution], affected_layer=[requester|credential|operation-mix|traffic-volume]
+**Primary Diagnosis**: root_cause_type=[error-spike|access-pattern|anomaly|cost-attribution|delete-storm|requester-attribution|hot-prefix-throttling], affected_layer=[requester|credential|operation-mix|traffic-volume]
 
 ## Key Evidence
 - Time range: [start — end UTC]

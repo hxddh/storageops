@@ -25,7 +25,9 @@ def _count_source_skills() -> int:
 
 
 EXPECTED_SKILLS = _count_source_skills()
-EXTENSION_PATH = "storageops_cli/extensions/storageops.ts"
+EXTENSION_PATH = "storageops_cli/extensions/storageops/index.ts"
+EXTENSION_DIR = "storageops_cli/extensions/storageops/"
+CONTRACT_PATH = "storageops_cli/contract/root-causes.json"
 HTTPMON_VENDOR_PREFIX = "storageops_cli/_vendor/httpmon/"
 EXPECTED_HTTPMON_VENDOR_ASSETS = 1
 
@@ -63,6 +65,22 @@ def check_names(names: list[str], artifact: Path) -> list[str]:
             f"{artifact.name}: expected {EXPECTED_HTTPMON_VENDOR_ASSETS} bundled httpmon assets, "
             f"found {httpmon_vendor_count}"
         )
+    extension_modules = [n for n in names if EXTENSION_DIR in n and n.endswith(".ts")]
+    if len(extension_modules) < 6:
+        errors.append(
+            f"{artifact.name}: expected the multi-file extension under {EXTENSION_DIR}, found {len(extension_modules)} .ts files"
+        )
+    flat_modules = [
+        n
+        for n in names
+        if n.startswith("storageops_cli/extensions/") and n.endswith(".ts") and EXTENSION_DIR not in n
+    ]
+    if flat_modules:
+        errors.append(
+            f"{artifact.name}: loose modules in extensions/ make Pi reject the extension: {sorted(flat_modules)}"
+        )
+    if not any(n.endswith(CONTRACT_PATH) for n in names):
+        errors.append(f"{artifact.name}: missing {CONTRACT_PATH}")
     if pycache_count:
         errors.append(f"{artifact.name}: contains {pycache_count} pyc/__pycache__ entries")
     return errors

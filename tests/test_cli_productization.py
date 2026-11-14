@@ -20,7 +20,8 @@ def _installed_agent(root):
     skills = root / "skills"
     (agent_dir / "extensions").mkdir(parents=True)
     (agent_dir / "settings.json").write_text("{}")
-    (agent_dir / "extensions" / "storageops.ts").write_text("// ext\n")
+    (agent_dir / "extensions" / "storageops").mkdir(parents=True)
+    (agent_dir / "extensions" / "storageops" / "index.ts").write_text("// ext\n")
     (skills / "storageops-demo").mkdir(parents=True)
     return agent_dir
 

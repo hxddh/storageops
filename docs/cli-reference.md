@@ -19,7 +19,7 @@ Independent mode writes:
 
 ```text
 ~/.storageops/agent/settings.json
-~/.storageops/agent/extensions/storageops.ts
+~/.storageops/agent/extensions/storageops/index.ts
 ~/.storageops/skills/
 ```
 
@@ -27,9 +27,13 @@ Merge mode writes:
 
 ```text
 ~/.pi/agent/settings.json
-~/.pi/agent/extensions/storageops.ts
+~/.pi/agent/extensions/storageops/index.ts
 ~/.pi/skills/
 ```
+
+Read-only enforcement belongs to the `storageops` launcher: a merge install adds
+the tools and skills to Pi, but a plain `pi` session keeps whatever tool policy
+that config already had. Use `storageops` when you want the diagnose policy.
 
 The installer backs up merged settings to `settings.json.storageops-backup`.
 Before copying files, it prints the local StorageOps package version, package
@@ -41,8 +45,8 @@ from the older local package. Deployment provenance is written to
 ## `storageops --version`
 
 ```text
-StorageOps v0.8.0  (pi: 0.78.0)
-  httpmon             : /root/.storageops/bin/httpmon
+StorageOps v2.0.0  (pi: 1.5.2)
+  httpmon             : /root/.storageops/bin/httpmon (v1.4.1)
   api key             : api-key file
   independent install : yes  (~/.storageops/agent)
   merged install      : no   (~/.pi/agent)
@@ -173,30 +177,40 @@ above.
 
 ## Diagnostic Tools
 
-StorageOps registers a small Pi tool surface:
+A `storageops` diagnosis session runs Pi with `--no-builtin-tools --tools
++read,+grep,+find,+ls`: no `bash`, `edit`, or `write`. Passing your own tool
+flags opts out of that. The extension registers:
 
-| Tool | Default posture |
+| Tool | Posture |
 | --- | --- |
-| `scan_secrets` | Inline value-level redaction of credential-shaped text. |
-| `detect_domain` | Inline routing hint with matched signals and recommended skill. |
-| `search_memory` | Read-only search of scoped prior sessions with redacted snippets. |
-| `capture_http_trace` | Bounded httpmon wrapper: known commands must be read-only; unknown commands run as bounded observation (still executed). |
+| `scan_secrets` | Value-level redaction; returns fingerprints, never raw secrets. |
+| `detect_domain` | Routing hint, canonical root-cause ids for the skill, provider hint. |
+| `probe_endpoint` | DNS/TCP/TLS/HTTP measurements and clock skew. Read-only. |
+| `probe_bucket` | Signed, read-only bucket configuration (policy, CORS, lifecycle, replication, notifications, SSE, ACL, versioning…). |
+| `probe_capabilities` | Which APIs the endpoint implements: ok / denied / not configured / unsupported. |
+| `run_analyzer` | One allowlisted Python analyzer, argv only, no shell. |
+| `capture_http_trace` | Bounded httpmon wrapper; mutating commands are rejected. |
+| `submit_diagnosis` | Validated, evidence-cited final report; records a case. |
+| `search_cases` | Search recorded diagnoses (not transcripts). |
 
 The inline tools are intentionally small. `scan_secrets` returns line/column,
 type, length, fingerprint, bounded redacted text, and no raw secret preview.
 `detect_domain` returns ranked domains, matched signals, a recommended skill,
-an ambiguity flag, and a best-effort storage **provider**
+the skill's `allowed_root_causes`, an ambiguity flag, and a best-effort storage
+**provider**
 (aws/bos/oss/cos/gcs/azure/obs/minio) detected from the endpoint host, vendor
 header prefixes, or CLI — with a pointer to that provider's quirks reference — so
 provider-specific behavior is applied even when the user never names the
-provider. The provider is a hint to verify, not a fact. `search_memory` tokenizes
-the query, scores summary/JSONL matches, caps result count at 10, and redacts
-returned snippets.
+provider. The provider is a hint to verify, not a fact. `search_cases` scores the
+structured fields of recorded diagnoses (root cause, route, provider, mechanism,
+falsifiers) and returns redacted snippets.
 
 `capture_http_trace` is intentionally not a general httpmon interface. It
-requires a `filter_host`, rejects shell commands, rejects mutating object-storage
-operations, keeps `capture_body=false`, does not write HAR or record files, and
-does not replay requests. Its output is a sanitized summary of method, host,
+requires a `filter_host`, rejects shell commands, rejects any known client
+operation outside the read-only allowlist, keeps `capture_body=false`, does not
+write HAR or record files, and does not replay requests. Unknown clients are
+rejected unless `STORAGEOPS_ALLOW_UNKNOWN_TRACE=1`; self-signed internal
+endpoints need `STORAGEOPS_HTTPMON_INSECURE=1`. Its output is a sanitized summary of method, host,
 path template, status, signing shape, S3 error code, and **sanitized response
 headers** (diagnostic metadata passes through; cookie/auth header values are
 masked; redirect targets are stripped of presigned signatures).

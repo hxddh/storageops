@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { detectProvider } from "../../storageops_cli/extensions/storageops.ts";
+import { detectProvider } from "../../storageops_cli/extensions/storageops/index.ts";
 
 test("detectProvider identifies provider from endpoint/header/CLI and stays conservative", () => {
   // Endpoint host -> high confidence + a quirks reference where one exists.

@@ -14,7 +14,7 @@ TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
 REGISTRY = ROOT / "skill-registry.yaml"
 CASES = ROOT / "skills" / "storageops-eval-golden-cases" / "cases"
 BASELINES = ROOT / "skills" / "storageops-eval-golden-cases" / "baseline-outputs"
-EXTENSION_DIR = ROOT / "storageops_cli" / "extensions"
+EXTENSION_DIR = ROOT / "storageops_cli" / "extensions" / "storageops"
 
 
 def extension_source_text() -> str:

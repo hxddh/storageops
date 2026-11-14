@@ -16,7 +16,9 @@ type TraceResponse = {
   req_id: number;
   status: number;
   headers: Record<string, string>;
+  trailers?: Record<string, string>;
   body?: string;
+  duration_ms?: number;
 };
 
 const MAX_TRACE_REQUESTS = 20;
@@ -55,7 +57,25 @@ const READ_ONLY_AWS_S3API = new Set([
   "get-object-legal-hold",
 ]);
 
-const READ_ONLY_CLIENT_OPS = new Set(["ls", "lsf", "lsd", "stat", "head"]);
+const READ_ONLY_CLIENT_OPS = new Set([
+  "ls",
+  "lsf",
+  "lsd",
+  "lsjson",
+  "lsl",
+  "stat",
+  "head",
+  "about",
+  "du",
+  "cat",
+  "size",
+  "tree",
+  "checksum",
+  "md5sum",
+  "sha1sum",
+  "version",
+  "find",
+]);
 const MUTATING_CLIENT_OPS = new Set([
   "rm",
   "rb",
@@ -329,13 +349,22 @@ export function validateTraceCommand(command: string[], filterHost: string, capt
     }
   } else if (["rclone", "s5cmd", "mc", "bcecmd", "obsutil", "s3cmd"].includes(exe)) {
     const op = firstKnownClientOp(lowered);
-    if (MUTATING_CLIENT_OPS.has(op)) {
+    if (!op) {
+      errors.push(`${exe}: no read-only operation found; name it explicitly (e.g. ls, stat, head)`);
+    } else if (MUTATING_CLIENT_OPS.has(op)) {
       errors.push(`mutating or high-risk operation is not allowed: ${op}`);
-    }
-    if (op && !READ_ONLY_CLIENT_OPS.has(op)) {
+    } else if (!READ_ONLY_CLIENT_OPS.has(op)) {
       errors.push(`${exe} operation is not in the read-only allowlist: ${op}`);
     }
   } else {
+    // Unknown clients run arbitrary code; the trace wrapper only observes them
+    // when the operator explicitly opts in, as the documented escape hatch.
+    if (process.env.STORAGEOPS_ALLOW_UNKNOWN_TRACE !== "1") {
+      errors.push(
+        `unknown client "${exe}" is not traced by default; use a known read-only client, a probe tool, ` +
+          "or set STORAGEOPS_ALLOW_UNKNOWN_TRACE=1 to allow bounded metadata observation",
+      );
+    }
     errors.push(...validateUnknownTraceCommand(command));
   }
 
@@ -514,6 +543,10 @@ export function summarizeTraceRequest(req: TraceRequest, resp?: TraceResponse) {
     has_presigned_query: query.has_presigned_query,
     query_keys: query.query_keys,
     response_headers: sanitizeResponseHeaders(resp?.headers),
+    // Trailers carry the request checksum on aws-chunked uploads (httpmon 1.4+),
+    // which is the first place a "PUT only" checksum mismatch shows up.
+    response_trailers: resp?.trailers ? sanitizeResponseHeaders(resp.trailers) : undefined,
+    duration_ms: resp?.duration_ms,
   };
 }
 
@@ -560,9 +593,11 @@ export async function captureHttpTrace(params: {
 
   return new Promise(resolve => {
     const httpmonBinary = findHttpmonBinary();
+    const extra: string[] = [];
+    if (process.env.STORAGEOPS_HTTPMON_INSECURE === "1") extra.push("--insecure-upstream");
     const httpmon = childProcess.spawn(
       httpmonBinary,
-      ["--format", "json", "--filter", filterHost, ...params.command],
+      ["--format", "json", "--filter", filterHost, ...extra, ...params.command],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
 
@@ -632,7 +667,14 @@ export async function captureHttpTrace(params: {
             req_id: event.req_id,
             status: event.status,
             headers: event.headers || {},
+            trailers: event.trailers || event.resp_trailers || undefined,
             body: event.body || "",
+            duration_ms:
+              typeof event.duration_ms === "number"
+                ? event.duration_ms
+                : typeof event.time_ms === "number"
+                  ? event.time_ms
+                  : undefined,
           });
         }
       } catch {

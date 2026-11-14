@@ -29,7 +29,9 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_bucket
+  - run_analyzer
+  - search_cases
 ---
 
 # Big Data Pipeline Diagnosis
@@ -37,6 +39,11 @@ recommended_tools:
 The most common S3 big-data failures are committer race conditions (V1 default), small-file amplification, and connection pool exhaustion. Always identify the committer type first — it determines the entire diagnosis path.
 
 > **Scope boundary:** this skill owns Spark/Hive/Flink committer, partition-discovery, and table-format issues. `storageops-cli-sdk-diagnosis` owns SDK/Hadoop-version-specific bugs; `storageops-performance-diagnosis` owns general throughput tuning (multipart, concurrency, throttling). Route version-pinned defects and raw throughput complaints to those skills.
+
+## Read-only Evidence
+
+- `probe_bucket(bucket, ops=["lifecycle","list_objects"])` — commit/listing layout and object counts; `_temporary` debris and small-file amplification show up here.
+- `run_analyzer(analyzer="analyze_committer.py", ...)` — committer version and non-atomic rename evidence from the job config/log.
 
 ## Decision Tree
 
@@ -115,7 +122,7 @@ If the diagnosis points to a committer issue:
 **Route**: storageops-bigdata-pipeline
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[committer-race|partition-discovery|small-files|connection-pool|table-format|s3guard], affected_layer=[committer|metadata|filesystem-client|table-format]
+**Primary Diagnosis**: root_cause_type=[committer-race|rename-not-atomic|partition-discovery|small-files|metadata-overhead|connection-pool|table-format|s3guard], affected_layer=[committer|metadata|filesystem-client|table-format]
 
 ## Key Evidence
 - Engine: [Spark 3.x / Hive 3.x]; committer: [V1 / magic / staging / partitioning]

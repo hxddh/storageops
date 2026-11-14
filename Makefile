@@ -1,4 +1,4 @@
-.PHONY: help validate validate-full ci-local ci-full extension-tests test-fast test install dev live-smoke package-check
+.PHONY: help validate validate-full ci-local ci-full extension-tests test-fast test install dev live-smoke package-check contract mock-e2e
 
 help:
 	@echo "StorageOps — Pi Coding Agent extension + skill pack"
@@ -15,6 +15,8 @@ help:
 	@echo "  make dev            One-shot dev setup (scripts/dev_setup.sh; DEV_SETUP_FLAGS=...)"
 	@echo "  make live-smoke     Model smoke + 5 golden-case live diagnoses (needs API key)"
 	@echo "  make package-check  Build wheel and run package_check.py (needs network once)"
+	@echo "  make contract       Regenerate the extension root-cause table from contract/"
+	@echo "  make mock-e2e       End-to-end launch test (wheel -> install -> Pi, needs npm once)"
 	@echo ""
 	@echo "  Note: install-smoke and diagnosis-smoke run in CI when configured"
 	@echo "        (wheel install / STORAGEOPS_MODEL_KEY) — see docs/release.md."
@@ -26,20 +28,22 @@ validate:
 	@python3 scripts/reference_scope_check.py
 	@python3 scripts/version_reference_check.py
 	@echo "=== Validating extension ==="
-	@test -f storageops_cli/extensions/storageops.ts && echo "  OK: extension file exists" || { echo "  FAIL: extension not found"; exit 1; }
-	@grep -q "scan_secrets" storageops_cli/extensions/storageops.ts && echo "  OK: scan_secrets tool" || { echo "  FAIL: scan_secrets missing"; exit 1; }
-	@grep -q "detect_domain" storageops_cli/extensions/storageops.ts && echo "  OK: detect_domain tool" || { echo "  FAIL: detect_domain missing"; exit 1; }
-	@grep -q "search_memory" storageops_cli/extensions/storageops.ts && echo "  OK: search_memory tool" || { echo "  FAIL: search_memory missing"; exit 1; }
-	@grep -q "capture_http_trace" storageops_cli/extensions/storageops.ts && echo "  OK: capture_http_trace tool" || { echo "  FAIL: capture_http_trace missing"; exit 1; }
+	@test -f storageops_cli/extensions/storageops/index.ts && echo "  OK: extension file exists" || { echo "  FAIL: extension not found"; exit 1; }
+	@test -f storageops_cli/extensions/storageops/contract.generated.ts && echo "  OK: contract table present" || { echo "  FAIL: contract.generated.ts missing (run make contract)"; exit 1; }
+	@for tool in scan_secrets detect_domain search_cases probe_endpoint probe_bucket probe_capabilities run_analyzer capture_http_trace submit_diagnosis; do 		grep -q "name: \"$$tool\"" storageops_cli/extensions/storageops/index.ts && echo "  OK: $$tool tool" || { echo "  FAIL: $$tool missing"; exit 1; }; 	done
 	@echo "=== All validations passed ==="
 
 extension-tests:
 	@bash scripts/run_extension_tests.sh
 
 # Mirrors .github/workflows/ci.yml validate job (everything offline).
+contract:
+	python3 scripts/gen_contract.py
+
 ci-local: validate
 	python3 scripts/provider_scope_check.py
 	python3 scripts/contract_check.py
+	python3 scripts/root_cause_contract_check.py
 	python3 scripts/coverage_check.py
 	python3 skills/storageops-eval-golden-cases/scripts/golden_case_validator.py \
 		skills/storageops-eval-golden-cases/cases
@@ -72,6 +76,9 @@ dev:
 
 live-smoke:
 	@bash scripts/live_smoke.sh
+
+mock-e2e:
+	@bash scripts/e2e_mock_test.sh
 
 package-check:
 	python3 -m pip install --upgrade pip build

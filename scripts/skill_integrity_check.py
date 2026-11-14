@@ -21,7 +21,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = ROOT / "skills"
 REGISTRY = ROOT / "skill-registry.yaml"
-EXTENSION = ROOT / "storageops_cli" / "extensions" / "storageops.ts"
+EXTENSION = ROOT / "storageops_cli" / "extensions" / "storageops" / "index.ts"
 EVAL_CASES = SKILLS_DIR / "storageops-eval-golden-cases" / "cases"
 TAXONOMY = ROOT / "docs" / "skill-taxonomy.json"
 MAX_GOLDEN_INPUT_BYTES = 10 * 1024

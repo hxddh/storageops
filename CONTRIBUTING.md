@@ -78,8 +78,9 @@ eval can read intent without relying on prose style.
 
 ### Change the Extension
 
-Edit `storageops_cli/extensions/storageops.ts`. It registers four tools via Pi's
-extension API: `scan_secrets`, `detect_domain`, `search_memory`, and
+Edit `storageops_cli/extensions/storageops/`. It registers nine tools via Pi's
+extension API: the probes, `run_analyzer`, `capture_http_trace`, `scan_secrets`,
+`detect_domain`, `search_cases`, and 
 `capture_http_trace` (the only one that may invoke the external `httpmon` binary,
 through a bounded read-only wrapper).
 

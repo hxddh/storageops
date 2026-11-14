@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { detectDomain } from "../../storageops_cli/extensions/storageops.ts";
+import { detectDomain } from "../../storageops_cli/extensions/storageops/index.ts";
 
 type NegativeCase = {
   name: string;

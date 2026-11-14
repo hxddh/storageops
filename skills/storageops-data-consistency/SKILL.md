@@ -26,7 +26,9 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_bucket
+  - run_analyzer
+  - search_cases
 ---
 
 # Data Consistency Diagnosis
@@ -34,6 +36,12 @@ recommended_tools:
 Object storage (AWS S3, BOS, OSS, COS, GCS) has been **strongly consistent** for core operations since ~2020. If user reports "eventual consistency" issues, the root cause is almost always client-side: caching, ETag confusion, or concurrent write races.
 
 > **Scope boundary:** this skill owns ETag/stale-read/cache-coherence and concurrent-write semantics. `storageops-replication-versioning` owns versioning and cross-region/replication state; `storageops-s3-protocol-compatibility` owns signature and protocol-level mismatches. Route version/replica divergence and protocol/signature errors to those skills.
+
+## Read-only Evidence
+
+- `probe_bucket(bucket, ops=["versioning","list_objects","encryption"])` — versioning state, listing shape, and SSE mode (SSE-KMS changes ETags).
+- `run_analyzer(analyzer="multipart_etag_calculator.py", ...)` — recompute an ETag from part MD5s before calling a difference "corruption".
+- `run_analyzer(analyzer="etag_parser.py", ...)` for the observed ETag shape.
 
 ## Decision Tree
 
@@ -122,7 +130,7 @@ If the root cause is still unclear after Step 5:
 **Route**: storageops-data-consistency
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[client-cache|mount-cache|cdn-cache|multipart-not-completed|concurrent-write|etag-format|sse-kms-etag], affected_layer=[client|mount|cdn|object-store]
+**Primary Diagnosis**: root_cause_type=[client-cache|mount-cache|cdn-cache|multipart-not-completed|concurrent-write|etag-format|sse-kms-etag|verification-method|multipart-etag-rechunk], affected_layer=[client|mount|cdn|object-store]
 
 ## Key Evidence
 - Timeline: write [ts] → read attempt [ts] → stale observed [yes/no, ts]

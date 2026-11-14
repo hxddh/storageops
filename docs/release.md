@@ -26,9 +26,15 @@ Trusted Publisher.
 2. Run the local quality gates:
 
    ```bash
-   make ci-local
-   make ci-full   # optional pre-release: + package-check
+   make contract   # regenerate contract.generated.ts after contract/ changes
+   make ci-local   # offline gates, incl. the root-cause contract check
+   make ci-full    # + wheel build and package_check.py
+   make mock-e2e   # installs the wheel and runs a Pi session with a mock provider
    ```
+
+   `make mock-e2e` is the release blocker for packaging: it is the only check
+   that proves the installed product starts, exposes a read-only tool surface,
+   and accepts a cited diagnosis. v0.8.0 shipped without it and could not start.
 
 3. Merge the release PR to `main`.
 
@@ -43,8 +49,8 @@ release workflow for a specific commit:
    ```bash
    git checkout main
    git pull --ff-only origin main
-   git tag v0.4.57
-   git push origin v0.4.57
+   git tag v2.0.0
+   git push origin v2.0.0
    ```
 
 When using the tag path, the tag version must match `pyproject.toml`. For
@@ -56,8 +62,9 @@ example, tag `v0.4.57` requires `version = "0.4.57"`.
 
 - checks whether the current version already exists on PyPI,
 - verifies the tag version matches `pyproject.toml`,
-- runs `scripts/skill_integrity_check.py` and the full `pytest` suite, so a
-  failing test or broken skill cannot be published,
+- runs `scripts/skill_integrity_check.py`, `scripts/root_cause_contract_check.py`,
+  and the full `pytest` suite, so a failing test, broken skill, or drifted
+  contract cannot be published,
 - prepares verified gzip-compressed `httpmon` helper assets for packaging,
 - builds wheel and source distributions,
 - runs `twine check` on `dist/*`,

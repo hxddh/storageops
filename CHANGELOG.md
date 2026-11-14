@@ -1,5 +1,83 @@
 # Changelog
 
+## 2026-11-14 — v2.0.0: Evidence plane, structured diagnosis, read-only runtime
+
+A deliberate breaking release. v0.8.0 could not start on any Pi version (the
+extension shipped five loose `.ts` modules into Pi's auto-discovery directory, and
+Pi rejects a module without a default export), its eval never exercised a real
+model, and its safety promises were advisory. v2.0 rebuilds the runtime around
+three properties: the agent can look, its conclusions are checkable, and it
+cannot write.
+
+### Breaking
+
+- **Extension is one package directory.** `extensions/storageops/index.ts` plus
+  its modules. `storageops install` removes the flat files left by 0.8.x. Pi
+  requirement raised to **1.0.0**.
+- **Read-only diagnose mode.** `storageops` launches Pi with
+  `--no-builtin-tools --tools +read,+grep,+find,+ls`, so a diagnosis session has
+  no `bash`, `edit`, or `write`. `run_analyzer` replaces shell calls into the
+  Python helpers. Passing your own tool flags opts out.
+- **`search_memory` → `search_cases`.** Transcript grep matched the persisted
+  system prompt on Pi 1.x; diagnoses now record a small, redacted case file that
+  `search_cases` queries.
+- **One root-cause vocabulary (contract v7).** `contract/root-causes.json` is the
+  single source; skills emit its ids, the eval resolves legacy `snake_case` case
+  terms through explicit aliases, and `submit_diagnosis` rejects anything else.
+  Before this, **0 of 50** golden cases could be satisfied by a model that
+  followed a skill's own `root_cause_type=[...]` contract.
+- **httpmon 1.0.2 → 1.4.1.** Enables HTTP/2, response trailers (where aws-chunked
+  checksums live), and TLS verification; `STORAGEOPS_HTTPMON_INSECURE=1` restores
+  the old accept-any-certificate behaviour for self-signed internal endpoints.
+- **Trace allowlist is strict.** Any known client operation outside the
+  read-only list is rejected (`rclone deletefile`, `s3cmd setacl`,
+  `mc anonymous set public`, `find -delete` were allowed in 0.8.0). Unknown
+  clients require `STORAGEOPS_ALLOW_UNKNOWN_TRACE=1`.
+
+### Evidence plane
+
+- `probe_endpoint` — DNS, TCP, TLS (chain, expiry, ALPN), HTTP HEAD, latency, and
+  clock skew measured against the endpoint's `Date` header.
+- `probe_bucket` — read-only bucket configuration with SigV4 signing from the
+  environment or `~/.aws/credentials`: versioning, encryption/SSE-KMS, public
+  access block, policy status and policy, CORS, lifecycle transitions,
+  replication, notifications, ACL grants, ownership, object lock, listing.
+  Returns structured facts plus redacted raw XML; credentials never leave the
+  process.
+- `probe_capabilities` — asks the endpoint which APIs it implements, separating
+  "denied" (403) from "not implemented" (501/InvalidRequest).
+- `run_analyzer` — the 28 shipped Python analyzers behind an allowlist, no shell,
+  argv-only.
+- `capture_http_trace` now surfaces response trailers and per-request timing.
+
+### Structured diagnosis
+
+- `submit_diagnosis` validates at runtime: root cause from the route's contract
+  ids, every evidence id produced by a probe in this session, at least one
+  falsifier, and `apply_by=human` only. It renders the canonical report
+  (Summary / Key Evidence / Remediation / What Would Falsify This) and records a
+  searchable case.
+
+### Runtime safety
+
+- User input and tool output are redacted at the runtime boundary; a diagnosis
+  session never sends credential-shaped strings to the model.
+- `tool_call` blocks write tools and reads of credential stores even if extra
+  flags are passed.
+- The system prompt carries a StorageOps persona and evidence-first rules when
+  launched through `storageops`.
+
+### Quality system
+
+- New gate `scripts/root_cause_contract_check.py`: contract ↔ skills ↔ eval ↔
+  generated TS table must agree.
+- New end-to-end test `scripts/e2e_mock_test.sh` (CI job `e2e`): builds the wheel,
+  installs it, starts Pi 1.5.2 with a mock provider, and asserts the extension
+  loads, the tool surface is read-only, a cited diagnosis is accepted, and a case
+  is recorded. This is the check whose absence let 0.8.0 ship broken.
+- Docs corrected: the live smoke runs 5 cases (not 3), and the extension paths
+  reflect the packaged layout.
+
 ## 2026-06-29 — v0.8.0: Extension modules, eval depth, live smoke rotation
 
 ### Track A — Extension modularization

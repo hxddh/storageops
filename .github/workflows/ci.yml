@@ -97,6 +97,22 @@ jobs:
           test "$(ls "$HOME/.storageops/skills" | grep -c '^storageops-')" -ge 15
           echo "install-smoke OK"
 
+  # End-to-end launch test: builds the wheel, installs it, starts Pi with a mock
+  # provider, and asserts the extension loads, the tool surface is read-only, a
+  # cited diagnosis is accepted, and a case is recorded. No model key needed.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Mock-provider end-to-end test
+        run: bash scripts/e2e_mock_test.sh
+
   # End-to-end diagnosis smoke: proves the product's actual job (a correct
   # diagnosis) end-to-end. Runs ONLY when a model-key secret is configured, so it
   # is a no-op until enabled. To turn it on, set:
@@ -132,7 +148,7 @@ jobs:
           python -m build --wheel
           pip install dist/*.whl
           storageops install
-      - name: Run live diagnosis smoke (3 golden cases)
+      - name: Run live diagnosis smoke (5 golden cases)
         if: steps.gate.outputs.present == 'true'
         env:
           STORAGEOPS_MODEL_KEY: ${{ secrets.STORAGEOPS_MODEL_KEY }}

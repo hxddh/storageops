@@ -23,8 +23,10 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_endpoint
+  - run_analyzer
   - capture_http_trace
+  - search_cases
 ---
 
 # Performance Diagnosis
@@ -32,6 +34,12 @@ recommended_tools:
 Identify the bottleneck layer (client, network, service-side throttling), then apply targeted tuning. All recommendations are manual-only unless labeled safe.
 
 > **Scope boundary:** this skill owns general 429/SlowDown throttling. `storageops-cli-sdk-diagnosis` only covers tool-version-specific 429 behavior (e.g. an SDK default), so route service-side rate limiting here.
+
+## Read-only Evidence
+
+- `probe_endpoint(target)` — RTT, TLS, and clock skew. A 300 ms RTT changes the throughput conclusion more than any client flag.
+- `run_analyzer(analyzer="parse_access_log.py", args=["--by-prefix","3","<log>"])` — per-prefix error/request distribution; the hot-prefix signature is invisible in a flat error count.
+- `run_analyzer(analyzer="throttle_tuning_recommender.py", args=["--rate",...,"--concurrency",...])` — turn observed throttling into safe concurrency and backoff.
 
 ## Decision Tree
 
@@ -99,7 +107,7 @@ If `scripts/throttle_detector.py` is available, run `python3 scripts/throttle_de
 **Route**: storageops-performance-diagnosis
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[client|network|service-throttling|multipart|small-files|prefix-hotspot], affected_layer=[client|network|provider|workload]
+**Primary Diagnosis**: root_cause_type=[client|network|service-throttling|hot-prefix-throttling|multipart|small-files], affected_layer=[client|network|provider|workload]
 
 ## Key Evidence
 - Error codes: [list with count]; timing profile: [TTFB, transfer rate, concurrency]

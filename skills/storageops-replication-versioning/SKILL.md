@@ -24,7 +24,9 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_bucket
+  - run_analyzer
+  - search_cases
 ---
 
 # Replication & Versioning Diagnosis
@@ -32,6 +34,11 @@ recommended_tools:
 Replication issues fall into three categories: configuration (rules not matching), operation (replication failing), and versioning (unexpected object state).
 
 > **Scope boundary:** this skill owns replication rules, versioning state, delete-marker propagation, and object-lock compliance. `storageops-data-consistency` owns read-after-write visibility (a freshly written object not yet visible is consistency, not replication). `storageops-lifecycle-cost` owns the storage cost of noncurrent versions and lifecycle expiration — route "versions are expensive / how do I expire old versions" there.
+
+## Read-only Evidence
+
+- `probe_bucket(bucket, ops=["replication","versioning","object_lock"])` — rule status plus source and destination versioning state; most "replication is broken" reports are destination versioning off.
+- `run_analyzer(analyzer="replication_status_analyzer.py", ...)` once the configuration is captured.
 
 ## Decision Tree
 
@@ -103,7 +110,7 @@ If replication lag persists, ask the user for replication metrics: **"Can you ch
 **Route**: storageops-replication-versioning
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[rule-misconfig|dest-versioning-disabled|delete-marker-not-replicated|replication-lag|versioning-state|object-lock-retention], affected_layer=[source-bucket|dest-bucket|iam-role|replication-pipeline]
+**Primary Diagnosis**: root_cause_type=[rule-misconfig|dest-versioning-disabled|delete-marker-not-replicated|delete-marker-masking|replication-lag|versioning-state|object-lock-retention], affected_layer=[source-bucket|dest-bucket|iam-role|replication-pipeline]
 
 ## Key Evidence
 - Source bucket: [versioning state, replication rules]

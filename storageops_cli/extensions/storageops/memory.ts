@@ -115,7 +115,15 @@ export function searchMemory(query: string, limit: number = 5): MemoryResult[] {
         });
       }
 
-      const content = fs.readFileSync(jsonlPath, "utf8").slice(0, 40_000);
+      // Pi 1.x persists the system message (with every skill description) as the
+      // first entry, so a raw prefix scan matched every session on every token
+      // in the skill list. Index only conversational entries.
+      const rawJsonl = fs.readFileSync(jsonlPath, "utf8");
+      const content = rawJsonl
+        .split(/\r?\n/)
+        .filter(line => line.length > 0 && !/"role"\s*:\s*"system"/.test(line))
+        .join("\n")
+        .slice(0, 40_000);
       const jsonlScore = scoreText(content, tokens);
       if (jsonlScore > 0) {
         const line = content.split(/\r?\n/).find(x => scoreText(x, tokens) > 0) || summary || `Session ${sessionId.slice(0, 8)}...`;

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { detectDomain } from "../../storageops_cli/extensions/storageops.ts";
+import { detectDomain } from "../../storageops_cli/extensions/storageops/index.ts";
 
 // Activate the golden-case corpus as a live routing-regression gate: feed every
 // case's input through detect_domain and check the expected skill is recalled.

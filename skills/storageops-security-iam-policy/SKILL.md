@@ -21,12 +21,22 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_bucket
+  - run_analyzer
+  - search_cases
 ---
 
 # Security, IAM & Permission Diagnosis
 
 Trace the permission evaluation chain to find why access was denied. The S3 authorization model evaluates: **Explicit Deny → SCP (Org) → IAM Policy → Bucket Policy → ACL → Block Public Access**.
+
+## Read-only Evidence
+
+Probe the chain before concluding; every factual claim cites the returned `evidence_id`.
+
+- `probe_bucket(bucket, ops=["policy_status","policy","public_access_block","acl","encryption","ownership"])` — the policy chain as it actually exists (public status, explicit deny, KMS requirement, ACL grants).
+- `run_analyzer(analyzer="cross_account_access_validator.py", args=["--policy","caller.json","--bucket-policy","bucket.json"])` — cross-account chain once both policies are in hand.
+- Credentials come from the environment or `~/.aws/credentials`; never ask the user to paste an AK/SK, and never quote one.
 
 ## Decision Tree
 
@@ -87,7 +97,7 @@ If the user provides a policy JSON document, run `python3 scripts/policy_analyze
 **Route**: storageops-security-iam-policy
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[explicit-deny|missing-allow|cross-account-gap|kms|vpc-endpoint|public-access-block|credential-leak], affected_layer=[identity|bucket-policy|kms|network-policy|credential]
+**Primary Diagnosis**: root_cause_type=[explicit-deny|missing-allow|cross-account-gap|kms|vpc-endpoint|public-access-block|credential-leak|iam-policy|bucket-policy], affected_layer=[identity|bucket-policy|kms|network-policy|credential]
 
 ## Key Evidence
 - Error: [code + message excerpt]

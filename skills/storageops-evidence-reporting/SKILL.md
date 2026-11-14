@@ -21,12 +21,21 @@ trigger_keywords:
   - confidence scoring
 recommended_tools:
   - scan_secrets
-  - search_memory
+  - detect_domain
+  - run_analyzer
+  - search_cases
 ---
 
 # Evidence-Based Reporting
 
 This skill consumes diagnostic output from specialist skills and produces audience-appropriate reports. It does NOT perform diagnosis — it formats and quality-checks existing findings.
+
+## Read-only Evidence
+
+Reports are rendered from a validated diagnosis, not typed by hand:
+
+- `submit_diagnosis` produces the canonical sections and rejects claims that cite no `evidence_id`.
+- `run_analyzer(analyzer="report_contract_validator.py", args=[...])` validates a saved report against the same contract.
 
 ## Decision Tree
 

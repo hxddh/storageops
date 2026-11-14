@@ -6,16 +6,17 @@ This file is for coding agents working in the StorageOps repository.
 
 StorageOps is not a standalone agent runtime. It is:
 
-- a Python installer/launcher,
-- one Pi TypeScript extension,
+- a Python installer/launcher (no agent loop),
+- one Pi TypeScript extension package (`extensions/storageops/`),
 - a root-level `skills/` tree,
+- a shared root-cause contract (`contract/root-causes.json`),
 - deterministic helper and eval scripts.
 
 Pi Coding Agent provides the conversation loop, sessions, model calls, and tool dispatch.
 
 ## High-Risk Area
 
-Packaging is the most fragile part of this repo. `storageops_cli.__init__._package_data_dir()` expects packaged data to expose both `extensions/` and `skills/`. The source tree keeps canonical skills at repository root and exposes them to packaging through `storageops_cli/skills -> ../skills`. Any distribution change must verify an installed wheel can run `storageops install`.
+Packaging is the most fragile part of this repo. `storageops_cli.__init__._package_data_dir()` expects packaged data to expose both `extensions/` and `skills/`. The source tree keeps canonical skills at repository root (`storageops_cli/skills -> ../skills`) and the contract at `storageops_cli/contract -> ../contract`. The extension must stay a **directory** with `index.ts`: Pi treats every top-level `extensions/*.ts` as its own entry point and refuses to start when a module has no default export (the v0.8.0 outage). Any distribution change must build a wheel and run `scripts/package_check.py` **and** `scripts/e2e_mock_test.sh`.
 
 ## Change Workflow
 
@@ -29,19 +30,21 @@ Packaging is the most fragile part of this repo. `storageops_cli.__init__._packa
 
 ```bash
 make validate        # fast skill/extension/doc gates (greps the extension only)
+make contract        # regenerate the extension root-cause table from contract/
 make ci-local        # offline PR gate (mirrors CI validate job)
 make validate-full   # alias for ci-local
 make test            # alias for ci-local
 make test-fast       # pytest + extension tests + fast validate
 make ci-full         # ci-local + package-check (pre-release)
 make dev             # one-shot dev setup (venv, Node, storageops install)
-make live-smoke      # live model smoke + 3 golden-case diagnoses (needs API key)
+make live-smoke      # live model smoke + 5 golden-case diagnoses (needs API key)
+make mock-e2e        # wheel -> install -> Pi with a mock provider (no key needed)
 ```
 
 `make validate` does not exercise the TypeScript extension — the routing,
 provider, and trace logic is only covered by the extension behavioral tests, so
 run `make ci-local` (or `make test`) when touching
-`storageops_cli/extensions/storageops.ts`. `make ci-full`, `install-smoke`,
+`storageops_cli/extensions/storageops/`. `make ci-full`, `install-smoke`,
 and `diagnosis-smoke` need a wheel build or network/model key — see `docs/release.md`.
 
 ## Editing Skills

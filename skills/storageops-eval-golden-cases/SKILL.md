@@ -19,10 +19,15 @@ trigger_keywords:
   - evaluate
 recommended_tools:
   - scan_secrets
-  - search_memory
+  - detect_domain
+  - search_cases
 ---
 
 # Evaluation & Golden Cases
+
+> **Scope boundary:** this is an operator/CI skill. It runs from a checkout
+> (`make ci-local`, `storageops eval --baselines`), not inside a read-only
+> diagnosis session — those have no shell by design.
 
 Golden cases validate that Skills produce correct, safe, evidence-based diagnoses. Each case has known input and expected output. Run against all matching cases after Skill changes.
 

@@ -6,19 +6,29 @@ It is designed for cases like `AccessDenied`, `SlowDown`, `SignatureDoesNotMatch
 
 ## What You Get
 
+StorageOps 2.0 runs diagnoses read-only: the launcher starts Pi with
+`--no-builtin-tools --tools +read,+grep,+find,+ls`, so the agent has no `bash`,
+`edit`, or `write`, and every claim in the final report cites an evidence id from
+a probe it actually ran.
+
 - 15 skill packs — 13 diagnostic (security, protocol compatibility, CLI/SDK behavior, performance, network access, lifecycle cost, replication, mount/workspace usage, migration, data consistency, access logs, big-data pipelines, notifications) plus triage and evidence-reporting — and 1 eval skill pack (16 packs total).
-- 4 Pi extension tools:
+- 9 Pi extension tools, all read-only:
+  - `probe_endpoint` measures DNS, TCP, TLS, HTTP status, latency, and clock skew.
+  - `probe_bucket` reads the bucket's real configuration (policy, CORS, lifecycle, replication, notifications, SSE/KMS, ACL, versioning) with your own credentials.
+  - `probe_capabilities` asks the endpoint which APIs it implements (ok / denied / unsupported).
+  - `run_analyzer` runs one of the shipped Python analyzers without a shell.
+  - `capture_http_trace` wraps one bounded read-only command through httpmon (HTTP/2, trailers, timing).
   - `scan_secrets` redacts credential values and returns safe fingerprints.
-  - `detect_domain` ranks likely diagnostic domains and recommends the next skill.
-  - `search_memory` searches prior Pi sessions with scored, redacted snippets.
-  - `capture_http_trace` wraps one bounded command through httpmon and returns a sanitized HTTP summary. Known storage commands must be read-only; an unknown command falls back to bounded observation but is still executed, so use only side-effect-free commands.
+  - `detect_domain` ranks diagnostic domains, lists the skill's allowed root causes, and hints at the provider.
+  - `search_cases` searches prior diagnoses (structured records, not transcripts).
+  - `submit_diagnosis` validates the final report: cited evidence, contract root cause, falsifiers, manual-only remediation.
 - Deterministic helper scripts for access logs, policy analysis, throttling, ETags, payload hashes, small-object cost, migration estimates, SigV4 parsing, Spark committer config, mount workload suitability, endpoint reachability, and golden-case eval.
 - A regression suite of compact golden cases and size gates to keep the repository lean.
 
 ## Quick Start
 
-**Prerequisites:** Node.js **22.19+**, Python 3.11+, and a model provider key.
-(Pi Coding Agent 0.78+ requires Node 22.19+; on older Node, npm installs an
+**Prerequisites:** Node.js **22.19+**, Python 3.11+, Pi Coding Agent **1.0+**, and
+a model provider key. (Pi requires Node 22.19+; on older Node, npm installs an
 incompatible legacy Pi and `storageops install` will refuse it.)
 
 ```bash
@@ -124,9 +134,11 @@ It writes:
 ├── agent/
 │   ├── settings.json
 │   ├── api-key
-│   ├── extensions/storageops.ts
+│   ├── extensions/storageops/{index.ts, probe.ts, ...}
 │   └── sessions/
-└── skills/
+├── skills/
+├── cases/          # recorded diagnoses (0600)
+└── bin/httpmon     # v1.4.1
 ```
 
 Merge mode installs into an existing Pi setup:
@@ -190,12 +202,15 @@ make test            # alias for ci-local
 make test-fast       # faster loop while editing
 make ci-full         # pre-release: ci-local + package-check
 make dev             # one-shot dev setup (venv, Node, storageops install)
-make live-smoke      # live model smoke + 3 golden-case diagnoses (needs API key)
+make live-smoke      # live model smoke + 5 golden-case diagnoses (needs API key)
+make mock-e2e        # wheel -> install -> Pi with a mock provider (no key needed)
+make contract        # regenerate the extension root-cause table
 ```
 
-`make validate` only *greps* the TypeScript extension; the routing, provider, and
-trace behavior is covered by the extension tests, so run `make ci-local`
-(or `make test`) before changing `storageops_cli/extensions/storageops.ts`.
+`make validate` only *greps* the TypeScript extension; the routing, provider,
+probe, diagnosis, and trace behavior is covered by the extension tests, so run
+`make ci-local` (or `make test`) before changing
+`storageops_cli/extensions/storageops/`.
 `make ci-full`, `install-smoke`, and `diagnosis-smoke` need a wheel build
 or network/model key — see [Release](docs/release.md).
 

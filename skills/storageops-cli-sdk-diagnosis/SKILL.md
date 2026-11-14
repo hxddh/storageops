@@ -24,8 +24,11 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_endpoint
+  - probe_capabilities
+  - run_analyzer
   - capture_http_trace
+  - search_cases
 ---
 
 # CLI & SDK Diagnosis
@@ -33,6 +36,12 @@ recommended_tools:
 Tool-specific known issues: s5cmd 429 handling, rclone multipart ETag incompatibility with BOS, boto3 clock skew, aws CLI signature version defaults. Cross-reference the tool's reference file for detailed patterns.
 
 > **Scope boundary:** general 429/SlowDown throttling belongs to `storageops-performance-diagnosis`. Stay here only for *tool-version-specific* 429 behavior (e.g. an SDK's default concurrency or retry policy); route service-side rate limiting to performance.
+
+## Read-only Evidence
+
+- `probe_capabilities(endpoint, bucket)` — which APIs the endpoint implements; a client "bug" is often a missing or non-standard API.
+- `probe_endpoint(target)` — latency and clock skew that make a healthy client look broken.
+- `run_analyzer` with the matching parser (`parse_s5cmd_log.py`, `parse_sigv4_error.py`, `check_payload_hash.py`) before reading a long log by hand.
 
 ## Decision Tree
 
@@ -108,7 +117,7 @@ If s5cmd `--log debug` output is available, run `python3 scripts/parse_s5cmd_log
 **Tool**: [name] [version]
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[tool-bug|tool-version-incompatibility|misconfiguration|clock-skew|provider-incompatibility], affected_layer=[tool|provider|configuration|environment]
+**Primary Diagnosis**: root_cause_type=[tool-bug|tool-version-incompatibility|misconfiguration|clock-skew|provider-incompatibility|path-mismatch|etag-format], affected_layer=[tool|provider|configuration|environment]
 
 ## Key Evidence
 - Error: [code + message]; command: [sanitized]; tool version: [known/unknown]

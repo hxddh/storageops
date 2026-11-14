@@ -5,7 +5,7 @@ StorageOps is a Pi Coding Agent extension plus skill pack.
 ## What To Know First
 
 - `storageops_cli/__init__.py` installs StorageOps and execs `pi`.
-- `storageops_cli/extensions/storageops.ts` registers `scan_secrets`, `detect_domain`, and `search_memory`.
+- `storageops_cli/extensions/storageops/` registers the read-only probes (`probe_endpoint`, `probe_bucket`, `probe_capabilities`, `run_analyzer`), `capture_http_trace`, `scan_secrets`, `detect_domain`, `search_cases`, and `submit_diagnosis`.
 - `skills/` is the diagnostic system.
 - `scripts/skill_integrity_check.py` is the main repository quality gate.
 - `skills/storageops-eval-golden-cases/` contains the regression corpus.

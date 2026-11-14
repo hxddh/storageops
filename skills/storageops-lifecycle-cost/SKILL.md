@@ -23,7 +23,9 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_bucket
+  - run_analyzer
+  - search_cases
 ---
 
 # Lifecycle & Cost Analysis
@@ -31,6 +33,12 @@ recommended_tools:
 Diagnose why storage costs are higher than expected, and recommend lifecycle strategies. Most cost surprises come from: minimum storage duration penalties, small-file overhead (each file = 1 billable object), and retrieval fees on archived data. Treat class thresholds, minimum durations, and prices as provider-specific assumptions until confirmed.
 
 > **Scope boundary:** this skill owns lifecycle/storage-class structural cost (transitions, minimum durations, minimum billable size, multipart waste). The small-file *throughput* penalty (slow PUT/GET, 429/SlowDown) belongs to `storageops-performance-diagnosis`. Request-level cost attribution derived from access logs (per-prefix LIST/GET counts) belongs to `storageops-access-log-analysis`. Route here when the concern is billed storage, tiering, or lifecycle rules — not transfer speed or log-derived request volume.
+
+## Read-only Evidence
+
+- `probe_bucket(bucket, ops=["lifecycle","versioning","list_objects"])` — the rules and object population that actually exist, not the ones described in the ticket.
+- `run_analyzer(analyzer="lifecycle_rule_simulator.py", ...)` — minimum-duration penalties, small-object amplification, and orphaned multipart risk from real rules.
+- `run_analyzer(analyzer="small_object_analyzer.py", ...)` when the question is cost rather than transition timing.
 
 ## Decision Tree
 
@@ -100,7 +108,7 @@ Run `python3 scripts/small_object_analyzer.py --file <inventory.csv>` to quantif
 **Route**: storageops-lifecycle-cost
 **Confidence**: high | medium | low (depends on inventory completeness)
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[min-billable-size|premature-transition|orphaned-multipart|noncurrent-bloat|rule-conflict], affected_layer=[lifecycle|storage_class|request|multipart]
+**Primary Diagnosis**: root_cause_type=[min-billable-size|premature-transition|minimum-duration|orphaned-multipart|noncurrent-bloat|rule-conflict], affected_layer=[lifecycle|storage_class|request|multipart]
 
 ## Key Evidence
 - Objects: [count], total: [size]; storage-class distribution: [breakdown]

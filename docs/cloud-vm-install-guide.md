@@ -120,7 +120,7 @@ Expected layout:
 ├── agent/
 │   ├── settings.json
 │   ├── api-key
-│   ├── extensions/storageops.ts
+│   ├── extensions/storageops/index.ts
 │   └── sessions/
 ├── bin/
 │   └── httpmon

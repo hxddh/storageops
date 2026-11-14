@@ -23,7 +23,10 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_bucket
+  - probe_capabilities
+  - run_analyzer
+  - search_cases
 ---
 
 # Cross-Provider Migration & Sync
@@ -31,6 +34,12 @@ recommended_tools:
 Choose the right migration strategy based on data volume, network bandwidth, and provider compatibility. The three strategies trade speed vs cost vs complexity.
 
 > **Scope boundary:** this skill owns cross-provider migration planning, sync integrity/checksum verification, and transfer-strategy selection. `storageops-cli-sdk-diagnosis` owns single-tool bugs (an rclone/s5cmd flag or version defect). `storageops-data-consistency` owns ETag semantics and format (what an ETag means and how it is computed); route a multipart ETag-format mismatch surfaced *during migration* here, but the underlying ETag definition there.
+
+## Read-only Evidence
+
+- `probe_bucket` on each side (`versioning`, `encryption`, `location`, `list_objects`) and `probe_capabilities` for each endpoint — provider differences are facts, not assumptions.
+- `run_analyzer(analyzer="migration_cost_estimator.py", ...)` and `sync_log_analyzer.py` for sizing and failure classes.
+- Never re-run a destructive sync to "see what happens"; read the log and compare inventories.
 
 ## Decision Tree
 

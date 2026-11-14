@@ -25,8 +25,10 @@ trigger_keywords:
 recommended_tools:
   - scan_secrets
   - detect_domain
-  - search_memory
+  - probe_endpoint
+  - probe_capabilities
   - capture_http_trace
+  - search_cases
 ---
 
 # Network & Endpoint Access Diagnosis
@@ -34,6 +36,11 @@ recommended_tools:
 Isolate the failing network layer: DNS → TCP → TLS → HTTP → Application. Most object storage connectivity issues are DNS configuration or TLS certificate mismatches.
 
 > **Scope boundary:** this skill owns DNS/TCP/TLS/endpoint reachability (the transport path). `storageops-s3-protocol-compatibility` owns signature and protocol-level mismatches; `storageops-security-iam-policy` owns auth/permission. Once the connection succeeds, route HTTP 400/403 and SignatureDoesNotMatch errors to those skills.
+
+## Read-only Evidence
+
+- `probe_endpoint(target)` — DNS answers, TCP connect time, TLS chain/expiry/ALPN, HTTP status, and clock skew. This is the primary evidence for every diagnosis in this skill; run it before asking the user for `dig`/`openssl` output.
+- `probe_capabilities(endpoint, bucket)` when the endpoint answers but storage calls fail — it separates a network path problem from an unimplemented API.
 
 ## Decision Tree
 
@@ -116,7 +123,7 @@ If DNS/TCP checks are inconclusive, ask the user to run a timing diagnostic: **"
 **Route**: storageops-network-endpoint-access
 **Confidence**: high | medium | low
 **Evidence Quality**: sufficient | partial | insufficient
-**Primary Diagnosis**: root_cause_type=[dns|tcp|tls|proxy|mtu|vpc-endpoint|transport], affected_layer=[dns|tcp|tls|proxy|routing]
+**Primary Diagnosis**: root_cause_type=[dns|tcp|tls|ca-bundle|proxy|mtu|vpc-endpoint|transport], affected_layer=[dns|tcp|tls|proxy|routing]
 
 ## Key Evidence
 - Endpoint: [sanitized URL]; error: [exact error message]
